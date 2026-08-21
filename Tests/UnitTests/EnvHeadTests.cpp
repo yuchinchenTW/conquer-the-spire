@@ -3,6 +3,7 @@
 #include <conquer-the-spire/Cards/CardRegistry.hpp>
 #include <conquer-the-spire/Events/EventLibrary.hpp>
 #include <conquer-the-spire/Monsters/EncounterLibrary.hpp>
+#include <conquer-the-spire/Monsters/MonsterRoster.hpp>
 #include <conquer-the-spire/Rl/SpireEnv.hpp>
 
 #include <algorithm>
@@ -1321,4 +1322,46 @@ TEST_CASE("A boss fight is named after the boss, not whoever stands first")
             CHECK(named != MonsterId::CULTIST);
         }
     }
+}
+
+TEST_CASE("A monster winding up says so, rather than reading as unknown")
+{
+    // The gremlin wizard spends two turns on nothing and then hits for
+    // twenty-five. While it charged its intent was UNKNOWN, which is also
+    // what an intent nobody can see reads as - so the state said the same
+    // thing about a wizard about to fire and a monster whose plans were
+    // simply hidden. There was nothing in it to learn from.
+    std::mt19937 rng(11);
+    Monster wizard = MonsterRoster::Make(MonsterId::GREMLIN_WIZARD, rng);
+
+    CHECK(wizard.GetIntent() == Intent::CHARGING);
+    CHECK(wizard.GetCurrentMove().name == "Charging");
+
+    // And the one it opens the pattern with is not an attack, so the danger
+    // is only readable from the intent.
+    CHECK(wizard.GetCurrentMove().effects.empty() == true);
+
+    // The slime boss winds up for its slam the same way.
+    Monster slime = MonsterRoster::Make(MonsterId::SLIME_BOSS, rng);
+    bool winds = false;
+
+    for (const MonsterMove& move : slime.GetMoves())
+    {
+        if (move.name == "Preparing")
+        {
+            winds = move.intent == Intent::CHARGING;
+        }
+    }
+
+    CHECK(winds == true);
+}
+
+TEST_CASE("The state has a slot for every intent there is")
+{
+    // The one-hot of intents is as wide as the enum, or the widest of them
+    // would fall off the end of the state without anything saying so.
+    const std::vector<float> state = InBattle(3).Observe();
+
+    CHECK(state.size() == SpireEnv::ObservationSize());
+    CHECK(static_cast<std::size_t>(Intent::CHARGING) < 12u);
 }

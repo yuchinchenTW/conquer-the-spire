@@ -266,11 +266,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::GREMLIN_WIZARD:
         {
+            const MonsterMove charging =
+                MM::Nothing("Charging", Intent::CHARGING);
+
             monster = Patterned(
                 id, "Gremlin Wizard", MonsterType::NORMAL, Roll(rng, 21, 25),
-                { MM::Nothing("Charging"), MM::Nothing("Charging"),
-                  MM::Attack("Ultimate Blast", 25), MM::Nothing("Charging"),
-                  MM::Nothing("Charging"), MM::Nothing("Charging"),
+                { charging, charging, MM::Attack("Ultimate Blast", 25),
+                  charging, charging, charging,
                   MM::Attack("Ultimate Blast", 25) },
                 true, 3);
             break;
@@ -297,7 +299,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             // turns have gone by.
             monster = Patterned(id, "Lagavulin", MonsterType::ELITE,
                                 Roll(rng, 109, 111),
-                                { MM::Nothing("Stunned"),
+                                { MM::Nothing("Stunned", Intent::STUN),
                                   MM::Attack("Attack", 18),
                                   MM::Attack("Attack", 18),
                                   MM::Of("Siphon Soul", Intent::DEBUFF,
@@ -352,7 +354,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Patterned(
                 id, "Hexaghost", MonsterType::BOSS, 250,
-                { MM::Nothing("Activate"),
+                { MM::Nothing("Activate", Intent::CHARGING),
                   MM::Of("Divider", Intent::ATTACK,
                          { ME::DamageByPlayerHealth(12, 6) }),
                   MM::Of("Sear", Intent::ATTACK,
@@ -379,7 +381,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 id, "Slime Boss", MonsterType::BOSS, 140,
                 { MM::Of("Goop Spray", Intent::DEBUFF,
                          { ME::AddCard(CardId::SLIMED, 3) }),
-                  MM::Nothing("Preparing"), MM::Attack("Slam", 35),
+                  MM::Nothing("Preparing", Intent::CHARGING), MM::Attack("Slam", 35),
                   MM::Of("Split", Intent::UNKNOWN,
                          { ME::Split(MonsterId::ACID_SLIME_L,
                                      MonsterId::SPIKE_SLIME_L) }) },
@@ -442,7 +444,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                          { ME::Damage(18), ME::Debuff(PowerType::FRAIL, 2) })
                       .Chance(20, 1)
                       .NotFirst(),
-                  MM::Nothing("Stunned") });
+                  MM::Nothing("Stunned", Intent::STUN) });
             monster.AddPower(PowerType::PLATED_ARMOR, 14);
             break;
         }
@@ -454,7 +456,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 { MM::Attack("Peck", 1, 5).Chance(50, 2),
                   MM::Buff("Caw", PowerType::STRENGTH, 1).Chance(30, 1),
                   MM::Attack("Swoop", 12).Chance(20, 1).NotFirst(),
-                  MM::Nothing("Stunned"),
+                  MM::Nothing("Stunned", Intent::STUN),
                   MM::Attack("Headbutt", 3).Chance(0),
                   MM::Buff("Fly", PowerType::FLIGHT, 3).Chance(0) });
             monster.AddPower(PowerType::FLIGHT, 3);
@@ -588,7 +590,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                   MM::Buff("Boost", PowerType::STRENGTH, 3, 9),
                   MM::Attack("Flail", 7, 2),
                   MM::Buff("Boost", PowerType::STRENGTH, 3, 9),
-                  MM::Attack("HYPER BEAM", 45), MM::Nothing("Stunned") },
+                  MM::Attack("HYPER BEAM", 45), MM::Nothing("Stunned", Intent::STUN) },
                 true, 1);
             monster.AddPower(PowerType::ARTIFACT, 3);
             break;
@@ -601,7 +603,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             // maker and beams.
             monster = Patterned(id, "Bronze Orb", MonsterType::NORMAL,
                                 Roll(rng, 52, 58),
-                                { MM::Nothing("Stasis"),
+                                { MM::Nothing("Stasis", Intent::CHARGING),
                                   MM::Of("Support Beam", Intent::DEFEND,
                                          { ME::BlockAlly(12) }),
                                   MM::Attack("Beam", 8) },

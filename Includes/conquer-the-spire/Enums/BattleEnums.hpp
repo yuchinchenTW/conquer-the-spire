@@ -416,7 +416,14 @@ enum class Intent
 
     //! Standing there, and walking away.
     STUN,
-    ESCAPE
+    ESCAPE,
+
+    //! Winding up: the turn is spent on nothing, and something large lands
+    //! when it is done. Kept apart from UNKNOWN, which is what a hidden
+    //! intent reads as - a climber cannot tell those two apart, and neither
+    //! could a learner, so a gremlin wizard charging looked exactly like a
+    //! monster whose plans were simply not on show.
+    CHARGING
 };
 
 //! Where the battle currently is.
