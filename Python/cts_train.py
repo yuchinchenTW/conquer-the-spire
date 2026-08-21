@@ -20,6 +20,7 @@ at zero for a long while; that is the shape of the problem, not a fault.
 import argparse
 import csv
 import os
+import shutil
 import signal
 import sys
 import time
@@ -161,14 +162,22 @@ class Trainer(object):
 
         os.makedirs(self.folder, exist_ok=True)
 
-        # Events for tensorboard, when it is about and wanted.
+        # A climber that is not being carried on leaves nothing of itself
+        # in the way of the one that replaces it. The curve and the choices
+        # are written to as the run goes, so without this the page would draw
+        # one climber's line running into another's, and the tables would go
+        # on showing the old one for as long as the new took to pass its
+        # update count. Set aside rather than thrown away: it is the only
+        # copy of how the last one did.
+        if args.fresh or not self.load():
+            self.setAside()
+
+        # Events for tensorboard, when it is about and wanted. Opened after
+        # the setting aside, so that it writes into an empty folder.
         self.board = None
 
         if SummaryWriter is not None and not args.no_board:
             self.board = SummaryWriter(os.path.join(self.folder, "events"))
-
-        if not args.fresh:
-            self.load()
 
         # An update count is however many more to do this time, so that
         # picking a climb up again does not find itself already finished.
@@ -204,11 +213,42 @@ class Trainer(object):
             self.checkpoint,
         )
 
+    def setAside(self):
+        """Moves the last climber's numbers out of the way, into before-N.
+
+        Not deleted: it is the only record of how that one did, and a curve
+        to measure the next one against.
+        """
+        leftovers = [name for name in ("curve.csv", "picks.csv",
+                                       "progress.html", "progress.png",
+                                       "events")
+                     if os.path.exists(os.path.join(self.folder, name))]
+
+        if not leftovers:
+            return
+
+        for number in range(1, 1000):
+            aside = os.path.join(self.folder, "before-%d" % number)
+
+            if not os.path.exists(aside):
+                break
+        else:
+            return
+
+        os.makedirs(aside, exist_ok=True)
+
+        for name in leftovers:
+            shutil.move(os.path.join(self.folder, name),
+                        os.path.join(aside, name))
+
+        print("the last climber's curve and choices are in %s" % aside)
+
     def load(self):
+        """Returns whether a climber was picked up to carry on."""
         if not os.path.exists(self.checkpoint):
             print("nothing to pick up in %s; starting fresh" % self.folder)
 
-            return
+            return False
 
         kept = torch.load(self.checkpoint, map_location=self.device,
                           weights_only=False)
@@ -222,13 +262,13 @@ class Trainer(object):
                 print("the checkpoint was made for %s=%s and this is %s; "
                       "starting fresh" % (name, kept.get(name), mine))
 
-                return
+                return False
 
         if kept.get("character") != self.args.character:
             print("the checkpoint is a %s; starting fresh for %s" %
                   (kept.get("character"), self.args.character))
 
-            return
+            return False
 
         self.net.load_state_dict(kept["net"])
         self.opt.load_state_dict(kept["opt"])
@@ -243,6 +283,8 @@ class Trainer(object):
 
         print("picked up %s at update %d (%d moves, %d climbs)" %
               (self.args.character, self.updates, self.steps, self.episodes))
+
+        return True
 
     # ------------------------------------------------------------ the loop
     def rollout(self):
