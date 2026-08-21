@@ -68,6 +68,12 @@ enum class LogEntry
     CURSE_CHOSEN,
     CURSE_REFUSED,
 
+    //! A fight walked into. \p id is the monster leading it and \p extra its
+    //! MonsterType, so a fight that was lost can be told from one that was
+    //! never met: FIGHT_WON says only that one was won, and a climb that
+    //! died left nothing at all behind to say what killed it.
+    FIGHT_STARTED,
+
     //! How many kinds of line there are, which is what anything reading the
     //! log from outside counts against so that the two cannot drift apart.
     COUNT

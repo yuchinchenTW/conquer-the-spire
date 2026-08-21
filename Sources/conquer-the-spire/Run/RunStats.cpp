@@ -66,6 +66,13 @@ void RunStats::Ingest(const RunLog& log)
 
     std::vector<long long> seen;
 
+    // The fight being stood in, until it is won or the climb ends in it. A
+    // climb dies at most once, so at most one fight goes down as lost; one
+    // that was walked out of is simply replaced by the next and counted
+    // neither way.
+    int inFight = 0;
+    StatKind fightKind = StatKind::FIGHT_FOUGHT;
+
     for (const auto& line : log.GetLines())
     {
         const bool bought = line.source == LogSource::SHOP;
@@ -193,9 +200,35 @@ void RunStats::Ingest(const RunLog& log)
                 NotePassed(StatKind::CURSE_OPTION, line.id);
                 break;
 
+            case LogEntry::FIGHT_STARTED:
+                inFight = line.id;
+                fightKind =
+                    line.extra == static_cast<int>(MonsterType::BOSS)
+                        ? StatKind::BOSS_FOUGHT
+                        : (line.extra == static_cast<int>(MonsterType::ELITE)
+                               ? StatKind::ELITE_FOUGHT
+                               : StatKind::FIGHT_FOUGHT);
+                break;
+
+            case LogEntry::FIGHT_WON:
+                if (inFight != 0)
+                {
+                    Note(fightKind, inFight, won, died, counts.floors, seen);
+                    inFight = 0;
+                }
+
+                break;
+
             default:
                 break;
         }
+    }
+
+    // A fight still being stood in when the log runs out, on a climb that
+    // died, is the fight that killed it.
+    if (died && inFight != 0)
+    {
+        NotePassed(fightKind, inFight);
     }
 }
 

@@ -41,7 +41,16 @@ enum class StatKind
     //! A room that offered a curse, counted by whether the offer was taken.
     //! The id is the room, so passes over picks reads as how often that
     //! particular temptation is turned down.
-    CURSE_OPTION
+    CURSE_OPTION,
+
+    //! A fight, counted by whether it was won. The id is the monster leading
+    //! it, so picks over picks plus passes is the win rate against that
+    //! monster - which is the only way to ask which boss is the one that
+    //! keeps ending the climb. Kept apart by the kind of fight, because a
+    //! boss and a pair of slimes are not read against each other.
+    FIGHT_FOUGHT,
+    ELITE_FOUGHT,
+    BOSS_FOUGHT
 };
 
 //!

@@ -26,8 +26,8 @@ import ctypes
 
 from cts_env import _api
 from cts_log import (SOURCES, card_name, card_type, event_name,
-                     event_option_name, map_node_name, potion_name,
-                     relic_name)
+                     event_option_name, map_node_name,
+                     monster_name, potion_name, relic_name)
 
 # What a row is about, in the order of StatKind.
 KINDS = [
@@ -46,6 +46,9 @@ KINDS = [
     "room_answered",
     "node_walked",
     "curse_option",
+    "fight_fought",
+    "elite_fought",
+    "boss_fought",
 ]
 
 # The kinds whose ids are cards, so that a curse can be told from a strike.
@@ -80,6 +83,9 @@ _NAMERS = {
     "room_entered": event_name,
     "node_walked": map_node_name,
     "curse_option": event_name,
+    "fight_fought": monster_name,
+    "elite_fought": monster_name,
+    "boss_fought": monster_name,
 }
 
 _DECLARED = False

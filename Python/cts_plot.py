@@ -204,6 +204,12 @@ PICK_TABLES = [
     ("room_answered", "rooms answered"),
     ("node_walked", "paths taken"),
     ("curse_option", "rooms that offered a curse"),
+
+    # For a fight the share is the share of them it won, not the share of
+    # offers it took, so these read as win rates.
+    ("boss_fought", "bosses, and how often it won"),
+    ("elite_fought", "elites, and how often it won"),
+    ("fight_fought", "fights, and how often it won"),
 ]
 
 # Curses get a panel of their own: they are never offered beside a real card,
@@ -400,17 +406,19 @@ def window(folder, character, once=False, every=5.0):
     if once:
         matplotlib.use("Agg")
 
-    figure = plt.figure(figsize=(21, 7))
+    figure = plt.figure(figsize=(24, 7))
     figure.canvas.manager.set_window_title("%s - training" % character)
-    grid = figure.add_gridspec(2, 8)
+    grid = figure.add_gridspec(2, 9)
 
     # Four curves across the top and four below, in the order of PANELS.
     flat = [figure.add_subplot(grid[0, column]) for column in range(4)]
     flat += [figure.add_subplot(grid[1, column]) for column in range(4)]
     bars = [figure.add_subplot(grid[:, 4]), figure.add_subplot(grid[:, 5]),
-            figure.add_subplot(grid[0, 6:]), figure.add_subplot(grid[1, 6:])]
+            figure.add_subplot(grid[0, 6]), figure.add_subplot(grid[1, 6]),
+            figure.add_subplot(grid[0, 7:]), figure.add_subplot(grid[1, 7:])]
 
-    def drawBars(panel, rows, title, colour, top=12, count=False):
+    def drawBars(panel, rows, title, colour, top=12, count=False,
+                 label=None):
         panel.clear()
         panel.set_title(title, fontsize=10)
 
@@ -436,8 +444,9 @@ def window(folder, character, once=False, every=5.0):
         panel.set_yticks(list(places))
         panel.set_yticklabels(["%s" % one["name"][:22] for one in kept],
                               fontsize=8)
-        panel.set_xlabel("taken, over the climbs counted" if count
-                         else "picked, % of the times it turned up",
+        panel.set_xlabel(label if label is not None else
+                         ("taken, over the climbs counted" if count
+                          else "picked, % of the times it turned up"),
                          fontsize=8)
         panel.set_xlim(0, room)
         panel.grid(axis="x", alpha=0.2)
@@ -482,6 +491,12 @@ def window(folder, character, once=False, every=5.0):
                  count=True)
         drawBars(bars[3], picks.get("node_walked", []),
                  "which place it walks onto", "#4a6fc7", top=7)
+        drawBars(bars[4], picks.get("boss_fought", []),
+                 "bosses, and how often it won", "#a03030", top=8,
+                 label="won, % of the times it was fought")
+        drawBars(bars[5], picks.get("elite_fought", []),
+                 "elites, and how often it won", "#b07030", top=8,
+                 label="won, % of the times it was fought")
 
         if rows:
             last = rows[-1]

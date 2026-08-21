@@ -337,6 +337,16 @@ Battle Run::StartBattle(std::vector<Monster> monsters)
         }
     }
 
+    // Written down on the way in, not on the way out: a climb that dies here
+    // never reaches FinishBattle(), so this is the only place that can say
+    // what it was fighting when it went.
+    if (!m_encounter.monsters.empty())
+    {
+        Note(LogEntry::FIGHT_STARTED,
+             static_cast<int>(m_encounter.monsters.front()),
+             static_cast<int>(m_encounter.type));
+    }
+
     // The battle works on a copy: what it changes comes back through
     // FinishBattle().
     Battle battle(m_player, std::move(monsters), m_rng());

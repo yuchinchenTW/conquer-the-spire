@@ -23,7 +23,8 @@ const char* NameOf(LogEntry entry)
         "potion_thrown", "gold_earned",    "gold_spent",   "fight_won",
         "floor_walked",  "act_started",    "room_entered", "room_answered",
         "rested",        "died",           "spire_done",   "room_passed",
-        "path_passed",   "curse_chosen",   "curse_refused"};
+        "path_passed",   "curse_chosen",   "curse_refused",
+        "fight_started"};
 
     static_assert(sizeof(names) / sizeof(names[0]) ==
                       static_cast<std::size_t>(LogEntry::COUNT),
