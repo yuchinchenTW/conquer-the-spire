@@ -136,6 +136,18 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_SYSTEM_NAME MATCHES "Linux")
 	)
 endif()
 
+# Fold the GCC runtime in on Windows. A mingw toolchain is usually somewhere
+# of its own rather than on PATH, and anything built against it then only
+# runs from a shell that has been set up for it: the tests died with
+# STATUS_DLL_NOT_FOUND and nothing on stdout to say why. Python is stricter
+# still - since 3.8 it does not search PATH for a DLL's own dependencies at
+# all - so the shared library has to carry its runtime either way.
+if (MINGW)
+	set(DEFAULT_LINKER_OPTIONS ${DEFAULT_LINKER_OPTIONS}
+		-static
+	)
+endif()
+
 # Code coverage - Debug only
 # NOTE: Code coverage results with an optimized (non-Debug) build may be misleading
 if (CMAKE_BUILD_TYPE MATCHES Debug AND (CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
