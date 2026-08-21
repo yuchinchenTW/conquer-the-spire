@@ -59,6 +59,19 @@ target_link_libraries(${target}-shared
     ${DEFAULT_LIBRARIES}
 )
 
+# Fold the GCC runtime into the library itself. Python 3.8 onwards stopped
+# looking along PATH for a DLL's own dependencies, so a library that still
+# needed libstdc++-6.dll beside it would not load from ctypes at all.
+# -static rather than the two -static-lib* flags on their own: the POSIX
+# threads build of the toolchain also pulls in libwinpthread-1.dll, which
+# would leave the same hole.
+if(MINGW)
+    target_link_options(${target}-shared
+        PRIVATE
+        -static
+    )
+endif()
+
 install(TARGETS ${target}-shared DESTINATION lib)
 
 # Project options
