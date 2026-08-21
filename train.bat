@@ -111,7 +111,7 @@ set /p "PICK=  Choose [1]: "
 
 if not defined PICK set "PICK=1"
 if /i "%PICK%"=="b" goto acts
-if "%PICK%"=="1" goto size
+if "%PICK%"=="1" goto width
 if "%PICK%"=="2" goto startOver
 echo.
 echo   That was not one of them.
@@ -120,11 +120,40 @@ goto carry
 
 :startOver
 set "FRESH=--fresh"
-goto size
+goto width
 
 :nothingSaved
 echo   Nothing has been trained for %CHARACTER% yet, so this starts fresh.
 echo.
+
+rem ------------------------------------------------------- how big a brain
+:width
+cls
+echo ==========================================================
+echo   %CHARACTER%, act limit %ACTS% - how big a brain?
+echo ==========================================================
+echo.
+echo     1. Normal   - 512 wide, 2.7M weights
+echo     2. Bigger   - 1024 wide, 5.8M weights, about 2%% slower
+echo.
+echo   A brain of one size cannot pick up a climber trained at another, so
+echo   changing this starts over however the last question was answered.
+echo.
+echo     B. Back
+echo.
+set "WIDTH="
+set "PICK="
+set /p "PICK=  Choose [2]: "
+
+if not defined PICK set "PICK=2"
+if /i "%PICK%"=="b" goto carry
+if "%PICK%"=="1" set "WIDTH=512"
+if "%PICK%"=="2" set "WIDTH=1024"
+if defined WIDTH goto size
+echo.
+echo   That was not one of them.
+pause
+goto width
 
 rem ------------------------------------------------------------ how hard to
 :size
@@ -144,7 +173,7 @@ set "PICK="
 set /p "PICK=  Choose [2]: "
 
 if not defined PICK set "PICK=2"
-if /i "%PICK%"=="b" goto carry
+if /i "%PICK%"=="b" goto width
 if "%PICK%"=="1" set "ENVS=64"
 if "%PICK%"=="2" set "ENVS=128"
 if "%PICK%"=="3" set "ENVS=256"
@@ -163,6 +192,7 @@ echo ==========================================================
 echo.
 echo   act limit   : %ACTS%   - 0 means the whole spire
 echo   climbs      : %ENVS% at once
+echo   brain       : %WIDTH% wide
 echo   saved to    : runs\%CHARACTER%\checkpoint.pt
 echo   the curve   : runs\%CHARACTER%\curve.csv
 echo.
@@ -173,7 +203,7 @@ echo   an act boss down. win stays at zero for a long while: that is the
 echo   game, not a fault.
 echo.
 
-%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --picks %FRESH% %EXTRA%
+%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --picks %FRESH% %EXTRA%
 
 echo.
 echo ==========================================================
