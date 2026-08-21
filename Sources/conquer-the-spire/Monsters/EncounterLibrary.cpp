@@ -1,0 +1,373 @@
+// Copyright (c) 2019 Chris Ohk
+
+// We are making my contributions/submissions to this project solely in our
+// personal capacity and are not conveying any rights to any intellectual
+// property of any third parties.
+
+#include <conquer-the-spire/Monsters/EncounterLibrary.hpp>
+
+#include <utility>
+
+namespace ConquerTheSpire
+{
+namespace
+{
+Encounter Group(const char* name, MonsterType type,
+                std::vector<MonsterId> monsters)
+{
+    Encounter encounter;
+    encounter.name = name;
+    encounter.type = type;
+    encounter.monsters = std::move(monsters);
+
+    return encounter;
+}
+}  // namespace
+
+const std::vector<Encounter>& EncounterLibrary::GetAct1Weak()
+{
+    static const std::vector<Encounter> groups = {
+        Group("Cultist", MonsterType::NORMAL, { MonsterId::CULTIST }),
+        Group("Jaw Worm", MonsterType::NORMAL, { MonsterId::JAW_WORM }),
+        Group("2 Louses", MonsterType::NORMAL,
+              { MonsterId::RED_LOUSE, MonsterId::GREEN_LOUSE }),
+        Group("Small Slimes", MonsterType::NORMAL,
+              { MonsterId::SPIKE_SLIME_S, MonsterId::ACID_SLIME_M })
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct1Strong()
+{
+    static const std::vector<Encounter> groups = {
+        Group("Gremlin Gang", MonsterType::NORMAL,
+              { MonsterId::MAD_GREMLIN, MonsterId::SNEAKY_GREMLIN,
+                MonsterId::FAT_GREMLIN, MonsterId::SHIELD_GREMLIN,
+                MonsterId::GREMLIN_WIZARD }),
+        Group("Large Acid Slime", MonsterType::NORMAL,
+              { MonsterId::ACID_SLIME_L }),
+        Group("Large Spike Slime", MonsterType::NORMAL,
+              { MonsterId::SPIKE_SLIME_L }),
+        Group("Blue Slaver", MonsterType::NORMAL,
+              { MonsterId::BLUE_SLAVER }),
+        Group("Red Slaver", MonsterType::NORMAL, { MonsterId::RED_SLAVER }),
+        Group("3 Louses", MonsterType::NORMAL,
+              { MonsterId::RED_LOUSE, MonsterId::GREEN_LOUSE,
+                MonsterId::RED_LOUSE }),
+        Group("2 Fungi Beasts", MonsterType::NORMAL,
+              { MonsterId::FUNGI_BEAST, MonsterId::FUNGI_BEAST }),
+        Group("Exordium Thugs", MonsterType::NORMAL,
+              { MonsterId::LOOTER, MonsterId::BLUE_SLAVER }),
+        Group("Exordium Wildlife", MonsterType::NORMAL,
+              { MonsterId::FUNGI_BEAST, MonsterId::JAW_WORM }),
+        Group("Looter", MonsterType::NORMAL, { MonsterId::LOOTER }),
+        Group("Lots of Slimes", MonsterType::NORMAL,
+              { MonsterId::SPIKE_SLIME_S, MonsterId::SPIKE_SLIME_S,
+                MonsterId::ACID_SLIME_S, MonsterId::ACID_SLIME_S,
+                MonsterId::ACID_SLIME_S })
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct1Elites()
+{
+    static const std::vector<Encounter> groups = {
+        Group("Gremlin Nob", MonsterType::ELITE, { MonsterId::GREMLIN_NOB }),
+        Group("Lagavulin", MonsterType::ELITE, { MonsterId::LAGAVULIN }),
+        Group("3 Sentries", MonsterType::ELITE,
+              { MonsterId::SENTRY, MonsterId::SENTRY, MonsterId::SENTRY })
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct1Bosses()
+{
+    static const std::vector<Encounter> groups = {
+        Group("The Guardian", MonsterType::BOSS,
+              { MonsterId::THE_GUARDIAN }),
+        Group("Hexaghost", MonsterType::BOSS, { MonsterId::HEXAGHOST }),
+        Group("Slime Boss", MonsterType::BOSS, { MonsterId::SLIME_BOSS })
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct2Weak()
+{
+    static const std::vector<Encounter> groups = {
+        { "Spheric Guardian",
+          MonsterType::NORMAL,
+          { MonsterId::SPHERIC_GUARDIAN } },
+        { "Chosen", MonsterType::NORMAL, { MonsterId::CHOSEN } },
+        { "Shelled Parasite",
+          MonsterType::NORMAL,
+          { MonsterId::SHELLED_PARASITE } },
+        { "3 Byrds",
+          MonsterType::NORMAL,
+          { MonsterId::BYRD, MonsterId::BYRD, MonsterId::BYRD } },
+        { "2 Thieves",
+          MonsterType::NORMAL,
+          { MonsterId::MUGGER, MonsterId::MUGGER } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct2Strong()
+{
+    static const std::vector<Encounter> groups = {
+        { "Chosen and Byrds",
+          MonsterType::NORMAL,
+          { MonsterId::CHOSEN, MonsterId::BYRD, MonsterId::BYRD } },
+        { "Sentry and Sphere",
+          MonsterType::NORMAL,
+          { MonsterId::SENTRY, MonsterId::SPHERIC_GUARDIAN } },
+        { "Snake Plant", MonsterType::NORMAL, { MonsterId::SNAKE_PLANT } },
+        { "Snecko", MonsterType::NORMAL, { MonsterId::SNECKO } },
+        { "Centurion and Healer",
+          MonsterType::NORMAL,
+          { MonsterId::CENTURION, MonsterId::MYSTIC } },
+        { "Cultist and Chosen",
+          MonsterType::NORMAL,
+          { MonsterId::CULTIST, MonsterId::CHOSEN } },
+        { "3 Cultists",
+          MonsterType::NORMAL,
+          { MonsterId::CULTIST, MonsterId::CULTIST, MonsterId::CULTIST } },
+        { "Shelled Parasite and Fungi",
+          MonsterType::NORMAL,
+          { MonsterId::SHELLED_PARASITE, MonsterId::FUNGI_BEAST } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct2Elites()
+{
+    static const std::vector<Encounter> groups = {
+        { "Gremlin Leader",
+          MonsterType::ELITE,
+          { MonsterId::GREMLIN_LEADER } },
+        { "Slavers",
+          MonsterType::ELITE,
+          { MonsterId::TASKMASTER, MonsterId::RED_SLAVER,
+            MonsterId::BLUE_SLAVER } },
+        { "Book of Stabbing",
+          MonsterType::ELITE,
+          { MonsterId::BOOK_OF_STABBING } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct2Bosses()
+{
+    static const std::vector<Encounter> groups = {
+        { "Bronze Automaton",
+          MonsterType::BOSS,
+          { MonsterId::BRONZE_AUTOMATON } },
+        { "The Champ", MonsterType::BOSS, { MonsterId::THE_CHAMP } },
+        { "The Collector",
+          MonsterType::BOSS,
+          { MonsterId::THE_COLLECTOR } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct3Weak()
+{
+    static const std::vector<Encounter> groups = {
+        { "3 Darklings",
+          MonsterType::NORMAL,
+          { MonsterId::DARKLING, MonsterId::DARKLING, MonsterId::DARKLING } },
+        { "Orb Walker", MonsterType::NORMAL, { MonsterId::ORB_WALKER } },
+        { "3 Shapes",
+          MonsterType::NORMAL,
+          { MonsterId::SPIKER, MonsterId::REPULSOR, MonsterId::EXPLODER } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct3Strong()
+{
+    static const std::vector<Encounter> groups = {
+        { "Spire Growth", MonsterType::NORMAL, { MonsterId::SPIRE_GROWTH } },
+        { "Transient", MonsterType::NORMAL, { MonsterId::TRANSIENT } },
+        { "4 Shapes",
+          MonsterType::NORMAL,
+          { MonsterId::SPIKER, MonsterId::SPIKER, MonsterId::REPULSOR,
+            MonsterId::EXPLODER } },
+        { "Maw", MonsterType::NORMAL, { MonsterId::THE_MAW } },
+        { "Sphere and 2 Shapes",
+          MonsterType::NORMAL,
+          { MonsterId::SPHERIC_GUARDIAN, MonsterId::REPULSOR,
+            MonsterId::SPIKER } },
+        { "Jaw Worm Horde",
+          MonsterType::NORMAL,
+          { MonsterId::JAW_WORM, MonsterId::JAW_WORM, MonsterId::JAW_WORM } },
+        { "Writhing Mass",
+          MonsterType::NORMAL,
+          { MonsterId::WRITHING_MASS } },
+        { "3 Darklings",
+          MonsterType::NORMAL,
+          { MonsterId::DARKLING, MonsterId::DARKLING, MonsterId::DARKLING } },
+        { "Orb Walker", MonsterType::NORMAL, { MonsterId::ORB_WALKER } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct3Elites()
+{
+    static const std::vector<Encounter> groups = {
+        { "Giant Head", MonsterType::ELITE, { MonsterId::GIANT_HEAD } },
+        { "Nemesis", MonsterType::ELITE, { MonsterId::NEMESIS } },
+        { "Reptomancer", MonsterType::ELITE, { MonsterId::REPTOMANCER } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct3Bosses()
+{
+    static const std::vector<Encounter> groups = {
+        { "Awakened One",
+          MonsterType::BOSS,
+          { MonsterId::CULTIST, MonsterId::AWAKENED_ONE,
+            MonsterId::CULTIST } },
+        { "Time Eater", MonsterType::BOSS, { MonsterId::TIME_EATER } },
+        { "Donu and Deca",
+          MonsterType::BOSS,
+          { MonsterId::DECA, MonsterId::DONU } }
+    };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct4Elites()
+{
+    static const std::vector<Encounter> groups = { { "Shield and Spear",
+                                                     MonsterType::ELITE,
+                                                     { MonsterId::SPIRE_SHIELD,
+                                                       MonsterId::
+                                                           SPIRE_SPEAR } } };
+
+    return groups;
+}
+
+const std::vector<Encounter>& EncounterLibrary::GetAct4Bosses()
+{
+    static const std::vector<Encounter> groups = {
+        { "Corrupt Heart", MonsterType::BOSS, { MonsterId::CORRUPT_HEART } }
+    };
+
+    return groups;
+}
+
+int EncounterLibrary::WeakFightsOf(int act)
+{
+    return act <= 1 ? WEAK_FIGHTS : LATER_WEAK_FIGHTS;
+}
+
+Encounter EncounterLibrary::Pick(int act, MapNodeType node, int fightsSoFar,
+                                 std::mt19937& rng)
+{
+    const std::vector<Encounter>* weak = &GetAct1Weak();
+    const std::vector<Encounter>* strong = &GetAct1Strong();
+    const std::vector<Encounter>* elites = &GetAct1Elites();
+    const std::vector<Encounter>* bosses = &GetAct1Bosses();
+
+    if (act == 2)
+    {
+        weak = &GetAct2Weak();
+        strong = &GetAct2Strong();
+        elites = &GetAct2Elites();
+        bosses = &GetAct2Bosses();
+    }
+    else if (act == 3)
+    {
+        weak = &GetAct3Weak();
+        strong = &GetAct3Strong();
+        elites = &GetAct3Elites();
+        bosses = &GetAct3Bosses();
+    }
+    else if (act >= 4)
+    {
+        // The last act holds nothing but the pair at the door and what is
+        // behind it.
+        weak = &GetAct4Elites();
+        strong = &GetAct4Elites();
+        elites = &GetAct4Elites();
+        bosses = &GetAct4Bosses();
+    }
+
+    const std::vector<Encounter>* pool = strong;
+
+    switch (node)
+    {
+        case MapNodeType::ELITE:
+            pool = elites;
+            break;
+
+        case MapNodeType::BOSS:
+            pool = bosses;
+            break;
+
+        case MapNodeType::MONSTER:
+            pool = fightsSoFar < WeakFightsOf(act) ? weak : strong;
+            break;
+
+        default:
+            // Nothing waits at the other places, so a fight there is a plain
+            // one.
+            pool = weak;
+            break;
+    }
+
+    int total = 0;
+
+    for (const auto& group : *pool)
+    {
+        total += group.weight > 0 ? group.weight : 1;
+    }
+
+    std::uniform_int_distribution<int> roll(1, total);
+    int score = roll(rng);
+
+    for (const auto& group : *pool)
+    {
+        score -= group.weight > 0 ? group.weight : 1;
+
+        if (score <= 0)
+        {
+            return group;
+        }
+    }
+
+    return pool->back();
+}
+
+std::vector<Monster> EncounterLibrary::Build(const Encounter& encounter,
+                                             std::mt19937& rng)
+{
+    std::vector<Monster> monsters;
+    monsters.reserve(encounter.monsters.size());
+
+    for (const MonsterId id : encounter.monsters)
+    {
+        monsters.emplace_back(MonsterRoster::Make(id, rng));
+    }
+
+    // In the elite fight the middle Sentry opens the other way round.
+    if (encounter.name == "3 Sentries" && monsters.size() == 3u)
+    {
+        monsters[1].ForceMove("Beam");
+    }
+
+    return monsters;
+}
+}  // namespace ConquerTheSpire

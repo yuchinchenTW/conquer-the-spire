@@ -1,0 +1,374 @@
+// Copyright (c) 2019 Chris Ohk
+
+// We are making my contributions/submissions to this project solely in our
+// personal capacity and are not conveying any rights to any intellectual
+// property of any third parties.
+
+#ifndef CONQUER_THE_SPIRE_SPIRE_ENV_HPP
+#define CONQUER_THE_SPIRE_SPIRE_ENV_HPP
+
+#include <conquer-the-spire/Run/Run.hpp>
+#include <conquer-the-spire/Run/RunStats.hpp>
+
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace ConquerTheSpire
+{
+//! Where a run is standing, as far as an agent is concerned. Each phase
+//! offers its own handful of moves and nothing else.
+enum class EnvPhase
+{
+    INVALID = 0,
+
+    //! Choosing where to walk next.
+    MAP,
+
+    //! In a fight.
+    BATTLE,
+
+    //! Standing over what a fight or a chest left.
+    REWARD,
+
+    //! In a room with something to decide.
+    EVENT,
+
+    //! At the merchant.
+    SHOP,
+
+    //! At a rest site.
+    REST,
+
+    //! At the top of an act, with the boss ahead.
+    BOSS,
+
+    //! The boss is down and the next act is waiting.
+    ACT_DONE,
+
+    //! The climber is dead, or the spire is done with.
+    OVER
+};
+
+//! What an agent can do. \p a and \p b are what the move needs: a hand slot
+//! and a monster, a reward and which of its choices, a card to work on.
+//!
+//! A monster is named by where it stands among the ones still alive, not by
+//! its slot in the fight, so that a slime splitting does not move everything
+//! along. The state lists the living monsters in the same order.
+enum class ActionKind
+{
+    INVALID = 0,
+    TRAVEL,
+    PLAY_CARD,
+    END_TURN,
+    USE_POTION,
+    DISCARD_POTION,
+    CLAIM_REWARD,
+    SKIP_REWARD,
+    LEAVE_REWARDS,
+    CHOOSE_OPTION,
+    BUY_CARD,
+    BUY_RELIC,
+    BUY_POTION,
+    BUY_REMOVAL,
+    LEAVE_SHOP,
+    REST,
+    SMITH,
+    TOKE,
+    DIG,
+    LIFT,
+    LEAVE_REST,
+    FIGHT_BOSS,
+    NEXT_ACT
+};
+
+//!
+//! \brief Action struct.
+//!
+struct Action
+{
+    ActionKind kind = ActionKind::INVALID;
+    int a = 0;
+    int b = 0;
+
+    Action() = default;
+    Action(ActionKind kind, int a = 0, int b = 0);
+};
+
+//!
+//! \brief StepResult struct.
+//!
+struct StepResult
+{
+    //! Whether the move was a legal one at all.
+    bool taken = false;
+
+    //! What the move was worth, by the shaping below.
+    float reward = 0.0f;
+
+    //! Whether the run is over, either way.
+    bool done = false;
+};
+
+//!
+//! \brief SpireEnv class.
+//!
+//! A climb, wrapped up the way a learner wants it: one phase at a time, a
+//! list of the moves that are legal right now, a step that takes one of them,
+//! and a flat vector of numbers for the state. Nothing here reads a file or
+//! prints anything, and the same seed always gives the same climb.
+//!
+class SpireEnv
+{
+ public:
+    //! What a step is worth. A climber is paid for climbing, for the harder
+    //! fights, and for the spire itself; and charged for the health it costs.
+    static constexpr float FLOOR_REWARD = 1.0f;
+    static constexpr float ELITE_REWARD = 5.0f;
+    static constexpr float BOSS_REWARD = 20.0f;
+    static constexpr float WIN_REWARD = 100.0f;
+    static constexpr float DEATH_REWARD = -20.0f;
+    static constexpr float HEALTH_WEIGHT = 0.05f;
+
+    //! What a point of health taken off actually costs this climb. It starts
+    //! at HEALTH_WEIGHT and can be moved: how dearly health is held against
+    //! how far the climb gets is the one number in here worth arguing about,
+    //! so it is worth being able to try another.
+    void SetHealthWeight(float weight);
+    float GetHealthWeight() const;
+
+    //! How many monsters of a fight the state has room for, and how many
+    //! cards of a hand, potions of a belt, rewards of a pile, options of a
+    //! room, and cards of a deck a move may name.
+    static constexpr std::size_t OBSERVED_MONSTERS = 8;
+    static constexpr std::size_t HAND_SLOTS = 10;
+    static constexpr std::size_t POTION_SLOTS = 5;
+    static constexpr std::size_t REWARD_SLOTS = 6;
+    static constexpr std::size_t REWARD_OPTIONS = 20;
+    static constexpr std::size_t EVENT_OPTIONS = 6;
+    static constexpr std::size_t DECK_SLOTS = 40;
+    static constexpr std::size_t SHOP_CARD_SLOTS = 7;
+    static constexpr std::size_t SHOP_RELIC_SLOTS = 3;
+    static constexpr std::size_t SHOP_POTION_SLOTS = 3;
+    static constexpr std::size_t MAP_COLUMNS = 7;
+
+    //! What a hand slot says besides which card it is: what it costs, whether
+    //! it is sharpened, and whether it can be played right now.
+    static constexpr std::size_t HAND_EXTRAS = 3;
+
+    //! How many choices of a reward the state shows. A pile with more than
+    //! this - a library with its twenty books - shows the first few.
+    static constexpr std::size_t OBSERVED_OPTIONS = 4;
+
+    //! How many relics the id vector has room for.
+    static constexpr std::size_t OBSERVED_RELICS = 25;
+
+    SpireEnv() = default;
+
+    //! Starts a climb of \p character laid out by \p seed.
+    void Reset(CardColor character, unsigned int seed);
+
+    EnvPhase GetPhase() const;
+    const Run& GetRun() const;
+    Run& GetRun();
+
+    //! Returns the fight going on, or nullptr when there is none.
+    const Battle* GetBattle() const;
+
+    //! Returns every move that is legal right now, which doubles as the mask
+    //! an agent needs.
+    std::vector<Action> LegalActions() const;
+
+    //! Takes \p action. An illegal move changes nothing and is reported as
+    //! not taken, so that a mask can be checked or ignored.
+    StepResult Step(const Action& action);
+
+    //! Returns the state as a flat vector of numbers, mostly between zero and
+    //! one. The layout is fixed and its size is ObservationSize().
+    std::vector<float> Observe() const;
+
+    static std::size_t ObservationSize();
+
+    //! Ends a climb once \p acts of the spire have been cleared, or 0 to
+    //! climb the whole thing. Kept over a reset: it is how the climb is set
+    //! up rather than anything about the one going on.
+    //!
+    //! A learner walking one act at a time needs the climb to end when that
+    //! act does. Taking the move that walks on off the table from outside
+    //! does not do it: the climb would stand at the top with a move it is
+    //! not allowed to make, going nowhere until it is called off.
+    void SetActLimit(int acts);
+    int GetActLimit() const;
+
+    //! How many moves a climb is given before it is called off. No climb of
+    //! the spire comes near this: it is there so that one that cannot get
+    //! out of a room takes a batch of its own with it instead of sitting in
+    //! a row of climbs for ever.
+    static constexpr int MOVE_LIMIT = 3000;
+
+    //!
+    //! \brief Layout struct.
+    //!
+    //! Where each part of the state starts, so that whatever is reading it
+    //! can slice it up without counting.
+    //!
+    struct Layout
+    {
+        std::size_t phase = 0;
+        std::size_t run = 0;
+        std::size_t deck = 0;
+        std::size_t relics = 0;
+        std::size_t battle = 0;
+        std::size_t powers = 0;
+        std::size_t monsters = 0;
+        std::size_t hand = 0;
+        std::size_t piles = 0;
+        std::size_t total = 0;
+
+        //! Where the parts added for the rooms outside a fight begin: what
+        //! is on the reward pile, on the shelf, on offer in a room, in the
+        //! belt, and what the monsters mean to do.
+        std::size_t rewards = 0;
+        std::size_t shop = 0;
+        std::size_t event = 0;
+        std::size_t potions = 0;
+        std::size_t moves = 0;
+
+        //! Where the deck begins: what sits in each of its slots, which is
+        //! what an action naming a slot is about. Which card it is comes
+        //! from the ids beside the state.
+        std::size_t deckCards = 0;
+
+        //! Where the map ahead begins: what stands on the places that could
+        //! be walked to next, what stands on the places those lead to, and
+        //! what the rest of the act still holds.
+        std::size_t map = 0;
+
+        //! How wide each of the repeating parts is.
+        std::size_t monsterStride = 0;
+        std::size_t handStride = 0;
+        std::size_t pileStride = 0;
+        std::size_t rewardStride = 0;
+        std::size_t eventStride = 0;
+        std::size_t moveStride = 0;
+        std::size_t deckStride = 0;
+    };
+
+    //!
+    //! \brief IdLayout struct.
+    //!
+    //! Where each part of the id vector begins. These are ids, not numbers to
+    //! be added up: an empty slot is zero, and the rest are meant to be looked
+    //! up in a table of their own on the other side.
+    //!
+    struct IdLayout
+    {
+        std::size_t hand = 0;
+        std::size_t potions = 0;
+        std::size_t relics = 0;
+        std::size_t rewardKinds = 0;
+        std::size_t rewardOptions = 0;
+        std::size_t rewardOptionKinds = 0;
+        std::size_t shopCards = 0;
+        std::size_t shopRelics = 0;
+        std::size_t shopPotions = 0;
+        std::size_t event = 0;
+        std::size_t monsters = 0;
+
+        //! Which card sits in each slot of the deck. Every action that names
+        //! a slot of the deck - sharpening one, tearing one up, handing one
+        //! to a room - is blind without this.
+        std::size_t deck = 0;
+        std::size_t total = 0;
+    };
+
+    //! What a slot of the reward options holds, so that an id can be looked up
+    //! in the right table.
+    static constexpr int ITEM_NONE = 0;
+    static constexpr int ITEM_CARD = 1;
+    static constexpr int ITEM_RELIC = 2;
+    static constexpr int ITEM_POTION = 3;
+
+    static Layout GetLayout();
+    static IdLayout GetIdLayout();
+
+    //! Returns which card, relic, potion, room and monster each slot of the
+    //! state is about. These are ids for looking up or embedding, not numbers
+    //! to be weighed.
+    std::vector<int> ObserveIds() const;
+
+    static std::size_t IdCount();
+
+    //! How many moves there are, counting the ones that are not legal just
+    //! now. An agent with a fixed head wants this, along with the mask.
+    static std::size_t ActionCount();
+
+    //! Turns a slot of that fixed head into a move, and back. An index with
+    //! no move behind it comes back invalid, and a move that no index names
+    //! comes back as ActionCount().
+    static Action ActionFromIndex(std::size_t index);
+    static std::size_t IndexOfAction(const Action& action);
+
+    //! Returns one byte a move, set where the move is legal right now.
+    std::vector<unsigned char> ActionMask() const;
+
+    //! Takes the move at \p index of that fixed head.
+    StepResult StepIndex(std::size_t index);
+
+    bool IsDone() const;
+
+    //! Returns how many floors have been climbed over the whole run, which is
+    //! what a score is usually counted in.
+    int GetTotalFloors() const;
+
+    //! What came of the choices, over every climb this has played. Starting a
+    //! new climb does not clear it; ClearStats() does.
+    const RunStats& GetStats() const;
+    void ClearStats();
+
+    //! Writes the climb out, for picking up later. A fight is not written
+    //! out: a save is taken between rooms, and mid-fight this returns an
+    //! empty string.
+    std::string Save() const;
+    bool Load(const std::string& text);
+
+ private:
+    //! Turns the \p ordinal th living monster into its slot in the fight.
+    std::size_t TargetOf(int ordinal) const;
+
+    //! Walks the phase on once whatever was going on has finished.
+    void Settle();
+
+    //! Opens whatever room the climber has just walked into.
+    void EnterRoom();
+
+    Run m_run;
+    std::unique_ptr<Battle> m_battle;
+    EnvPhase m_phase = EnvPhase::INVALID;
+    int m_totalFloors = 0;
+
+    //! Whether the fight going on is the boss of the act, and what the
+    //! climber's health was when the last step began.
+    bool m_bossFight = false;
+    int m_healthBefore = 0;
+
+    //! Whether the climb going on has been counted yet, so that it is counted
+    //! once however many steps come after it ended.
+    bool m_counted = false;
+
+    //! How many moves this climb has taken, which the limit above is
+    //! measured against.
+    int m_moves = 0;
+
+    //! How many acts a climb is asked for, 0 being all of them.
+    int m_actLimit = 0;
+
+    //! What a point of health is worth against a floor.
+    float m_healthWeight = HEALTH_WEIGHT;
+    RunStats m_stats;
+};
+}  // namespace ConquerTheSpire
+
+#endif  // CONQUER_THE_SPIRE_SPIRE_ENV_HPP

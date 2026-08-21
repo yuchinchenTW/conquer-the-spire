@@ -31,3 +31,8 @@ cmake-build-debug
 # Python files
 *.pyc
 /.pytest_cache
+# Training output: weights, optimiser state and the curve.
+runs/
+Python/runs/
+__pycache__/
+*.pyc

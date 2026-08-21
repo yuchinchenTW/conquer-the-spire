@@ -1,0 +1,559 @@
+#include "doctest.h"
+
+#include <conquer-the-spire/Battle/Battle.hpp>
+#include <conquer-the-spire/Cards/CardRegistry.hpp>
+#include <conquer-the-spire/Enums/CardId.hpp>
+#include <conquer-the-spire/Monsters/MonsterLibrary.hpp>
+#include <conquer-the-spire/Potions/PotionRegistry.hpp>
+#include <conquer-the-spire/Run/Run.hpp>
+#include <conquer-the-spire/Relics/RelicRegistry.hpp>
+
+#include <cstddef>
+#include <string>
+#include <utility>
+#include <vector>
+
+using namespace ConquerTheSpire;
+
+namespace
+{
+//! Builds a started battle carrying \p potions, with a deck of exactly
+//! \p ids.
+Battle BattleWith(const std::vector<CardId>& ids,
+                  const std::vector<PotionId>& potions,
+                  std::vector<Monster> monsters,
+                  const std::vector<RelicId>& relics = {},
+                  int playerHealth = 80)
+{
+    Player player("Ironclad", playerHealth);
+    player.SetColor(CardColor::RED);
+
+    for (const CardId id : ids)
+    {
+        player.AddCardToDeck(CardRegistry::Get(id));
+    }
+
+    for (const RelicId id : relics)
+    {
+        player.AddRelic(RelicRegistry::Get(id));
+    }
+
+    for (const PotionId id : potions)
+    {
+        player.AddPotion(PotionRegistry::Get(id));
+    }
+
+    Battle battle(std::move(player), std::move(monsters), 17);
+    battle.Start();
+
+    return battle;
+}
+
+//! A monster that never acts, so a test can watch damage and block alone.
+Monster Dummy(int health)
+{
+    return Monsters::TrainingDummy(health);
+}
+
+//! A monster that hits for \p damage every turn.
+Monster Attacker(int health, int damage)
+{
+    return Monster("Attacker", health,
+                   { MonsterMove::Attack("Hit", damage) });
+}
+
+//! Returns the hand index of \p name, or the hand size when it is not there.
+std::size_t Idx(const Battle& battle, const std::string& name)
+{
+    const std::vector<Card>& hand = battle.GetPlayer().GetHand();
+
+    for (std::size_t i = 0; i < hand.size(); ++i)
+    {
+        if (hand[i].GetName() == name)
+        {
+            return i;
+        }
+    }
+
+    return hand.size();
+}
+
+//! Returns how many cards in hand are named \p name.
+int CountInHand(const Battle& battle, const std::string& name)
+{
+    int found = 0;
+
+    for (const auto& card : battle.GetPlayer().GetHand())
+    {
+        if (card.GetName() == name)
+        {
+            ++found;
+        }
+    }
+
+    return found;
+}
+}  // namespace
+
+TEST_CASE("Fire Potion burns the monster it is thrown at")
+{
+    Battle battle =
+        BattleWith({ CardId::STRIKE_RED }, { PotionId::FIRE_POTION },
+                   { Dummy(50), Dummy(50) });
+
+    REQUIRE(battle.GetPlayer().GetPotions().size() == 1u);
+
+    REQUIRE(battle.UsePotion(0, 1) == true);
+
+    CHECK(battle.GetMonsters()[0].GetHealth() == 50);
+    CHECK(battle.GetMonsters()[1].GetHealth() == 30);
+    CHECK(battle.GetPlayer().GetPotions().empty());
+}
+
+TEST_CASE("Explosive Potion catches everything")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::EXPLOSIVE_POTION },
+                               { Dummy(50), Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+
+    for (const auto& monster : battle.GetMonsters())
+    {
+        CHECK(monster.GetHealth() == 40);
+    }
+}
+
+TEST_CASE("Block, Energy and Swift Potions hand over the plain things")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED, CardId::STRIKE_RED,
+                                 CardId::STRIKE_RED, CardId::STRIKE_RED,
+                                 CardId::STRIKE_RED, CardId::STRIKE_RED,
+                                 CardId::STRIKE_RED, CardId::STRIKE_RED },
+                               { PotionId::BLOCK_POTION,
+                                 PotionId::ENERGY_POTION,
+                                 PotionId::SWIFT_POTION },
+                               { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetBlock() == 12);
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetEnergy() == 5);
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetHand().size() == 8u);
+}
+
+TEST_CASE("Fear and Weak Potions land the debuffs")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::FEAR_POTION,
+                                 PotionId::WEAK_POTION },
+                               { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0, 0) == true);
+    REQUIRE(battle.UsePotion(0, 0) == true);
+
+    CHECK(battle.GetMonsters()[0].GetPower(PowerType::VULNERABLE) == 3);
+    CHECK(battle.GetMonsters()[0].GetPower(PowerType::WEAK) == 3);
+}
+
+TEST_CASE("Flex Potion lends Strength for the turn only")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::FLEX_POTION }, { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetPower(PowerType::STRENGTH) == 5);
+
+    REQUIRE(battle.PlayCard(0) == true);
+    CHECK(battle.GetMonsters()[0].GetHealth() == 39);
+
+    REQUIRE(battle.EndTurn() == true);
+    CHECK(battle.GetPlayer().GetPower(PowerType::STRENGTH) == 0);
+}
+
+TEST_CASE("Blood Potion patches up a fifth of the maximum health")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::BLOOD_POTION },
+                               { Attacker(30, 20) });
+
+    REQUIRE(battle.EndTurn() == true);
+    REQUIRE(battle.GetPlayer().GetHealth() == 60);
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetHealth() == 76);
+}
+
+TEST_CASE("Bottled Miracle hands over two Miracles")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::BOTTLED_MIRACLE }, { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(CountInHand(battle, "Miracle") == 2);
+}
+
+TEST_CASE("Poison Potion poisons the target")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::POISON_POTION }, { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0, 0) == true);
+    CHECK(battle.GetMonsters()[0].GetPower(PowerType::POISON) == 6);
+
+    REQUIRE(battle.EndTurn() == true);
+    CHECK(battle.GetMonsters()[0].GetHealth() == 44);
+}
+
+TEST_CASE("Regen Potion heals a little less every turn")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::REGEN_POTION },
+                               { Attacker(30, 20) });
+
+    REQUIRE(battle.EndTurn() == true);
+    REQUIRE(battle.GetPlayer().GetHealth() == 60);
+
+    REQUIRE(battle.UsePotion(0) == true);
+    REQUIRE(battle.GetPlayer().GetPower(PowerType::REGENERATION) == 5);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // Healed 5 at the end of the turn, then took another 20.
+    CHECK(battle.GetPlayer().GetHealth() == 45);
+    CHECK(battle.GetPlayer().GetPower(PowerType::REGENERATION) == 4);
+}
+
+TEST_CASE("Duplication Potion plays the next card twice")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED, CardId::STRIKE_RED },
+                               { PotionId::DUPLICATION_POTION },
+                               { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+
+    REQUIRE(battle.PlayCard(0) == true);
+    CHECK(battle.GetMonsters()[0].GetHealth() == 38);
+
+    // Only the one card.
+    REQUIRE(battle.PlayCard(0) == true);
+    CHECK(battle.GetMonsters()[0].GetHealth() == 32);
+}
+
+TEST_CASE("Cunning Potion hands over three sharpened Shivs")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_GREEN },
+                               { PotionId::CUNNING_POTION }, { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    REQUIRE(CountInHand(battle, "Shiv+") == 3);
+
+    REQUIRE(battle.PlayCard(Idx(battle, "Shiv+")) == true);
+    CHECK(battle.GetMonsters()[0].GetHealth() == 44);
+}
+
+TEST_CASE("Ghost in a Jar and Heart of Iron hand over the powers")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::GHOST_IN_A_JAR,
+                                 PotionId::HEART_OF_IRON },
+                               { Attacker(30, 20) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    REQUIRE(battle.UsePotion(0) == true);
+
+    CHECK(battle.GetPlayer().GetPower(PowerType::INTANGIBLE) == 1);
+    CHECK(battle.GetPlayer().GetPower(PowerType::METALLICIZE) == 6);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // Intangible turned the hit into 1, and the 6 block soaked it.
+    CHECK(battle.GetPlayer().GetHealth() == 80);
+}
+
+TEST_CASE("Fruit Juice raises the maximum health")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::FRUIT_JUICE }, { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+
+    CHECK(battle.GetPlayer().GetMaxHealth() == 85);
+    CHECK(battle.GetPlayer().GetHealth() == 85);
+}
+
+TEST_CASE("Potion of Capacity and Essence of Darkness work on the orbs")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_BLUE },
+                               { PotionId::POTION_OF_CAPACITY,
+                                 PotionId::ESSENCE_OF_DARKNESS },
+                               { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetOrbSlots() == 5);
+
+    REQUIRE(battle.UsePotion(0) == true);
+    REQUIRE(battle.GetPlayer().GetOrbs().size() == 3u);
+
+    for (const auto& orb : battle.GetPlayer().GetOrbs())
+    {
+        CHECK(orb.type == OrbType::DARK);
+    }
+}
+
+TEST_CASE("Gambler's Brew trades the hand in")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED, CardId::STRIKE_RED,
+                                 CardId::DEFEND_RED, CardId::DEFEND_RED,
+                                 CardId::DEFEND_RED, CardId::DEFEND_RED,
+                                 CardId::DEFEND_RED },
+                               { PotionId::GAMBLERS_BREW }, { Dummy(50) });
+
+    const std::size_t before = battle.GetPlayer().GetHand().size();
+
+    REQUIRE(battle.UsePotion(0) == true);
+
+    CHECK(battle.GetPlayer().GetHand().size() == before);
+}
+
+TEST_CASE("Liquid Memories takes a card back out of the discard pile")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::LIQUID_MEMORIES }, { Dummy(50) });
+
+    battle.GetPlayer().GetDiscardPile().emplace_back(
+        CardRegistry::Get(CardId::BLUDGEON));
+
+    REQUIRE(battle.UsePotion(0) == true);
+
+    CHECK(Idx(battle, "Bludgeon") < battle.GetPlayer().GetHand().size());
+    CHECK(battle.GetPlayer().GetDiscardPile().empty());
+}
+
+TEST_CASE("Attack Potion hands over an attack of the character's colour")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::ATTACK_POTION }, { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    REQUIRE(battle.GetPlayer().GetHand().size() == 2u);
+
+    bool foundRedAttack = false;
+
+    for (const auto& card : battle.GetPlayer().GetHand())
+    {
+        if (card.GetColor() == CardColor::RED &&
+            card.GetCardType() == CardType::ATTACK &&
+            card.GetName() != "Strike")
+        {
+            foundRedAttack = true;
+        }
+    }
+
+    CHECK(foundRedAttack == true);
+}
+
+TEST_CASE("Sacred Bark pours a double")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::BLOCK_POTION }, { Dummy(50) },
+                               { RelicId::SACRED_BARK });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetBlock() == 24);
+}
+
+TEST_CASE("The belt holds three, and five with the Potion Belt")
+{
+    Player player("Ironclad", 80);
+
+    CHECK(player.GetPotionSlots() == 3);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        const bool room =
+            player.AddPotion(PotionRegistry::Get(PotionId::FIRE_POTION));
+
+        CHECK(room == (i < 3));
+    }
+
+    CHECK(player.GetPotions().size() == 3u);
+
+    Player packed("Ironclad", 80);
+    packed.AddRelic(RelicRegistry::Get(RelicId::POTION_BELT));
+
+    CHECK(packed.GetPotionSlots() == 5);
+
+    // Sozu turns every potion away.
+    Player refusing("Ironclad", 80);
+    refusing.AddRelic(RelicRegistry::Get(RelicId::SOZU));
+
+    CHECK(refusing.AddPotion(PotionRegistry::Get(PotionId::FIRE_POTION)) ==
+          false);
+    CHECK(refusing.GetPotions().empty());
+}
+
+TEST_CASE("A fairy is never drunk on purpose")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::FAIRY_IN_A_BOTTLE },
+                               { Dummy(50) });
+
+    CHECK(battle.CanUsePotion(0) == false);
+    CHECK(battle.UsePotion(0) == false);
+    CHECK(battle.GetPlayer().GetPotions().size() == 1u);
+}
+
+TEST_CASE("A smoke bomb is a way out of a fight, and leaves nothing behind")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::SMOKE_BOMB }, { Dummy(50) });
+
+    REQUIRE(battle.CanUsePotion(0) == true);
+    REQUIRE(battle.UsePotion(0) == true);
+
+    CHECK(battle.IsDone() == true);
+    CHECK(battle.WasEscaped() == true);
+    CHECK(battle.GetMonsters().front().HasEscaped() == true);
+    CHECK(battle.GetMonsters().front().IsDead() == false);
+}
+
+TEST_CASE("A brew fills the belt, and squeezes no fruit in a fight")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::ENTROPIC_BREW }, { Dummy(50) });
+
+    REQUIRE(battle.UsePotion(0) == true);
+
+    const std::vector<Potion>& held = battle.GetPlayer().GetPotions();
+
+    CHECK(static_cast<int>(held.size()) ==
+          battle.GetPlayer().GetPotionSlots());
+
+    for (const auto& potion : held)
+    {
+        CHECK(potion.GetId() != PotionId::FRUIT_JUICE);
+    }
+}
+
+TEST_CASE("A potion cannot be drunk at a monster that is not there")
+{
+    Battle battle =
+        BattleWith({ CardId::STRIKE_RED }, { PotionId::FIRE_POTION },
+                   { Dummy(50) });
+
+    CHECK(battle.UsePotion(0, 5) == false);
+    CHECK(battle.UsePotion(9) == false);
+    CHECK(battle.GetPlayer().GetPotions().size() == 1u);
+}
+
+TEST_CASE("The registry builds every potion it lists")
+{
+    const std::vector<PotionId>& all = PotionRegistry::GetAll();
+
+    CHECK(all.size() == 40u);
+
+    for (const PotionId id : all)
+    {
+        const Potion potion = PotionRegistry::Get(id);
+
+        CHECK(potion.GetId() == id);
+        CHECK(potion.GetName().empty() == false);
+        CHECK(potion.GetRarity() != PotionRarity::INVALID);
+        CHECK(potion.GetTarget() != CardTarget::INVALID);
+    }
+
+    CHECK(PotionRegistry::GetPool(PotionRarity::COMMON).size() == 20u);
+    CHECK(PotionRegistry::GetPool(PotionRarity::UNCOMMON).size() == 11u);
+    CHECK(PotionRegistry::GetPool(PotionRarity::RARE).size() == 9u);
+}
+
+TEST_CASE("Three potions are as good on the map as in a fight")
+{
+    Run run(CardColor::RED, 5);
+
+    run.GetPlayer().LoseHealth(40);
+
+    REQUIRE(run.AddPotion(PotionId::BLOOD_POTION) == true);
+
+    const int hurt = run.GetPlayer().GetHealth();
+
+    CHECK(run.CanDrinkPotion(0) == true);
+    REQUIRE(run.DrinkPotion(0) == true);
+
+    // A fifth of the whole.
+    CHECK(run.GetPlayer().GetHealth() == hurt + 80 / 5);
+    CHECK(run.GetPlayer().GetPotions().empty() == true);
+
+    REQUIRE(run.AddPotion(PotionId::FRUIT_JUICE) == true);
+    REQUIRE(run.DrinkPotion(0) == true);
+
+    CHECK(run.GetPlayer().GetMaxHealth() == 85);
+}
+
+TEST_CASE("The rest of the belt stays corked outside a fight")
+{
+    Run run(CardColor::RED, 5);
+
+    REQUIRE(run.AddPotion(PotionId::FIRE_POTION) == true);
+    REQUIRE(run.AddPotion(PotionId::FAIRY_IN_A_BOTTLE) == true);
+
+    CHECK(run.CanDrinkPotion(0) == false);
+    CHECK(run.DrinkPotion(0) == false);
+    CHECK(run.CanDrinkPotion(1) == false);
+    CHECK(run.DrinkPotion(1) == false);
+
+    // Nothing was spent, and either can still be thrown away.
+    CHECK(run.GetPlayer().GetPotions().size() == 2u);
+    CHECK(run.DiscardPotion(0) == true);
+    CHECK(run.GetPlayer().GetPotions().size() == 1u);
+}
+
+TEST_CASE("A brew on the map fills the belt with anything at all")
+{
+    Run run(CardColor::RED, 12);
+
+    REQUIRE(run.AddPotion(PotionId::ENTROPIC_BREW) == true);
+    REQUIRE(run.DrinkPotion(0) == true);
+
+    CHECK(static_cast<int>(run.GetPlayer().GetPotions().size()) ==
+          run.GetPlayer().GetPotionSlots());
+}
+
+TEST_CASE("A fairy in a bottle drinks itself when a climber would die")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED },
+                               { PotionId::FAIRY_IN_A_BOTTLE },
+                               { Dummy(50) });
+
+    // Whatever brought the climber down, the fairy answers it.
+    battle.GetPlayer().SetHealth(0);
+    battle.EndTurn();
+
+    CHECK(battle.GetPlayer().IsDead() == false);
+    CHECK(battle.GetPlayer().GetHealth() ==
+          battle.GetPlayer().GetMaxHealth() * 30 / 100);
+    CHECK(battle.GetPlayer().GetPotions().empty() == true);
+    CHECK(battle.GetPhase() != BattlePhase::LOST);
+}
+
+TEST_CASE("A fight walked out of leaves nothing on the floor")
+{
+    Run run(CardColor::RED, 8);
+
+    REQUIRE(run.Travel(run.GetAvailableColumns().front()) == true);
+    REQUIRE(run.AddPotion(PotionId::SMOKE_BOMB) == true);
+
+    Battle battle = run.StartBattleHere();
+
+    REQUIRE(battle.UsePotion(0) == true);
+    REQUIRE(battle.WasEscaped() == true);
+
+    run.FinishBattle(battle);
+
+    CHECK(run.GetRewards().empty() == true);
+    CHECK(run.HasUnclaimedRewards() == false);
+}

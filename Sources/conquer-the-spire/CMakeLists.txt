@@ -35,6 +35,32 @@ add_library(${target}
     ${sources})
 add_dependencies(${target} baba_is_auto_header_gen_py)
 
+# A shared build of the same sources, so that a learner in another language
+# can reach the C interface with nothing but a shared library.
+add_library(${target}-shared SHARED
+    ${sources})
+add_dependencies(${target}-shared baba_is_auto_header_gen_py)
+
+set_target_properties(${target}-shared
+    PROPERTIES
+    ${DEFAULT_PROJECT_OPTIONS}
+    POSITION_INDEPENDENT_CODE ON
+    OUTPUT_NAME ${target}
+)
+
+target_compile_options(${target}-shared
+    PUBLIC
+    ${DEFAULT_COMPILE_OPTIONS}
+)
+
+target_link_libraries(${target}-shared
+    PUBLIC
+    ${DEFAULT_LINKER_OPTIONS}
+    ${DEFAULT_LIBRARIES}
+)
+
+install(TARGETS ${target}-shared DESTINATION lib)
+
 # Project options
 set_target_properties(${target}
     PROPERTIES
