@@ -184,6 +184,15 @@ void RunStats::Ingest(const RunLog& log)
                            line.id * 100 + line.extra);
                 break;
 
+            case LogEntry::CURSE_CHOSEN:
+                Note(StatKind::CURSE_OPTION, line.id, won, died,
+                     counts.floors, seen);
+                break;
+
+            case LogEntry::CURSE_REFUSED:
+                NotePassed(StatKind::CURSE_OPTION, line.id);
+                break;
+
             default:
                 break;
         }

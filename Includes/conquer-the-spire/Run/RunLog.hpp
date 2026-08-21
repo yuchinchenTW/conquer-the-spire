@@ -57,6 +57,17 @@ enum class LogEntry
     //! stood on it, the way FLOOR_WALKED says what was walked onto.
     PATH_PASSED,
 
+    //! An option that hands over a curse, taken; and one that was on the
+    //! table, could have been afforded, and was left alone. \p id is the room
+    //! in both, so that the rooms it keeps giving in to can be told from the
+    //! ones it has learnt to walk past.
+    //!
+    //! A curse otherwise only ever reads as taken - it is handed over rather
+    //! than offered, so the deck says nothing about the times the danger was
+    //! seen and turned down. These two are the pair that does.
+    CURSE_CHOSEN,
+    CURSE_REFUSED,
+
     //! How many kinds of line there are, which is what anything reading the
     //! log from outside counts against so that the two cannot drift apart.
     COUNT
@@ -146,9 +157,15 @@ class RunLog
         int died = 0;
         int wonTheSpire = 0;
 
+        //! Curse options taken, and curse options turned down. The second
+        //! over the two together is how often the danger was walked into
+        //! when it was there to be walked into.
+        int cursesChosen = 0;
+        int cursesRefused = 0;
+
         //! How many numbers a summary is, for whatever hands it over as a
         //! row.
-        static constexpr std::size_t SLOTS = 23;
+        static constexpr std::size_t SLOTS = 25;
     };
 
     //! Writes a line, and counts it.

@@ -340,6 +340,11 @@ class Run
     bool CanDrinkPotion(std::size_t index) const;
 
  private:
+    //! Whether answering a room this way would hand over a curse. A chance
+    //! counts: the option put the curse on the table whether or not the roll
+    //! goes on to land it in the deck.
+    static bool OptionCurses(const EventOption& option);
+
     //! Puts \p room in front of the climber, setting up whatever it keeps
     //! count of.
     const Event& OpenRoom(Event room);

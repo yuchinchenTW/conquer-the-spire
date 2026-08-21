@@ -94,6 +94,8 @@ SUMMARY_FIELDS = [
     "rests",
     "died",
     "won_the_spire",
+    "curses_chosen",
+    "curses_refused",
 ]
 
 # The rooms of the map, in the order of MapNodeType.

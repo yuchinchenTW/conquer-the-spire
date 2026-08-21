@@ -545,14 +545,24 @@ class Trainer(object):
             deck = {name: np.array([one[1][name] for one in recent])
                     for name in ("cards_taken", "cards_removed",
                                  "cards_upgraded", "cards_transformed",
-                                 "rests")}
+                                 "rests", "curses_chosen",
+                                 "curses_refused")}
+
+            # Of the times a room put a curse on the table, how often it
+            # walked away. This is the one number that says whether the
+            # danger is being seen: a curse is handed over rather than
+            # offered, so what lands in the deck cannot tell a refusal from
+            # a room it never met.
+            offers = deck["curses_chosen"] + deck["curses_refused"]
+            refusal = (float(deck["curses_refused"].sum() / offers.sum())
+                       if offers.sum() > 0 else 0.0)
 
             line = ("return %7.1f  floors %5.2f  fights %5.2f  boss %5.1f%%"
-                    "  win %5.1f%%  sharp %4.2f  torn %4.2f" %
-                    (returns.mean(), floors.mean(), fights.mean(),
-                     100.0 * (bosses > 0).mean(), 100.0 * wins.mean(),
-                     deck["cards_upgraded"].mean(),
-                     deck["cards_removed"].mean()))
+                    "  win %5.1f%%  sharp %4.2f  torn %4.2f  nocurse %4.0f%%"
+                    % (returns.mean(), floors.mean(), fights.mean(),
+                       100.0 * (bosses > 0).mean(), 100.0 * wins.mean(),
+                       deck["cards_upgraded"].mean(),
+                       deck["cards_removed"].mean(), 100.0 * refusal))
             row = [self.updates, self.steps, self.episodes,
                    float(returns.mean()), float(floors.mean()),
                    float(fights.mean()), float((bosses > 0).mean()),
@@ -561,7 +571,10 @@ class Trainer(object):
                    float(deck["cards_removed"].mean()),
                    float(deck["cards_upgraded"].mean()),
                    float(deck["cards_transformed"].mean()),
-                   float(deck["rests"].mean())]
+                   float(deck["rests"].mean()),
+                   float(deck["curses_chosen"].mean()),
+                   float(deck["curses_refused"].mean()),
+                   refusal]
         else:
             line = "no climb has ended yet"
             row = [self.updates, self.steps, self.episodes, 0, 0, 0, 0, 0,

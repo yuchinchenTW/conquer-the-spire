@@ -45,6 +45,7 @@ KINDS = [
     "room_entered",
     "room_answered",
     "node_walked",
+    "curse_option",
 ]
 
 # The kinds whose ids are cards, so that a curse can be told from a strike.
@@ -78,6 +79,7 @@ _NAMERS = {
     "potion_drunk": potion_name,
     "room_entered": event_name,
     "node_walked": map_node_name,
+    "curse_option": event_name,
 }
 
 _DECLARED = False

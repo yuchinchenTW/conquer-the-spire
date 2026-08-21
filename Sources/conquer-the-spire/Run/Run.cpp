@@ -456,6 +456,20 @@ bool Run::HasEvent() const
     return !m_event.IsDone() && !m_event.GetOptions().empty();
 }
 
+bool Run::OptionCurses(const EventOption& option)
+{
+    for (const auto& effect : option.effects)
+    {
+        if (effect.type == EventEffectType::GAIN_CURSE ||
+            effect.type == EventEffectType::GAIN_RANDOM_CURSE)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool Run::CanChooseEventOption(std::size_t index) const
 {
     const std::vector<EventOption>& options = m_event.GetOptions();
@@ -565,14 +579,45 @@ bool Run::ChooseEventOption(std::size_t index,
     Note(LogEntry::ROOM_ANSWERED, static_cast<int>(m_event.GetId()),
          static_cast<int>(index));
 
+    if (OptionCurses(option))
+    {
+        Note(LogEntry::CURSE_CHOSEN, static_cast<int>(m_event.GetId()),
+             static_cast<int>(index));
+    }
+
     // And what it turned down to answer that way. Only what could have been
     // taken counts: an option with a price it cannot pay was never a choice.
     for (std::size_t other = 0; other < m_event.GetOptions().size(); ++other)
     {
-        if (other != index && CanChooseEventOption(other))
+        if (other == index || !CanChooseEventOption(other))
         {
-            Note(LogEntry::ROOM_PASSED, static_cast<int>(m_event.GetId()),
-                 static_cast<int>(other));
+            continue;
+        }
+
+        Note(LogEntry::ROOM_PASSED, static_cast<int>(m_event.GetId()),
+             static_cast<int>(other));
+
+        const EventOption& turnedDown = m_event.GetOptions()[other];
+
+        if (!OptionCurses(turnedDown))
+        {
+            continue;
+        }
+
+        Note(LogEntry::CURSE_REFUSED, static_cast<int>(m_event.GetId()),
+             static_cast<int>(other));
+
+        // Against the curse itself as well, so that turning one down reads
+        // the way leaving a card on a reward pile does. A curse the option
+        // would have drawn at random is not named here: there is no one card
+        // to hang it on. The pair of lines above counts it either way.
+        for (const auto& effect : turnedDown.effects)
+        {
+            if (effect.type == EventEffectType::GAIN_CURSE &&
+                effect.card != CardId::INVALID)
+            {
+                Note(LogEntry::CARD_PASSED, static_cast<int>(effect.card), 0);
+            }
         }
     }
 

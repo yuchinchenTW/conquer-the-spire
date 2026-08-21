@@ -36,7 +36,12 @@ enum class StatKind
 
     //! Which kind of place on the map it walks onto, against the kinds it
     //! walked past to get there.
-    NODE_WALKED
+    NODE_WALKED,
+
+    //! A room that offered a curse, counted by whether the offer was taken.
+    //! The id is the room, so passes over picks reads as how often that
+    //! particular temptation is turned down.
+    CURSE_OPTION
 };
 
 //!

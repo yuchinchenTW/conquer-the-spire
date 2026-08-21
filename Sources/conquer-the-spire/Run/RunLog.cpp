@@ -23,7 +23,7 @@ const char* NameOf(LogEntry entry)
         "potion_thrown", "gold_earned",    "gold_spent",   "fight_won",
         "floor_walked",  "act_started",    "room_entered", "room_answered",
         "rested",        "died",           "spire_done",   "room_passed",
-        "path_passed"};
+        "path_passed",   "curse_chosen",   "curse_refused"};
 
     static_assert(sizeof(names) / sizeof(names[0]) ==
                       static_cast<std::size_t>(LogEntry::COUNT),
@@ -148,6 +148,14 @@ void RunLog::Add(LogEntry entry, LogSource source, int id, int extra, int act,
             m_summary.wonTheSpire = 1;
             break;
 
+        case LogEntry::CURSE_CHOSEN:
+            ++m_summary.cursesChosen;
+            break;
+
+        case LogEntry::CURSE_REFUSED:
+            ++m_summary.cursesRefused;
+            break;
+
         default:
             break;
     }
@@ -199,5 +207,7 @@ void RunLog::ReadSummary(int* out) const
     out[20] = m_summary.rested;
     out[21] = m_summary.died;
     out[22] = m_summary.wonTheSpire;
+    out[23] = m_summary.cursesChosen;
+    out[24] = m_summary.cursesRefused;
 }
 }  // namespace ConquerTheSpire

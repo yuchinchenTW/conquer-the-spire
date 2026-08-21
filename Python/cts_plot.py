@@ -22,7 +22,8 @@ import time
 COLUMNS = ["updates", "steps", "episodes", "return", "floors", "fights",
            "boss_rate", "win_rate", "loss",
            "cards_taken", "cards_removed", "cards_upgraded",
-           "cards_transformed", "rests"]
+           "cards_transformed", "rests",
+           "curses_chosen", "curses_refused", "curse_refusal"]
 
 # How wide a row was before the deck counts were added to the end of it. A
 # curve written by the older trainer is still worth drawing, so a row of that
@@ -30,13 +31,15 @@ COLUMNS = ["updates", "steps", "episodes", "return", "floors", "fights",
 LEGACY_COLUMNS = 9
 
 # What is worth looking at, and how to draw it. The order is the order the
-# window lays them out in: the first three across the top, the rest below.
+# window lays them out in: the first four across the top, the rest below.
 PANELS = [
     ("floors", "floors reached", "#4c9f70"),
     ("boss_rate", "climbs that put a boss down", "#c76b4a"),
-    ("cards_upgraded", "cards sharpened a climb", "#c9a227"),
+    ("fights", "fights won a climb", "#6a8f4a"),
+    ("curse_refusal", "curse offers turned down", "#9a4a7a"),
     ("return", "reward a climb", "#4a6fc7"),
     ("loss", "loss", "#8a8a8a"),
+    ("cards_upgraded", "cards sharpened a climb", "#c9a227"),
     ("cards_removed", "cards torn up a climb", "#4a9a9a"),
 ]
 
@@ -200,6 +203,7 @@ PICK_TABLES = [
     ("potion_taken", "potions taken"),
     ("room_answered", "rooms answered"),
     ("node_walked", "paths taken"),
+    ("curse_option", "rooms that offered a curse"),
 ]
 
 # Curses get a panel of their own: they are never offered beside a real card,
@@ -396,16 +400,15 @@ def window(folder, character, once=False, every=5.0):
     if once:
         matplotlib.use("Agg")
 
-    figure = plt.figure(figsize=(19, 7))
+    figure = plt.figure(figsize=(21, 7))
     figure.canvas.manager.set_window_title("%s - training" % character)
-    grid = figure.add_gridspec(2, 7)
+    grid = figure.add_gridspec(2, 8)
 
-    # Three curves across the top and three below, in the order of PANELS.
-    flat = [figure.add_subplot(grid[0, 0]), figure.add_subplot(grid[0, 1]),
-            figure.add_subplot(grid[0, 2]), figure.add_subplot(grid[1, 0]),
-            figure.add_subplot(grid[1, 1]), figure.add_subplot(grid[1, 2])]
-    bars = [figure.add_subplot(grid[:, 3]), figure.add_subplot(grid[:, 4]),
-            figure.add_subplot(grid[0, 5:]), figure.add_subplot(grid[1, 5:])]
+    # Four curves across the top and four below, in the order of PANELS.
+    flat = [figure.add_subplot(grid[0, column]) for column in range(4)]
+    flat += [figure.add_subplot(grid[1, column]) for column in range(4)]
+    bars = [figure.add_subplot(grid[:, 4]), figure.add_subplot(grid[:, 5]),
+            figure.add_subplot(grid[0, 6:]), figure.add_subplot(grid[1, 6:])]
 
     def drawBars(panel, rows, title, colour, top=12, count=False):
         panel.clear()
