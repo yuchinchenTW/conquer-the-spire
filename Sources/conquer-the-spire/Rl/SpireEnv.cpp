@@ -901,12 +901,50 @@ void SpireEnv::Settle()
     m_phase = m_run.IsAtBoss() ? EnvPhase::BOSS : EnvPhase::MAP;
 }
 
+void SpireEnv::Close()
+{
+    m_phase = EnvPhase::OVER;
+
+    // A climb that has finished is counted once, whatever happens next.
+    if (!m_counted)
+    {
+        m_counted = true;
+        m_stats.Ingest(m_run.GetLog());
+    }
+}
+
 StepResult SpireEnv::Step(const Action& action)
 {
     StepResult result;
 
     if (m_phase == EnvPhase::OVER)
     {
+        result.done = true;
+
+        return result;
+    }
+
+    // Counted here rather than at the end, because a move the phase turns
+    // down returns from the middle of the switch below and never reached a
+    // counter kept down there. A climb that cannot be moved on from - one
+    // standing in a state with nothing legal in it - would then never be
+    // called off at all, and the batch it sits in would never finish.
+    ++m_moves;
+
+    if (m_moves >= MOVE_LIMIT)
+    {
+        Close();
+        result.done = true;
+
+        return result;
+    }
+
+    // And the state with nothing legal in it is ended here rather than three
+    // thousand turned-down moves later. Nothing can be played out of it, so
+    // there is nothing to wait for.
+    if (LegalActions().empty())
+    {
+        Close();
         result.done = true;
 
         return result;
@@ -1270,20 +1308,14 @@ StepResult SpireEnv::Step(const Action& action)
         m_healthWeight *
         static_cast<float>(std::max(0, healthBefore -
                                           m_run.GetPlayer().GetHealth()));
-    // Called off, if it has been going far longer than any climb does.
-    if (++m_moves >= MOVE_LIMIT)
-    {
-        m_phase = EnvPhase::OVER;
-    }
-
+    // The move limit is counted at the top, where every way through Step()
+    // passes it.
     result.done = m_phase == EnvPhase::OVER;
     m_healthBefore = m_run.GetPlayer().GetHealth();
 
-    // A climb that has finished is counted once, whatever happens next.
-    if (result.done && !m_counted)
+    if (result.done)
     {
-        m_counted = true;
-        m_stats.Ingest(m_run.GetLog());
+        Close();
     }
 
     return result;

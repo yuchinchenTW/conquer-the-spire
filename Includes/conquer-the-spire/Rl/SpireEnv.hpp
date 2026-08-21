@@ -338,6 +338,10 @@ class SpireEnv
     //! Turns the \p ordinal th living monster into its slot in the fight.
     std::size_t TargetOf(int ordinal) const;
 
+    //! Ends the climb and counts it into the table, once however many steps
+    //! come after it. Every way out of Step() goes through here.
+    void Close();
+
     //! Walks the phase on once whatever was going on has finished.
     void Settle();
 

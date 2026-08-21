@@ -453,7 +453,23 @@ const Event& Run::GetEvent() const
 
 bool Run::HasEvent() const
 {
-    return !m_event.IsDone() && !m_event.GetOptions().empty();
+    if (m_event.IsDone() || m_event.GetOptions().empty())
+    {
+        return false;
+    }
+
+    // Having options is not the same as having one that can be taken. A room
+    // whose every answer is behind a price it cannot pay is a room it cannot
+    // answer, and standing in front of it is a state with no move in it.
+    for (std::size_t i = 0; i < m_event.GetOptions().size(); ++i)
+    {
+        if (CanChooseEventOption(i))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool Run::OptionCurses(const EventOption& option)

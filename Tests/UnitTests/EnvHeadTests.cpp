@@ -1209,3 +1209,75 @@ TEST_CASE("A fire offers only the cards it could change")
     CHECK(offered > 0);
     CHECK(offered < static_cast<int>(env.GetRun().GetDeck().size()));
 }
+
+TEST_CASE("A climb is called off even when every move is turned down")
+{
+    // A move the phase does not allow changes nothing. The counter behind
+    // MOVE_LIMIT used to sit at the end of Step(), which those moves return
+    // before reaching, so a climb fed nothing but rejected moves ran for
+    // ever. Whatever is thrown at it, it has to end.
+    SpireEnv env;
+    env.SetActLimit(1);
+    env.Reset(CardColor::RED, 5);
+
+    // NEXT_ACT is legal in one phase only, and the climb does not start in
+    // it, so this is turned down for as long as the phase holds.
+    int steps = 0;
+    bool done = false;
+
+    while (steps < SpireEnv::MOVE_LIMIT * 2)
+    {
+        ++steps;
+
+        const StepResult result = env.Step(Action(ActionKind::NEXT_ACT));
+
+        if (result.done)
+        {
+            done = true;
+            break;
+        }
+    }
+
+    CHECK(done == true);
+    CHECK(steps <= SpireEnv::MOVE_LIMIT);
+    CHECK(env.IsDone() == true);
+}
+
+TEST_CASE("A climb never stands in a state with no move in it")
+{
+    // The mask is what an agent is steered by, so a row of it with nothing
+    // set leaves the agent choosing at random among moves that are all
+    // turned down. That is the shape the hang took.
+    std::mt19937 rng(20260821);
+
+    for (unsigned int seed = 1; seed <= 40u; ++seed)
+    {
+        SpireEnv env;
+        env.SetActLimit(0);
+        env.Reset(CardColor::RED, seed);
+
+        for (int step = 0; step < 4000 && !env.IsDone(); ++step)
+        {
+            const std::vector<unsigned char> mask = env.ActionMask();
+            const std::size_t legal = static_cast<std::size_t>(
+                std::count(mask.begin(), mask.end(), 1u));
+
+            REQUIRE(legal > 0u);
+
+            std::vector<std::size_t> open;
+
+            for (std::size_t i = 0; i < mask.size(); ++i)
+            {
+                if (mask[i] != 0u)
+                {
+                    open.emplace_back(i);
+                }
+            }
+
+            std::uniform_int_distribution<std::size_t> pick(
+                0, open.size() - 1u);
+
+            env.StepIndex(open[pick(rng)]);
+        }
+    }
+}
