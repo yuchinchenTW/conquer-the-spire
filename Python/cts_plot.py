@@ -20,14 +20,24 @@ import time
 
 # What the trainer writes, in order.
 COLUMNS = ["updates", "steps", "episodes", "return", "floors", "fights",
-           "boss_rate", "win_rate", "loss"]
+           "boss_rate", "win_rate", "loss",
+           "cards_taken", "cards_removed", "cards_upgraded",
+           "cards_transformed", "rests"]
 
-# What is worth looking at, and how to draw it.
+# How wide a row was before the deck counts were added to the end of it. A
+# curve written by the older trainer is still worth drawing, so a row of that
+# width is read with the counts left at zero rather than thrown away.
+LEGACY_COLUMNS = 9
+
+# What is worth looking at, and how to draw it. The order is the order the
+# window lays them out in: the first three across the top, the rest below.
 PANELS = [
     ("floors", "floors reached", "#4c9f70"),
     ("boss_rate", "climbs that put a boss down", "#c76b4a"),
+    ("cards_upgraded", "cards sharpened a climb", "#c9a227"),
     ("return", "reward a climb", "#4a6fc7"),
     ("loss", "loss", "#8a8a8a"),
+    ("cards_removed", "cards torn up a climb", "#4a9a9a"),
 ]
 
 
@@ -88,13 +98,20 @@ def read(folder):
 
     with open(path, "r", newline="") as handle:
         for row in csv.reader(handle):
-            if len(row) != len(COLUMNS):
+            # Anything from the oldest shape up to the current one is read,
+            # so that a curve started before a column was added carries on
+            # being drawn instead of vanishing from the window.
+            if not LEGACY_COLUMNS <= len(row) <= len(COLUMNS):
                 continue
 
             try:
                 values = [float(one) for one in row]
             except ValueError:
                 continue
+
+            # A row from an older trainer stops early; the columns it never
+            # wrote read as nothing rather than as a gap in the line.
+            values += [0.0] * (len(COLUMNS) - len(values))
 
             out.append(dict(zip(COLUMNS, values)))
 
@@ -379,13 +396,16 @@ def window(folder, character, once=False, every=5.0):
     if once:
         matplotlib.use("Agg")
 
-    figure = plt.figure(figsize=(17, 7))
+    figure = plt.figure(figsize=(19, 7))
     figure.canvas.manager.set_window_title("%s - training" % character)
-    grid = figure.add_gridspec(2, 6)
+    grid = figure.add_gridspec(2, 7)
+
+    # Three curves across the top and three below, in the order of PANELS.
     flat = [figure.add_subplot(grid[0, 0]), figure.add_subplot(grid[0, 1]),
-            figure.add_subplot(grid[1, 0]), figure.add_subplot(grid[1, 1])]
-    bars = [figure.add_subplot(grid[:, 2]), figure.add_subplot(grid[:, 3]),
-            figure.add_subplot(grid[0, 4:]), figure.add_subplot(grid[1, 4:])]
+            figure.add_subplot(grid[0, 2]), figure.add_subplot(grid[1, 0]),
+            figure.add_subplot(grid[1, 1]), figure.add_subplot(grid[1, 2])]
+    bars = [figure.add_subplot(grid[:, 3]), figure.add_subplot(grid[:, 4]),
+            figure.add_subplot(grid[0, 5:]), figure.add_subplot(grid[1, 5:])]
 
     def drawBars(panel, rows, title, colour, top=12, count=False):
         panel.clear()

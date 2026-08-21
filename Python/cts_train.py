@@ -37,6 +37,7 @@ except ImportError:  # pragma: no cover
 from cts_env import CHARACTERS, SpireEnv, action_table
 from cts_net import CardPolicy
 from cts_log import SUMMARY_FIELDS, vec_summaries
+from cts_plot import COLUMNS as CURVE_COLUMNS
 from cts_plot import read as read_curve, write_html
 from cts_stats import clear as clear_stats
 from cts_stats import curses_of
@@ -534,18 +535,38 @@ class Trainer(object):
             bosses = np.array([one[1]["bosses_won"] for one in recent])
             wins = np.array([one[1]["won_the_spire"] for one in recent])
             fights = np.array([one[1]["fights_won"] for one in recent])
+
+            # What it has been doing to the deck itself. Nothing in the
+            # reward speaks of a deck, so whether sharpening and tearing up
+            # are being learnt at all can only be read off these.
+            # The count of rests goes with them: climbing further passes more
+            # fires, so a rise in the sharpening alone says nothing until it
+            # is read against the chances it had.
+            deck = {name: np.array([one[1][name] for one in recent])
+                    for name in ("cards_taken", "cards_removed",
+                                 "cards_upgraded", "cards_transformed",
+                                 "rests")}
+
             line = ("return %7.1f  floors %5.2f  fights %5.2f  boss %5.1f%%"
-                    "  win %5.1f%%" %
+                    "  win %5.1f%%  sharp %4.2f  torn %4.2f" %
                     (returns.mean(), floors.mean(), fights.mean(),
-                     100.0 * (bosses > 0).mean(), 100.0 * wins.mean()))
+                     100.0 * (bosses > 0).mean(), 100.0 * wins.mean(),
+                     deck["cards_upgraded"].mean(),
+                     deck["cards_removed"].mean()))
             row = [self.updates, self.steps, self.episodes,
                    float(returns.mean()), float(floors.mean()),
                    float(fights.mean()), float((bosses > 0).mean()),
-                   float(wins.mean()), loss]
+                   float(wins.mean()), loss,
+                   float(deck["cards_taken"].mean()),
+                   float(deck["cards_removed"].mean()),
+                   float(deck["cards_upgraded"].mean()),
+                   float(deck["cards_transformed"].mean()),
+                   float(deck["rests"].mean())]
         else:
             line = "no climb has ended yet"
             row = [self.updates, self.steps, self.episodes, 0, 0, 0, 0, 0,
                    loss]
+            row += [0.0] * (len(CURVE_COLUMNS) - len(row))
 
         print("update %-6d %-11s %s  loss %7.3f  %5.0f moves/s" %
               (self.updates, "(%d climbs)" % self.episodes, line, loss,
@@ -556,9 +577,9 @@ class Trainer(object):
             csv.writer(handle).writerow(row)
 
         if self.board is not None:
-            for name, value in zip(
-                    ["return", "floors", "fights", "boss_rate", "win_rate",
-                     "loss"], row[3:]):
+            # Named from the curve's own columns, so that a column added to
+            # one cannot go missing from the other.
+            for name, value in zip(CURVE_COLUMNS[3:], row[3:]):
                 self.board.add_scalar(name, value, self.steps)
 
             self.board.flush()
