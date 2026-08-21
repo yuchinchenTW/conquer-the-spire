@@ -492,7 +492,7 @@ def window(folder, character, once=False, every=5.0):
         drawBars(bars[3], picks.get("node_walked", []),
                  "which place it walks onto", "#4a6fc7", top=7)
         drawBars(bars[4], picks.get("boss_fought", []),
-                 "bosses, and how often it won", "#a03030", top=8,
+                 "bosses, and how often it won", "#a03030", top=12,
                  label="won, % of the times it was fought")
         drawBars(bars[5], picks.get("elite_fought", []),
                  "elites, and how often it won", "#b07030", top=8,

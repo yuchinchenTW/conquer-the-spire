@@ -340,10 +340,27 @@ Battle Run::StartBattle(std::vector<Monster> monsters)
     // Written down on the way in, not on the way out: a climb that dies here
     // never reaches FinishBattle(), so this is the only place that can say
     // what it was fighting when it went.
-    if (!m_encounter.monsters.empty())
+    //
+    // The monster named is the one that makes the fight the kind of fight it
+    // is, rather than whichever happens to stand first in the line: the
+    // Awakened One is led in behind a pair of cultists, and a table of bosses
+    // with a row called Cultist in it says nothing about which boss that was.
+    MonsterId leading = m_encounter.monsters.empty()
+                            ? MonsterId::INVALID
+                            : m_encounter.monsters.front();
+
+    for (const auto& monster : monsters)
     {
-        Note(LogEntry::FIGHT_STARTED,
-             static_cast<int>(m_encounter.monsters.front()),
+        if (monster.GetMonsterType() == m_encounter.type)
+        {
+            leading = monster.GetMonsterId();
+            break;
+        }
+    }
+
+    if (leading != MonsterId::INVALID)
+    {
+        Note(LogEntry::FIGHT_STARTED, static_cast<int>(leading),
              static_cast<int>(m_encounter.type));
     }
 

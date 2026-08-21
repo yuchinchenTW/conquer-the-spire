@@ -2,6 +2,7 @@
 
 #include <conquer-the-spire/Cards/CardRegistry.hpp>
 #include <conquer-the-spire/Events/EventLibrary.hpp>
+#include <conquer-the-spire/Monsters/EncounterLibrary.hpp>
 #include <conquer-the-spire/Rl/SpireEnv.hpp>
 
 #include <algorithm>
@@ -1278,6 +1279,46 @@ TEST_CASE("A climb never stands in a state with no move in it")
                 0, open.size() - 1u);
 
             env.StepIndex(open[pick(rng)]);
+        }
+    }
+}
+
+TEST_CASE("A boss fight is named after the boss, not whoever stands first")
+{
+    // The Awakened One is led in behind a pair of cultists, so the monster
+    // standing first in the line is not the one the fight is about. The rule
+    // is the first whose kind is the kind of the fight, and every boss group
+    // in the spire has to have one.
+    std::mt19937 rng(4);
+
+    const std::vector<const std::vector<Encounter>*> pools = {
+        &EncounterLibrary::GetAct1Bosses(), &EncounterLibrary::GetAct2Bosses(),
+        &EncounterLibrary::GetAct3Bosses(), &EncounterLibrary::GetAct4Bosses()
+    };
+
+    for (const std::vector<Encounter>* pool : pools)
+    {
+        for (const Encounter& encounter : *pool)
+        {
+            const std::vector<Monster> built =
+                EncounterLibrary::Build(encounter, rng);
+
+            REQUIRE(built.empty() == false);
+
+            MonsterId named = MonsterId::INVALID;
+
+            for (const Monster& monster : built)
+            {
+                if (monster.GetMonsterType() == encounter.type)
+                {
+                    named = monster.GetMonsterId();
+                    break;
+                }
+            }
+
+            // Something was found, and it is the boss rather than an escort.
+            CHECK(named != MonsterId::INVALID);
+            CHECK(named != MonsterId::CULTIST);
         }
     }
 }
