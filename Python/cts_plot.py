@@ -272,9 +272,11 @@ def _table(rows, title, top=10, count=False):
 
     lines = []
 
-    # A curse is never turned down - it is handed over - so the bar is how
-    # many were taken against the worst of them rather than a share.
-    most = max([row["picks"] for row in rows[:top]] or [1]) if count else 0
+    # Counted rather than shared: the bar is how many were taken against the
+    # worst of them. At least one, because a curse can be turned down now and
+    # a window in which every one of them was refused is all zeroes - which
+    # divided by its own largest is what this used to do.
+    most = max([row["picks"] for row in rows[:top]] + [1]) if count else 0
 
     # A row read out of the engine says offered; one read back out of the
     # file says seen. They are the same number.
