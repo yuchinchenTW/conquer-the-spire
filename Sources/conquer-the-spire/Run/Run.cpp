@@ -1744,6 +1744,14 @@ bool Run::AdvanceAct()
         return false;
     }
 
+    // Act four is the top of the spire; there is nothing above it to walk
+    // into. Saying so here is what lets whoever puts its boss down be paid
+    // for the spire rather than started on a fifth act that does not exist.
+    if (m_act >= 4)
+    {
+        return false;
+    }
+
     // The last act is behind a door with three locks.
     if (m_act >= 3 && !HasAllKeys())
     {

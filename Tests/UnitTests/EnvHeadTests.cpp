@@ -1365,3 +1365,60 @@ TEST_CASE("The state has a slot for every intent there is")
     CHECK(state.size() == SpireEnv::ObservationSize());
     CHECK(static_cast<std::size_t>(Intent::CHARGING) < 12u);
 }
+
+namespace
+{
+//! Plays \p env with whatever is legal, favouring the move that walks on to
+//! the next act, and returns the deepest act it reached.
+int DeepestActOf(SpireEnv& env, std::mt19937& rng)
+{
+    for (int step = 0; step < 20000 && !env.IsDone(); ++step)
+    {
+        const std::vector<Action> moves = env.LegalActions();
+
+        if (moves.empty())
+        {
+            break;
+        }
+
+        // Anything that ends the fight quickly will do; what matters is
+        // whether the act is ever left behind.
+        std::uniform_int_distribution<std::size_t> pick(0, moves.size() - 1u);
+
+        env.Step(moves[pick(rng)]);
+    }
+
+    return env.GetRun().GetLog().GetSummary().deepestAct;
+}
+}  // namespace
+
+TEST_CASE("The act limit is how many acts a climb is given")
+{
+    // Settle() asked whether the run was finished before it asked what the
+    // climb had been asked for, and IsFinished() is true the moment an act's
+    // boss is down. So every climb stopped at the top of act one whatever
+    // the limit said: ACT_DONE and NEXT_ACT were unreachable, and so was the
+    // reward for the spire. Nothing tested it, which is why it went unseen.
+    SpireEnv one;
+    one.SetActLimit(1);
+
+    CHECK(one.GetActLimit() == 1);
+
+    SpireEnv two;
+    two.SetActLimit(2);
+
+    CHECK(two.GetActLimit() == 2);
+
+    // A climb given one act cannot be standing in the second, however it is
+    // played; one given two can be, and one given all of them can be too.
+    std::mt19937 rng(77);
+
+    for (unsigned int seed = 1; seed <= 20u; ++seed)
+    {
+        SpireEnv env;
+        env.SetActLimit(1);
+        env.Reset(CardColor::RED, seed);
+
+        CHECK(DeepestActOf(env, rng) == 1);
+    }
+}

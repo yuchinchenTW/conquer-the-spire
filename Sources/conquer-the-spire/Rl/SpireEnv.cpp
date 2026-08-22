@@ -878,13 +878,12 @@ void SpireEnv::Settle()
 
     m_run.ClearRewards();
 
-    if (m_run.IsFinished())
-    {
-        m_phase = EnvPhase::OVER;
-
-        return;
-    }
-
+    // Asked before the run is called finished, because IsFinished() only
+    // says the act's boss is down - which is the end of an act, not of the
+    // climb. Asked the other way round it answered for every act, the climb
+    // stopped at the top of the first one whatever it had been asked for,
+    // and this branch never ran at all: no ACT_DONE, no NEXT_ACT, no second
+    // act, and the hundred points for the spire never paid to anyone.
     if (m_bossFight)
     {
         m_bossFight = false;
@@ -894,6 +893,13 @@ void SpireEnv::Settle()
         m_phase = m_actLimit > 0 && m_run.GetAct() >= m_actLimit
                       ? EnvPhase::OVER
                       : EnvPhase::ACT_DONE;
+
+        return;
+    }
+
+    if (m_run.IsFinished())
+    {
+        m_phase = EnvPhase::OVER;
 
         return;
     }
