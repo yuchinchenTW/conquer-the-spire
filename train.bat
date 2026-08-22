@@ -149,11 +149,45 @@ if not defined PICK set "PICK=2"
 if /i "%PICK%"=="b" goto carry
 if "%PICK%"=="1" set "WIDTH=512"
 if "%PICK%"=="2" set "WIDTH=1024"
-if defined WIDTH goto size
+if defined WIDTH goto sight
 echo.
 echo   That was not one of them.
 pause
 goto width
+
+rem ----------------------------------------------------- how far it looks
+:sight
+cls
+echo ==========================================================
+echo   %CHARACTER%, act limit %ACTS% - how far ahead does it look?
+echo ==========================================================
+echo.
+echo     1. Near  - about 200 moves ahead
+echo     2. Far   - about 1000 moves ahead
+echo.
+echo   A climb is six to nine hundred moves, so only the far one can see
+echo   what sharpening a card at a fire in act one buys in act two. Looking
+echo   near, it rests instead - which is the right answer to the question it
+echo   can see.
+echo.
+echo   This changes what a climb is worth, so the reward on the curve cannot
+echo   be read against a run made with the other answer. Floors and boss can.
+echo.
+echo     B. Back
+echo.
+set "GAMMA="
+set "PICK="
+set /p "PICK=  Choose [2]: "
+
+if not defined PICK set "PICK=2"
+if /i "%PICK%"=="b" goto width
+if "%PICK%"=="1" set "GAMMA=0.995"
+if "%PICK%"=="2" set "GAMMA=0.999"
+if defined GAMMA goto size
+echo.
+echo   That was not one of them.
+pause
+goto sight
 
 rem ------------------------------------------------------------ how hard to
 :size
@@ -173,7 +207,7 @@ set "PICK="
 set /p "PICK=  Choose [2]: "
 
 if not defined PICK set "PICK=2"
-if /i "%PICK%"=="b" goto width
+if /i "%PICK%"=="b" goto sight
 if "%PICK%"=="1" set "ENVS=64"
 if "%PICK%"=="2" set "ENVS=128"
 if "%PICK%"=="3" set "ENVS=256"
@@ -193,6 +227,7 @@ echo.
 echo   act limit   : %ACTS%   - 0 means the whole spire
 echo   climbs      : %ENVS% at once
 echo   brain       : %WIDTH% wide
+echo   looks ahead : %GAMMA%
 echo   saved to    : runs\%CHARACTER%\checkpoint.pt
 echo   the curve   : runs\%CHARACTER%\curve.csv
 echo.
@@ -203,7 +238,7 @@ echo   an act boss down. win stays at zero for a long while: that is the
 echo   game, not a fault.
 echo.
 
-%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --picks %FRESH% %EXTRA%
+%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --picks %FRESH% %EXTRA%
 
 echo.
 echo ==========================================================
