@@ -406,7 +406,11 @@ def window(folder, character, once=False, every=5.0):
     if once:
         matplotlib.use("Agg")
 
-    figure = plt.figure(figsize=(24, 7))
+    # Constrained rather than tight: nine columns of panels, several with a
+    # card or a monster name down the side, is more than tight_layout will
+    # fit - it gives up and warns about it on every redraw. This one works
+    # the spacing out from the room it actually has.
+    figure = plt.figure(figsize=(24, 7), layout="constrained")
     figure.canvas.manager.set_window_title("%s - training" % character)
     grid = figure.add_gridspec(2, 9)
 
@@ -507,8 +511,6 @@ def window(folder, character, once=False, every=5.0):
                  "{:,}".format(int(last["steps"])), last["floors"],
                  100.0 * last["boss_rate"]),
                 fontsize=11)
-
-        figure.tight_layout()
 
         return bool(rows)
 
