@@ -2639,8 +2639,15 @@ bool Run::DrinkPotion(std::size_t index)
                        m_player.GetPotionSlots() &&
                    !pool.empty())
             {
-                AddPotion(pool[static_cast<std::size_t>(RollBetween(
-                    m_rng, 0, static_cast<int>(pool.size()) - 1))]);
+                // Stopping the moment one is turned away, because a belt
+                // that did not take that one is not going to take the next
+                // either: a sozu refuses all of them, and waiting for it to
+                // fill is waiting for ever.
+                if (!AddPotion(pool[static_cast<std::size_t>(RollBetween(
+                        m_rng, 0, static_cast<int>(pool.size()) - 1))]))
+                {
+                    break;
+                }
             }
 
             continue;

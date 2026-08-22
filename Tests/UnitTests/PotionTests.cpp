@@ -557,3 +557,42 @@ TEST_CASE("A fight walked out of leaves nothing on the floor")
     CHECK(run.GetRewards().empty() == true);
     CHECK(run.HasUnclaimedRewards() == false);
 }
+
+TEST_CASE("A brew drunk behind a sozu gives up rather than going round again")
+{
+    // Entropic Brew fills the belt, and the loop that filled it waited for
+    // the belt to be full. A sozu turns every potion away, so the belt never
+    // filled and the loop never came back: the engine sat inside
+    // PotionRegistry::Get building a potion and throwing it away, one core
+    // at a hundred percent, for as long as it was left alone. Training died
+    // this way twice, hours in.
+    Run run(CardColor::RED, 5);
+
+    // The brew goes in first, because a sozu would refuse that too.
+    REQUIRE(run.AddPotion(PotionId::ENTROPIC_BREW) == true);
+
+    run.AddRelic(RelicId::SOZU);
+
+    REQUIRE(run.GetPlayer().HasRelic(RelicId::SOZU) == true);
+    REQUIRE(run.GetPlayer().GetPotions().size() == 1u);
+
+    // This one catches the fault by never coming back, rather than by
+    // failing: nothing a single-threaded test can do will bound a call into
+    // the engine that does not return. A suite that stops here, with a core
+    // at a hundred percent, is this test finding it.
+    CHECK(run.DrinkPotion(0) == true);
+
+    // The brew was drunk, and nothing came of it, which is what a sozu means.
+    CHECK(run.GetPlayer().GetPotions().empty() == true);
+}
+
+TEST_CASE("A brew without a sozu still fills the belt")
+{
+    // The guard above must not be reached in the ordinary case.
+    Run run(CardColor::RED, 9);
+
+    REQUIRE(run.AddPotion(PotionId::ENTROPIC_BREW) == true);
+    CHECK(run.DrinkPotion(0) == true);
+    CHECK(static_cast<int>(run.GetPlayer().GetPotions().size()) ==
+          run.GetPlayer().GetPotionSlots());
+}
