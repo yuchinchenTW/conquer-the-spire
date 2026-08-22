@@ -18,12 +18,30 @@ namespace
 //! The powers the state keeps a number for. Everything else is left out
 //! rather than making the vector unreadable.
 const PowerType WATCHED_POWERS[] = {
+    // The ones either side can carry.
     PowerType::STRENGTH,    PowerType::DEXTERITY,  PowerType::VULNERABLE,
     PowerType::WEAK,        PowerType::FRAIL,      PowerType::POISON,
     PowerType::ARTIFACT,    PowerType::INTANGIBLE, PowerType::THORNS,
     PowerType::METALLICIZE, PowerType::BARRICADE,  PowerType::DEMON_FORM,
     PowerType::CONFUSED,    PowerType::HEX,        PowerType::NO_DRAW,
-    PowerType::ENERGIZED
+    PowerType::ENERGIZED,
+
+    // And what the monsters bring of their own. Every one of these decides
+    // how a fight has to be played - a guardian shifting mode, a nob raging
+    // at skills, a louse curled up against the first hit - and none of them
+    // was in the state at all, so the fight it was in was only ever half
+    // readable. The list is what the roster actually uses; anything a
+    // monster can do that is not here cannot be learnt about.
+    PowerType::MODE_SHIFT,  PowerType::SHARP_HIDE, PowerType::ENRAGE,
+    PowerType::CURL_UP,     PowerType::ASLEEP,     PowerType::ANGRY,
+    PowerType::SPORE_CLOUD, PowerType::RITUAL,     PowerType::ENTANGLED,
+    PowerType::PAINFUL_STABS, PowerType::PLATED_ARMOR, PowerType::FLIGHT,
+    PowerType::MALLEABLE,   PowerType::MINION,     PowerType::THIEVERY,
+    PowerType::REGENERATION, PowerType::CURIOSITY, PowerType::LIFE_LINK,
+    PowerType::SLOW,        PowerType::TIME_WARP,  PowerType::DRAW_REDUCTION,
+    PowerType::INVINCIBLE,  PowerType::BEAT_OF_DEATH, PowerType::CONSTRICTED,
+    PowerType::FADING,      PowerType::SHIFTING,   PowerType::REACTIVE,
+    PowerType::INTANGIBLE_CYCLE
 };
 
 constexpr std::size_t WATCHED_COUNT =
@@ -34,7 +52,10 @@ constexpr std::size_t PHASE_SLOTS = 10;
 constexpr std::size_t RUN_SLOTS = 14;
 constexpr std::size_t DECK_SUMMARY_SLOTS = 7;
 constexpr std::size_t BATTLE_SLOTS = 9;
-constexpr std::size_t INTENT_SLOTS = 12;
+constexpr std::size_t INTENT_SLOTS = 13;
+
+static_assert(INTENT_SLOTS >= static_cast<std::size_t>(Intent::COUNT),
+              "an intent was added without room in the state for it");
 constexpr std::size_t MONSTER_SLOTS = 5 + INTENT_SLOTS;
 
 //! How many piles of cards the state counts up: the deck, the draw pile and

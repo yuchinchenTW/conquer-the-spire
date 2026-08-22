@@ -423,7 +423,17 @@ enum class Intent
     //! intent reads as - a climber cannot tell those two apart, and neither
     //! could a learner, so a gremlin wizard charging looked exactly like a
     //! monster whose plans were simply not on show.
-    CHARGING
+    CHARGING,
+
+    //! Putting something else on the board, or splitting into two of itself.
+    //! It does no damage on the turn it happens and everything afterwards is
+    //! harder, which is exactly the shape UNKNOWN cannot express.
+    SUMMON,
+
+    //! How many there are. The one-hot of intents in the state is counted
+    //! against this, so that adding one here cannot quietly fall off the end
+    //! of it - which is what the last one added came within a slot of doing.
+    COUNT
 };
 
 //! Where the battle currently is.

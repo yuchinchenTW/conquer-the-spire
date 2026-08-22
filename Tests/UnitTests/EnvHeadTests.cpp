@@ -1363,7 +1363,8 @@ TEST_CASE("The state has a slot for every intent there is")
     const std::vector<float> state = InBattle(3).Observe();
 
     CHECK(state.size() == SpireEnv::ObservationSize());
-    CHECK(static_cast<std::size_t>(Intent::CHARGING) < 12u);
+    CHECK(static_cast<std::size_t>(Intent::SUMMON) <
+          static_cast<std::size_t>(Intent::COUNT));
 }
 
 namespace

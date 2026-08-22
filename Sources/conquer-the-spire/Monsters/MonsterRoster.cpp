@@ -132,7 +132,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                       .Chance(30, 2),
                   MM::Attack("Tackle", 16).Chance(40, 1),
                   MM::Debuff("Lick", PowerType::WEAK, 2).Chance(30, 2),
-                  MM::Of("Split", Intent::UNKNOWN,
+                  MM::Of("Split", Intent::SUMMON,
                          { ME::Split(MonsterId::ACID_SLIME_M,
                                      MonsterId::ACID_SLIME_M) }) });
             break;
@@ -166,7 +166,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                          { ME::Damage(16), ME::AddCard(CardId::SLIMED, 2) })
                       .Chance(30, 2),
                   MM::Debuff("Lick", PowerType::FRAIL, 2).Chance(70, 2),
-                  MM::Of("Split", Intent::UNKNOWN,
+                  MM::Of("Split", Intent::SUMMON,
                          { ME::Split(MonsterId::SPIKE_SLIME_M,
                                      MonsterId::SPIKE_SLIME_M) }) });
             break;
@@ -191,7 +191,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 id, "Looter", MonsterType::NORMAL, Roll(rng, 44, 48),
                 { MM::Attack("Mug", 10), MM::Attack("Mug", 10),
                   MM::Attack("Lunge", 12), MM::Defend("Smoke Bomb", 6),
-                  MM::Of("Escape", Intent::UNKNOWN, { ME::Escape() }) },
+                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }) },
                 false);
             break;
         }
@@ -382,7 +382,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 { MM::Of("Goop Spray", Intent::DEBUFF,
                          { ME::AddCard(CardId::SLIMED, 3) }),
                   MM::Nothing("Preparing", Intent::CHARGING), MM::Attack("Slam", 35),
-                  MM::Of("Split", Intent::UNKNOWN,
+                  MM::Of("Split", Intent::SUMMON,
                          { ME::Split(MonsterId::ACID_SLIME_L,
                                      MonsterId::SPIKE_SLIME_L) }) },
                 true, 0);
@@ -472,7 +472,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 id, "Mugger", MonsterType::NORMAL, Roll(rng, 48, 52),
                 { MM::Attack("Mug", 10), MM::Attack("Mug", 10),
                   MM::Attack("Lunge", 16), MM::Defend("Smoke Bomb", 11),
-                  MM::Of("Escape", Intent::UNKNOWN, { ME::Escape() }) },
+                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }) },
                 false);
             monster.AddPower(PowerType::THIEVERY, 15);
             break;
@@ -543,7 +543,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             monster = Thinking(
                 id, "Gremlin Leader", MonsterType::ELITE,
                 Roll(rng, 140, 148),
-                { MM::Of("Rally", Intent::UNKNOWN,
+                { MM::Of("Rally", Intent::SUMMON,
                          { ME::Summon(MonsterId::MAD_GREMLIN, 2, 3) })
                       .Chance(75, 1),
                   MM::Attack("Stab", 6, 3).Chance(25, 1),
@@ -584,7 +584,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Patterned(
                 id, "Bronze Automaton", MonsterType::BOSS, 300,
-                { MM::Of("Spawn Orbs", Intent::UNKNOWN,
+                { MM::Of("Spawn Orbs", Intent::SUMMON,
                          { ME::Summon(MonsterId::BRONZE_ORB, 2, 2) }),
                   MM::Attack("Flail", 7, 2),
                   MM::Buff("Boost", PowerType::STRENGTH, 3, 9),
@@ -639,7 +639,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "The Collector", MonsterType::BOSS, 282,
-                { MM::Of("Spawn", Intent::UNKNOWN,
+                { MM::Of("Spawn", Intent::SUMMON,
                          { ME::Summon(MonsterId::TORCH_HEAD, 2, 2) })
                       .Chance(25)
                       .Opener(),
@@ -674,7 +674,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 { MM::Attack("Nip", 9).Chance(30, 2),
                   MM::Attack("Chomp", 8, 2).Chance(40, 1).NotFirst(),
                   MM::Defend("Harden", 12).Chance(30, 1),
-                  MM::Of("Reincarnate", Intent::UNKNOWN,
+                  MM::Of("Reincarnate", Intent::SUMMON,
                          { ME::Revive(50) }) });
             monster.AddPower(PowerType::LIFE_LINK, 1);
             break;
@@ -823,7 +823,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Reptomancer", MonsterType::ELITE, Roll(rng, 180, 190),
-                { MM::Of("Summon", Intent::UNKNOWN,
+                { MM::Of("Summon", Intent::SUMMON,
                          { ME::Summon(MonsterId::DAGGER, 1, 4) })
                       .Chance(33, 2)
                       .Opener(),
