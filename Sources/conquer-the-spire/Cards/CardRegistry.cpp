@@ -52,10 +52,27 @@ std::size_t CardRegistry::IdCount()
 
 namespace
 {
-//! Adds up what a card hands over, the crude way: every effect that deals
-//! damage, blocks or puts a power on somebody, counted once.
+//! Adds up what a card hands over: damage, block, and one number for
+//! everything else it does.
+//!
+//! The everything-else used to cover five kinds of effect out of fifty-two,
+//! so a card built from any of the rest came out as damage 0, block 0,
+//! power 0 - the same three numbers a Slimed reads as. Worse, the state puts
+//! the difference between a card's worth and its sharpened worth beside it,
+//! and nought minus nought says sharpening buys nothing. Entrench, Limit
+//! Break, Havoc, Second Wind and Exhume were all worth nothing to look at,
+//! and were drafted accordingly - Limit Break offered 2690 times and taken
+//! none of them.
+//!
+//! The ones that multiply what is already there cannot be given a number
+//! that is true in every state; they are counted as a modest something,
+//! which is nearer than nothing.
 CardWorth WorthOf(const Card& card)
 {
+    // What a card that doubles or multiplies is called worth. Better than
+    // zero and honest about being a stand-in.
+    constexpr int MULTIPLIER = 5;
+
     CardWorth worth;
 
     worth.cost = card.GetCost();
@@ -63,6 +80,7 @@ CardWorth WorthOf(const Card& card)
     for (const auto& effect : card.GetEffects())
     {
         const int times = std::max(1, effect.times);
+        const int value = std::max(1, effect.value) * times;
 
         switch (effect.type)
         {
@@ -74,15 +92,84 @@ CardWorth WorthOf(const Card& card)
                 worth.block += effect.value * times;
                 break;
 
+            case EffectType::INCREASE_SELF_DAMAGE:
+            case EffectType::INCREASE_CLAW_DAMAGE:
+                worth.damage += value;
+                break;
+
+            case EffectType::INCREASE_SELF_BLOCK:
+                worth.block += value;
+                break;
+
+            // Doubling what is already on the table.
+            case EffectType::DOUBLE_BLOCK:
+                worth.block += MULTIPLIER;
+                break;
+
+            case EffectType::DOUBLE_STRENGTH:
+            case EffectType::MULTIPLY_TARGET_POWER:
+            case EffectType::DOUBLE_ENERGY:
+                worth.power += MULTIPLIER;
+                break;
+
             case EffectType::APPLY_POWER:
             case EffectType::GAIN_ENERGY:
             case EffectType::DRAW_CARD:
             case EffectType::HEAL:
             case EffectType::INCREASE_MAX_HEALTH:
-                worth.power += effect.value * times;
+            case EffectType::HEAL_PERCENT:
+            case EffectType::DRAW_UNTIL:
+            case EffectType::UPGRADE_HAND_CARD:
+            case EffectType::RETURN_FROM_EXHAUST:
+            case EffectType::RETURN_FROM_DISCARD:
+            case EffectType::DRAW_TO_HAND_FROM_TOP:
+            case EffectType::PLAY_TOP_CARD:
+            case EffectType::COPY_HAND_CARD:
+            case EffectType::COPY_SELF_TO_DISCARD:
+            case EffectType::DISCARD_TO_DRAW_TOP:
+            case EffectType::HAND_TO_DRAW_TOP:
+            case EffectType::EXHAUST_FOR_ENERGY:
+            case EffectType::REDUCE_SELF_COST:
+            case EffectType::SET_HAND_COST:
+            case EffectType::REMOVE_BLOCK:
+            case EffectType::CHANNEL_ORB:
+            case EffectType::EVOKE_ORB:
+            case EffectType::EVOKE_ALL_ORBS:
+            case EffectType::ADD_ORB_SLOTS:
+            case EffectType::TRIGGER_DARK_ORBS:
+            case EffectType::OBTAIN_POTION:
+            case EffectType::SETUP_CARD:
+            case EffectType::REMEMBER_CARD:
+            case EffectType::TAKE_FROM_DRAW_BY_TYPE:
+            case EffectType::ADD_RANDOM_ATTACK:
+            case EffectType::ADD_RANDOM_SKILL:
+            case EffectType::ADD_RANDOM_POWER:
+            case EffectType::ADD_RANDOM_COMMON:
+            case EffectType::ADD_RANDOM_CARD:
+            case EffectType::EXHAUST_HAND:
+            case EffectType::EXHAUST_HAND_CARD:
+            case EffectType::DISCARD_CARDS:
+            case EffectType::DISCARD_HAND:
+            case EffectType::RESHUFFLE_ALL:
+            case EffectType::REMOVE_ALL_ORBS:
+                worth.power += value;
                 break;
 
-            default:
+            // What a card charges for itself. Counted against the rest of
+            // it, because a card that hurts to play is worth less than the
+            // same card that does not.
+            case EffectType::LOSE_HEALTH:
+                worth.power -= value;
+                break;
+
+            case EffectType::ADD_CARD:
+                // A card handed into a pile: a Burn or a Wound most of the
+                // time, and the kind of thing that is done to a climber
+                // rather than for one.
+                worth.power -= value;
+                break;
+
+            case EffectType::INVALID:
                 break;
         }
     }
