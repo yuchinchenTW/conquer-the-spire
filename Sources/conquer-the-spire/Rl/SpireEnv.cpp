@@ -123,11 +123,11 @@ constexpr std::size_t CARD_KINDS = 5;
 //! whether sharpening it again would change anything, how many of that same
 //! card the deck holds, what it is worth now - cost, damage, block, power -
 //! and what sharpening it would add to each of those.
-constexpr std::size_t DECK_CARD_SLOTS = 12 + CARD_KINDS;
+constexpr std::size_t DECK_CARD_SLOTS = 16 + CARD_KINDS;
 
 //! What a card in hand is worth, beside what it costs and whether it can be
 //! played: damage, block and power.
-constexpr std::size_t HAND_WORTH_SLOTS = 3;
+constexpr std::size_t HAND_WORTH_SLOTS = 5;
 
 //! What can stand on a place on the map, counting everything but the empty
 //! places: a fight, an elite, a question mark, a fire, a shop, a chest and a
@@ -401,6 +401,12 @@ void PushWorth(std::vector<float>& out, const CardWorth& worth)
 {
     out.emplace_back(Scaled(worth.damage, 20));
     out.emplace_back(Scaled(worth.block, 20));
+
+    // Cards drawn and energy handed over, apart from the rest: those two buy
+    // any card at all, and lumped into the power they read the same as a
+    // buff - Battle Trance drawing three came out at 4 and so did Flex.
+    out.emplace_back(Scaled(worth.draw, 5));
+    out.emplace_back(Scaled(worth.energy, 3));
     out.emplace_back(Scaled(worth.power, 10));
 }
 
@@ -1965,6 +1971,8 @@ std::vector<float> SpireEnv::Observe() const
         out.emplace_back(again ? Scaled(now.cost - next.cost, 3) : 0.0f);
         out.emplace_back(again ? Scaled(next.damage - now.damage, 10) : 0.0f);
         out.emplace_back(again ? Scaled(next.block - now.block, 10) : 0.0f);
+        out.emplace_back(again ? Scaled(next.draw - now.draw, 3) : 0.0f);
+        out.emplace_back(again ? Scaled(next.energy - now.energy, 2) : 0.0f);
         out.emplace_back(again ? Scaled(next.power - now.power, 5) : 0.0f);
     }
 

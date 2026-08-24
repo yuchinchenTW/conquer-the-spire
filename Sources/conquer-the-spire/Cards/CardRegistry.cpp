@@ -113,27 +113,41 @@ CardWorth WorthOf(const Card& card)
 
             case EffectType::DOUBLE_STRENGTH:
             case EffectType::MULTIPLY_TARGET_POWER:
-            case EffectType::DOUBLE_ENERGY:
                 worth.power += MULTIPLIER;
                 break;
 
-            case EffectType::APPLY_POWER:
+            case EffectType::DOUBLE_ENERGY:
+                worth.energy += MULTIPLIER;
+                break;
+
+            // The two that buy anything: a card drawn is any card, and an
+            // energy is any card played. Kept apart from the rest, or the
+            // strong ones read as the weak ones - Battle Trance draws three
+            // and Flex gives two strength for a turn, and both came out at
+            // power 4.
             case EffectType::GAIN_ENERGY:
+            case EffectType::EXHAUST_FOR_ENERGY:
+                worth.energy += value;
+                break;
+
             case EffectType::DRAW_CARD:
+            case EffectType::DRAW_UNTIL:
+            case EffectType::DRAW_TO_HAND_FROM_TOP:
+            case EffectType::RETURN_FROM_EXHAUST:
+            case EffectType::RETURN_FROM_DISCARD:
+            case EffectType::COPY_HAND_CARD:
+                worth.draw += value;
+                break;
+
+            case EffectType::APPLY_POWER:
             case EffectType::HEAL:
             case EffectType::INCREASE_MAX_HEALTH:
             case EffectType::HEAL_PERCENT:
-            case EffectType::DRAW_UNTIL:
             case EffectType::UPGRADE_HAND_CARD:
-            case EffectType::RETURN_FROM_EXHAUST:
-            case EffectType::RETURN_FROM_DISCARD:
-            case EffectType::DRAW_TO_HAND_FROM_TOP:
             case EffectType::PLAY_TOP_CARD:
-            case EffectType::COPY_HAND_CARD:
             case EffectType::COPY_SELF_TO_DISCARD:
             case EffectType::DISCARD_TO_DRAW_TOP:
             case EffectType::HAND_TO_DRAW_TOP:
-            case EffectType::EXHAUST_FOR_ENERGY:
             case EffectType::REDUCE_SELF_COST:
             case EffectType::SET_HAND_COST:
             case EffectType::REMOVE_BLOCK:

@@ -1089,10 +1089,13 @@ TEST_CASE("The state says what a whetstone would buy")
     CHECK(before[at + 7] == 1.0f);
 
     // Five Strikes in a starting deck, and six damage now with three more
-    // to be had from a whetstone.
+    // to be had from a whetstone. The worth is damage, block, cards drawn,
+    // energy, then the rest; the difference a whetstone makes follows it in
+    // the same order behind the cost, so the damage it adds is the second of
+    // those.
     CHECK(before[at + 8] == doctest::Approx(5.0f / 5.0f));
     CHECK(before[at + 10] == doctest::Approx(6.0f / 20.0f));
-    CHECK(before[at + 14] == doctest::Approx(3.0f / 10.0f));
+    CHECK(before[at + 16] == doctest::Approx(3.0f / 10.0f));
 
     REQUIRE(run.Smith(0) == true);
 
@@ -1517,13 +1520,26 @@ TEST_CASE("What a card asks for is not netted off what it hands over")
         CardRegistry::Worth(CardId::BLOODLETTING, 0);
     const CardWorth& offering = CardRegistry::Worth(CardId::OFFERING, 0);
 
-    // Each hands something over, and neither is worth nothing.
-    CHECK(letting.power > 0);
-    CHECK(offering.power > 0);
+    // Each hands something over, and neither is worth nothing. The energy is
+    // its own number now rather than part of the power, because energy and
+    // cards drawn buy anything at all and a buff does not.
+    CHECK(letting.energy > 0);
+    CHECK(offering.energy > 0);
 
-    // Offering hands over more, and asks more for it.
-    CHECK(offering.power > letting.power);
+    // Offering hands over more, and asks more for it. Same energy as
+    // Bloodletting, three cards on top, twice the health.
+    CHECK(offering.energy == letting.energy);
+    CHECK(offering.draw > letting.draw);
     CHECK(offering.cost > letting.cost);
+
+    // And Battle Trance, which draws three, no longer reads the same as
+    // Flex, which hands over two strength for a single turn.
+    const CardWorth& trance = CardRegistry::Worth(CardId::BATTLE_TRANCE, 0);
+    const CardWorth& flex = CardRegistry::Worth(CardId::FLEX, 0);
+
+    CHECK(trance.draw > 0);
+    CHECK(flex.draw == 0);
+    CHECK(flex.power > 0);
 
     // And the cost stays inside the range the state scales it against, so
     // that a card which pays in health does not swamp the number.

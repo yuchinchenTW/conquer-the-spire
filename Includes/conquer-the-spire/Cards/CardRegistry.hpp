@@ -35,6 +35,18 @@ struct CardWorth
     int cost = 0;
     int damage = 0;
     int block = 0;
+
+    //! Cards drawn, and energy handed over. Apart from the rest because they
+    //! are the two things that buy anything at all in this game - a card
+    //! drawn is any card, an energy is any card played - and lumped in with
+    //! everything else they could not be told from a buff. Battle Trance
+    //! draws three and Flex gives two strength for one turn; both came out
+    //! at power 4, the same number for the strong card and the weak one.
+    int draw = 0;
+    int energy = 0;
+
+    //! Everything else it hands over: a power put on, a heal, a card
+    //! upgraded, an orb channelled.
     int power = 0;
 };
 
