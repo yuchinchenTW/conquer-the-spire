@@ -52,6 +52,11 @@ try:
 except ImportError:  # pragma: no cover - tensorboard is optional
     SummaryWriter = None
 
+# How improbable a move may be and still be worth taking on a search's word.
+# exp(-6) is about one in four hundred: rare enough that the policy is not
+# already doing it, common enough that the ratio in the loss stays sane.
+LOGP_FLOOR = -6.0
+
 # One embedding table covers every id the state names: cards, relics, potions,
 # rooms and monsters all fit under this, and a second table says which kind of
 # slot each one came from.
@@ -286,6 +291,46 @@ class Trainer(object):
 
         return True
 
+    def reranked(self, state, named, allowed, action, logp):
+        """The policy's own top moves, re-ordered by how their fights end.
+
+        Returns what to do and its log probability *under the policy*, which
+        is what the ratio in the loss below is against. Handing back the
+        chosen move with the sampled move's probability would put a number in
+        the batch that does not belong to what was played, and PPO would be
+        correcting towards the wrong thing.
+        """
+        width = self.args.peek
+        scores, _ = self.net.forward(state, named)
+        scores = scores.masked_fill(~allowed, -1e9)
+        top = torch.topk(scores, min(width, scores.shape[1]), dim=1).indices
+
+        # topk fills the row out of the masked-away moves when fewer than
+        # `width` are legal; those slots read as empty to the engine.
+        offered = torch.where(allowed.gather(1, top), top,
+                              torch.full_like(top, self.actions))
+        picked = torch.as_tensor(
+            self.vec.rank(offered.cpu().numpy().astype(np.uintp)),
+            device=self.device).long()
+
+        # An index at or past the head is the engine saying it had nothing to
+        # look into, and has to be turned away before it indexes anything.
+        safe = picked.clamp(max=self.actions - 1)
+        usable = (picked < self.actions) & allowed.gather(
+            1, safe[:, None]).squeeze(1)
+        kept = torch.where(usable, safe, action)
+        logps = torch.distributions.Categorical(logits=scores).log_prob(kept)
+
+        # And a move the policy all but rules out is left alone however well
+        # its fight came out. The ratio in the loss is exp(new - old), so a
+        # move taken at a probability of 1e-22 puts an astronomical number in
+        # it the moment the policy warms to it at all: the first run of this
+        # reached a loss of three hundred million. PPO corrects towards what
+        # it nearly did, not towards an oracle - handing it an action from
+        # outside its own distribution is what distillation is for, not this.
+        return (torch.where(logps > LOGP_FLOOR, kept, action),
+                torch.where(logps > LOGP_FLOOR, logps, logp))
+
     # ------------------------------------------------------------ the loop
     def rollout(self):
         """Collects one batch and returns it, along with what ended in it."""
@@ -316,6 +361,13 @@ class Trainer(object):
 
             with torch.no_grad():
                 action, logp, _, value = self.net.act(state, named, allowed)
+
+                # A fight looked into before the move is made. The policy
+                # offers its best few and the engine plays each one's fight
+                # out; whichever comes out best is what actually happens.
+                if self.args.peek > 0:
+                    action, logp = self.reranked(state, named, allowed,
+                                                 action, logp)
 
             obs[step] = state
             ids[step] = named
@@ -727,6 +779,10 @@ def main(argv=None):
                         dest="pick_lines",
                         help="how many of each kind get a line of their own "
                              "in tensorboard")
+    parser.add_argument("--peek", type=int, default=0,
+                        help="look this many of the policy's best moves a "
+                             "fight ahead before making one, and take "
+                             "whichever comes out best; 0 to just play")
     parser.add_argument("--no-board", action="store_true",
                         dest="no_board",
                         help="do not write tensorboard events")
