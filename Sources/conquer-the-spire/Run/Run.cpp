@@ -2025,21 +2025,21 @@ void Run::FinishBattle(const Battle& battle)
                  counted.second);
         }
 
-        // And the ones carried through the whole fight without being played,
-        // written as none: without them there is no denominator, and a card
-        // that is never playable would read the same as one that is never
-        // drawn. Once a card whatever the deck holds of it, because the
-        // question is about the card and not the copies.
-        std::vector<CardId> idle;
-
-        for (const auto& card : m_player.GetDeck())
+        // And the turns each was left holding, written as none, because
+        // without them there is no denominator.
+        //
+        // Counted from the hand at the end of each turn rather than from the
+        // deck at the end of the fight, which is what this did first and got
+        // wrong twice over: a card made during a fight - a Slimed, a Burn -
+        // is not in the deck and so was never counted against, and read as
+        // a hundred per cent playable; and a Clash played once in a fight it
+        // sat out seven turns of counted as a fight it worked in.
+        for (const auto& stuck : battle.GetStrandedCounts())
         {
-            if (played.find(card.GetId()) == played.end() &&
-                std::find(idle.begin(), idle.end(), card.GetId()) ==
-                    idle.end())
+            for (int again = 0; again < stuck.second; ++again)
             {
-                idle.emplace_back(card.GetId());
-                Note(LogEntry::CARD_PLAYED, static_cast<int>(card.GetId()), 0);
+                Note(LogEntry::CARD_PLAYED,
+                     static_cast<int>(stuck.first), 0);
             }
         }
 

@@ -1440,7 +1440,14 @@ TEST_CASE("A card counts the times it was actually played")
 
     Player player("Ironclad", 80);
     player.SetColor(CardColor::RED);
-    player.AddCardToDeck(CardRegistry::Get(CardId::STRIKE_RED, 0));
+
+    // Enough to have something left in hand after one is played, or the
+    // stranded side below has nothing to count.
+    for (int i = 0; i < 5; ++i)
+    {
+        player.AddCardToDeck(CardRegistry::Get(CardId::STRIKE_RED, 0));
+        player.AddCardToDeck(CardRegistry::Get(CardId::DEFEND_RED, 0));
+    }
 
     Battle battle(player, std::move(monsters), 7);
     battle.Start();
@@ -1477,4 +1484,24 @@ TEST_CASE("A card counts the times it was actually played")
     }
 
     CHECK(battle.GetPlayedCounts().at(first) == before);
+
+    // The other side of it: what is left holding when the turn is handed
+    // over. Without this a card made during a fight - a Slimed, which cannot
+    // be played at all - has nothing counted against it and reads as fully
+    // playable, which is what the first version of this said.
+    const std::size_t held = battle.GetPlayer().GetHand().size();
+
+    REQUIRE(held > 0u);
+    CHECK(battle.GetStrandedCounts().empty() == true);
+
+    battle.EndTurn();
+
+    int stranded = 0;
+
+    for (const auto& counted : battle.GetStrandedCounts())
+    {
+        stranded += counted.second;
+    }
+
+    CHECK(stranded == static_cast<int>(held));
 }

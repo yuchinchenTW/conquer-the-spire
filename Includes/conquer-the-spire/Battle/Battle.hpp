@@ -135,10 +135,12 @@ class Battle
     //! for enumerating legal moves.
     std::vector<std::size_t> GetPlayableCardIndices() const;
 
-    //! How many times each card was actually played this fight. What a card
+    //! How many times each card was actually played this fight, and how many
+    //! turns each was left holding when the turn was handed over. What a card
     //! is worth on paper and what it does in a hand are different questions,
-    //! and only this one answers the second.
+    //! and only these two answer the second.
     const std::map<CardId, int>& GetPlayedCounts() const;
+    const std::map<CardId, int>& GetStrandedCounts() const;
 
     //! Returns how many times the player has lost health this battle, which is
     //! what Blood for Blood reads.
@@ -366,6 +368,7 @@ class Battle
     //! fight simulated by a search counts into its own copy and leaves the
     //! real one alone.
     std::map<CardId, int> m_playedCounts;
+    std::map<CardId, int> m_strandedCounts;
     int m_cardsDiscardedThisTurn = 0;
     int m_attacksPlayedThisTurn = 0;
     int m_playDepth = 0;

@@ -239,6 +239,16 @@ bool Battle::EndTurn()
         return false;
     }
 
+    // A card still in hand when the turn is handed over is a card that could
+    // not be used this turn - which is the only honest denominator for how
+    // much use a card is. Counted per turn rather than per fight: a Clash
+    // played once in a fight it sat out seven turns of is not a card that
+    // works, and counting the fight would have said it was.
+    for (const auto& held : m_player.GetHand())
+    {
+        ++m_strandedCounts[held.GetId()];
+    }
+
     EndPlayerTurn();
 
     if (IsDone())
@@ -564,6 +574,11 @@ std::vector<std::size_t> Battle::GetLivingMonsterIndices() const
 const std::map<CardId, int>& Battle::GetPlayedCounts() const
 {
     return m_playedCounts;
+}
+
+const std::map<CardId, int>& Battle::GetStrandedCounts() const
+{
+    return m_strandedCounts;
 }
 
 std::vector<std::size_t> Battle::GetPlayableCardIndices() const
