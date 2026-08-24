@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover
     raise
 
 from cts_env import CHARACTERS, SpireEnv, action_table
-from cts_net import CardPolicy
+from cts_net import CardPolicy, FORESIGHTS
 from cts_log import SUMMARY_FIELDS, vec_summaries
 from cts_plot import COLUMNS as CURVE_COLUMNS
 from cts_plot import read as read_curve, write_html
@@ -56,6 +56,13 @@ except ImportError:  # pragma: no cover - tensorboard is optional
 # exp(-6) is about one in four hundred: rare enough that the policy is not
 # already doing it, common enough that the ratio in the loss stays sane.
 LOGP_FLOOR = -6.0
+
+# Where health and the floor sit in the state, for the foresight targets.
+# The run block writes act, floor, column, gold, health, in that order, so
+# the two wanted are the second and the fifth of it.
+_RUN = SpireEnv().layout["run"]
+FLOOR_AT = _RUN + 1
+HEALTH_AT = _RUN + 4
 
 # One embedding table covers every id the state names: cards, relics, potions,
 # rooms and monsters all fit under this, and a second table says which kind of
@@ -301,7 +308,7 @@ class Trainer(object):
         correcting towards the wrong thing.
         """
         width = self.args.peek
-        scores, _ = self.net.forward(state, named)
+        scores, _, _ = self.net.forward(state, named)
         scores = scores.masked_fill(~allowed, -1e9)
         top = torch.topk(scores, min(width, scores.shape[1]), dim=1).indices
 
@@ -349,6 +356,12 @@ class Trainer(object):
         rewards = torch.zeros((steps, envs), device=self.device)
         dones = torch.zeros((steps, envs), device=self.device)
 
+        # What the trunk is asked to foresee, and the two raw counts
+        # the targets are worked out from.
+        seen = torch.zeros((steps, envs, len(FORESIGHTS)), device=self.device)
+        hurt = torch.zeros((steps, envs), device=self.device)
+        floors = torch.zeros((steps, envs), device=self.device)
+
         finished = []
 
         for step in range(steps):
@@ -376,6 +389,11 @@ class Trainer(object):
             logps[step] = logp
             values[step] = value
 
+            # Read before the step, to difference against after it.
+            wasState = np.asarray(self.obs)
+            before = wasState[:, HEALTH_AT].copy()
+            was = wasState[:, FLOOR_AT].copy()
+
             picks = action.cpu().numpy()
             self.obs, self.ids, self.mask, reward, done, info = self.vec.step(
                 picks)
@@ -384,6 +402,21 @@ class Trainer(object):
                                             device=self.device)
             dones[step] = torch.as_tensor(np.asarray(done, dtype=np.float32),
                                           device=self.device)
+
+            # The two raw counts the foresight targets are read from. Health
+            # is a share of the maximum in the state, so the drop between one
+            # step and the next is already the right scale; a floor is one
+            # floor. A climb that ended is skipped, because the state now
+            # belongs to the next one.
+            after = np.asarray(self.obs)
+            alive = 1.0 - np.asarray(done, dtype=np.float32)
+            hurt[step] = torch.as_tensor(
+                np.maximum(0.0, before - after[:, HEALTH_AT]) * alive,
+                device=self.device).float()
+            floors[step] = torch.as_tensor(
+                np.maximum(0.0, after[:, FLOOR_AT] - was) * alive,
+                device=self.device).float()
+
             self.steps += envs
 
             if done.any():
@@ -401,10 +434,28 @@ class Trainer(object):
                                     device=self.device).float()
             named = torch.as_tensor(np.asarray(self.ids),
                                     device=self.device).long()
-            _, last = self.net.forward(state, named)
+            _, last, _ = self.net.forward(state, named)
 
+        # What the trunk was asked to see, filled in now that the batch is
+        # whole - each of these is a number from later in the same climb, so
+        # nothing had to be labelled.
+        #
+        # How much health went in the step after, whether the fight was over
+        # within eight steps, and how many more floors the climb managed.
+        for step in range(steps):
+            seen[step, :, 0] = torch.clamp(hurt[step], 0.0, 1.0)
+
+            ahead = min(steps, step + 8)
+            seen[step, :, 1] = (dones[step:ahead].sum(dim=0) > 0).float()
+
+            # Floors left, out of a spire's worth, so the number sits beside
+            # the others rather than dwarfing them.
+            gained = floors[step:].sum(dim=0) - floors[step]
+            seen[step, :, 2] = torch.clamp(gained / 60.0, 0.0, 1.0)
+
+        # `finished` stays last, because the loop above reads it as batch[-1].
         return (obs, ids, masks, actions, logps, values, rewards, dones,
-                last, finished)
+                last, seen, finished)
 
     def advantages(self, rewards, values, dones, last):
         """Generalised advantage, walked backwards over the batch."""
@@ -425,7 +476,7 @@ class Trainer(object):
 
     def learn(self, batch):
         (obs, ids, masks, actions, logps, values, rewards, dones, last,
-         _) = batch
+         seen, _) = batch
 
         adv, returns = self.advantages(rewards, values, dones, last)
 
@@ -433,6 +484,7 @@ class Trainer(object):
         obs, ids, masks = flat(obs), flat(ids), flat(masks)
         actions, logps = flat(actions), flat(logps)
         adv, returns = flat(adv), flat(returns)
+        seen = flat(seen)
 
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
@@ -445,8 +497,13 @@ class Trainer(object):
 
             for at in range(0, total, size):
                 cut = order[at:at + size]
-                newLogp, entropy, value = self.net.judge(
-                    obs[cut], ids[cut], masks[cut], actions[cut])
+                judged = self.net.judge(obs[cut], ids[cut], masks[cut],
+                                        actions[cut])
+                newLogp, entropy, value = judged[:3]
+
+                # The card net also says what it foresees; the flat one has
+                # no such head and hands back three things, not four.
+                foresight = judged[3] if len(judged) > 3 else None
 
                 ratio = (newLogp - logps[cut]).exp()
                 clipped = torch.clamp(ratio, 1.0 - self.args.clip,
@@ -456,6 +513,14 @@ class Trainer(object):
                 valueLoss = functional.mse_loss(value, returns[cut])
                 loss = (policyLoss + self.args.value * valueLoss -
                         self.args.entropy * entropy.mean())
+
+                # And what the trunk was asked to see. Nothing reads these at
+                # play: they are here so the trunk has to hold the damage
+                # coming and the shape of the fight, which every deck
+                # decision is then made on top of.
+                if foresight is not None and self.args.foresight > 0.0:
+                    loss = loss + self.args.foresight * functional.mse_loss(
+                        foresight, seen[cut])
 
                 self.opt.zero_grad(set_to_none=True)
                 loss.backward()
@@ -779,6 +844,11 @@ def main(argv=None):
                         dest="pick_lines",
                         help="how many of each kind get a line of their own "
                              "in tensorboard")
+    parser.add_argument("--foresight", type=float, default=0.1,
+                        help="how hard the trunk is held to what it foresees "
+                             "- the damage coming, whether the fight is "
+                             "nearly over, how far the climb gets. Nothing "
+                             "reads these at play; 0 turns the head off")
     parser.add_argument("--peek", type=int, default=0,
                         help="look this many of the policy's best moves a "
                              "fight ahead before making one, and take "

@@ -129,6 +129,17 @@ RULES = {
 
 QUESTIONS = sorted({rule[0] for rule in RULES.values()})
 
+# What the trunk is asked to see, beside choosing a move. Each is a number
+# read off the state a moment later, so the target comes free - no labelling,
+# no extra rollouts. They were picked as the things the fights actually turn
+# on, which the measurements pointed at: damage taken, whether the fight is
+# nearly over, and how deep the climb gets.
+FORESIGHTS = [
+    "hurt_this_turn",     # health about to be lost, as a share of the most
+    "fight_over_soon",    # whether this fight ends within a few turns
+    "climb_floors",       # how many more floors this climb manages
+]
+
 
 class CardPolicy(nn.Module):
     """The masked policy, with a value head beside it."""
@@ -179,6 +190,18 @@ class CardPolicy(nn.Module):
         # The moves that are not about anything in particular.
         self.singles = nn.Linear(width, self.actions)
         self.value = nn.Linear(width, 1)
+
+        # What the trunk is asked to work out besides which move to make.
+        # Nothing reads these at play - they are there to make the trunk
+        # represent the things a fight turns on, because a head cannot
+        # predict the damage coming without the trunk holding it somewhere.
+        # The measurements said tactics were fine and the deck was the wall;
+        # what this leans on is whether the trunk sees the fight clearly
+        # enough for the deck decisions to be made on top of it.
+        self.foresee = nn.Linear(width, len(FORESIGHTS))
+
+        nn.init.orthogonal_(self.foresee.weight, gain=0.1)
+        nn.init.zeros_(self.foresee.bias)
 
         # A quiet head to start with keeps the first climbs close to even.
         nn.init.orthogonal_(self.singles.weight, gain=0.01)
@@ -380,11 +403,12 @@ class CardPolicy(nn.Module):
 
             scored = scored.index_copy(1, where, flat.index_select(1, spot))
 
-        return logits + scored, self.value(hidden).squeeze(-1)
+        return (logits + scored, self.value(hidden).squeeze(-1),
+                self.foresee(hidden))
 
     # -------------------------------------------------- the same two answers
     def act(self, obs, ids, mask):
-        logits, value = self.forward(obs, ids)
+        logits, value, _ = self.forward(obs, ids)
         logits = logits.masked_fill(mask == 0, -1e9)
         dist = torch.distributions.Categorical(logits=logits)
         action = dist.sample()
@@ -392,11 +416,12 @@ class CardPolicy(nn.Module):
         return action, dist.log_prob(action), dist.entropy(), value
 
     def judge(self, obs, ids, mask, action):
-        logits, value = self.forward(obs, ids)
+        """Adds what the trunk foresees, which the loss holds it to."""
+        logits, value, foresight = self.forward(obs, ids)
         logits = logits.masked_fill(mask == 0, -1e9)
         dist = torch.distributions.Categorical(logits=logits)
 
-        return dist.log_prob(action), dist.entropy(), value
+        return dist.log_prob(action), dist.entropy(), value, foresight
 
 
 def _check():
@@ -432,7 +457,7 @@ def _check():
         raise AssertionError("no %s move for %d, %d" % (kind, slot, mark))
 
     with torch.no_grad():
-        logits, _ = net(obs, ids)
+        logits, _, _ = net(obs, ids)
 
     play = find("play_card", 0, 0)
     other = find("play_card", 5, 0)
@@ -447,7 +472,7 @@ def _check():
     ids[0, hand + 5] = 21
 
     with torch.no_grad():
-        moved, _ = net(obs, ids)
+        moved, _, _ = net(obs, ids)
 
     assert abs(float(moved[0, other]) - second) > 1e-6, \
         "the card in the slot made no odds"
@@ -459,12 +484,12 @@ def _check():
     ids[0, offers] = 30
 
     with torch.no_grad():
-        before, _ = net(obs, ids)
+        before, _, _ = net(obs, ids)
 
     ids[0, offers] = 31
 
     with torch.no_grad():
-        after, _ = net(obs, ids)
+        after, _, _ = net(obs, ids)
 
     assert abs(float(before[0, claim]) - float(after[0, claim])) > 1e-6, \
         "which card is on the pile made no odds to taking it"

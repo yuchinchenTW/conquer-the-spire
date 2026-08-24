@@ -86,7 +86,7 @@ def play(net, kept, device, climbs, envs, search):
         legal = np.asarray(mask, dtype=np.uint8)
 
         with torch.no_grad():
-            scores, _ = net.forward(
+            scores, _, _ = net.forward(
                 torch.as_tensor(np.asarray(obs), device=device).float(),
                 torch.as_tensor(np.asarray(ids), device=device).long())
             allowed = torch.as_tensor(legal, device=device).bool()
