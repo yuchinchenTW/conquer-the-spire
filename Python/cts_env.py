@@ -140,6 +140,10 @@ class _Api(object):
         c.cts_save.restype = ctypes.c_size_t
         c.cts_load.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
         c.cts_load.restype = ctypes.c_int
+        c.cts_peek_slots.restype = ctypes.c_size_t
+        c.cts_peek.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int,
+                               ctypes.POINTER(ctypes.c_int)]
+        c.cts_peek.restype = ctypes.c_int
 
 
 _API = None
@@ -385,6 +389,28 @@ class SpireEnv(object):
             text = text.encode("utf-8")
 
         return bool(self._api.lib.cts_load(self._env, text))
+
+    # What the turn costs, per move, without taking any of them.
+    PEEK_FIELDS = ["health_lost", "health_left", "monster_health",
+                   "monsters_left", "over", "won"]
+
+    def peek(self, index, follow=1):
+        """What the rest of this turn costs if ``index`` is taken now.
+
+        A copy of the fight is played out and thrown away, so the climb is
+        untouched. Returns a dict of PEEK_FIELDS, or None when there is no
+        fight to look into or the move is not part of a turn.
+
+        ``follow`` fills the rest of the turn: 0 ends it there, 1 keeps
+        playing whatever is playable. Neither is how a policy plays, so read
+        the cost as a comparison between moves rather than a prediction.
+        """
+        raw = (ctypes.c_int * len(self.PEEK_FIELDS))()
+
+        if not self._api.lib.cts_peek(self._env, index, follow, raw):
+            return None
+
+        return dict(zip(self.PEEK_FIELDS, [int(v) for v in raw]))
 
 
 # The kinds of move, in the order of ActionKind.

@@ -100,6 +100,23 @@ CTS_API size_t cts_save(cts_env env, char* out, size_t size);
 /* Reads a climb back. Returns one when it took. */
 CTS_API int cts_load(cts_env env, const char* text);
 
+/* ------------------------------------------------------- looking ahead */
+
+/* What the rest of this turn costs if \p index is taken now. Plays a copy
+ * of the fight out and throws it away, so nothing here changes the climb.
+ *
+ * Writes six numbers into \p out: health lost by the end of the turn,
+ * health left, the monsters' health added up, how many still stand, whether
+ * the fight ended, and whether it was won. Returns one when there was a
+ * fight to look into and the move belonged to a turn, and zero otherwise -
+ * in which case \p out is left alone.
+ *
+ * \p follow says what fills the rest of the turn: 0 ends it there, 1 keeps
+ * playing whatever is playable. Neither is how a policy plays, so read a
+ * cost from this as a comparison between moves, not a prediction. */
+CTS_API size_t cts_peek_slots(void);
+CTS_API int cts_peek(cts_env env, size_t index, int follow, int* out);
+
 /* ------------------------------------------------------------- the record */
 
 /* How many numbers a summary is, and how many lines the log of this climb

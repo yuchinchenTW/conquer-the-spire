@@ -317,6 +317,45 @@ class SpireEnv
     //! Takes the move at \p index of that fixed head.
     StepResult StepIndex(std::size_t index);
 
+    //! What the rest of this turn costs if \p index is taken now: the health
+    //! gone by the time the monsters have had their go, and whether the
+    //! fight was won or lost getting there.
+    //!
+    //! A copy of the fight is played out, so nothing here is kept. Only a
+    //! fight can be looked into - out on the map there is no turn to end -
+    //! and \p cost is left alone when there is nothing to look at.
+    //!
+    //! \p follow decides what fills the rest of the turn after \p index:
+    //! FOLLOW_NOTHING ends it there, FOLLOW_CHEAPEST keeps playing whatever
+    //! is playable. Neither is how a policy would play it, so a cost read
+    //! off this is a comparison between moves rather than a prediction.
+    struct TurnCost
+    {
+        //! Whether a fight was there to look into at all.
+        bool looked = false;
+
+        //! Health gone by the end of the turn, and the health left.
+        int healthLost = 0;
+        int healthLeft = 0;
+
+        //! What the monsters have left, added up, and how many still stand.
+        int monsterHealth = 0;
+        int monstersLeft = 0;
+
+        //! Whether the fight ended, and which way.
+        bool over = false;
+        bool won = false;
+    };
+
+    static constexpr int FOLLOW_NOTHING = 0;
+    static constexpr int FOLLOW_CHEAPEST = 1;
+
+    //! Fills the rest of the fight with the rule of thumb below, and reports
+    //! how the whole thing came out rather than how the turn did.
+    static constexpr int FOLLOW_TO_THE_END = 2;
+
+    TurnCost Peek(std::size_t index, int follow = FOLLOW_CHEAPEST) const;
+
     bool IsDone() const;
 
     //! Returns how many floors have been climbed over the whole run, which is
@@ -341,6 +380,16 @@ class SpireEnv
     //! Ends the climb and counts it into the table, once however many steps
     //! come after it. Every way out of Step() goes through here.
     void Close();
+
+    //! Plays \p battle out to its end with a rule of thumb: block enough to
+    //! cover what is coming, then spend the rest on damage. Crude on
+    //! purpose - it has to run in microseconds, because a search calls it
+    //! thousands of times for one decision, and asking the policy would cost
+    //! four hundred times as much per move.
+    static void PlayOut(Battle& battle, int turnLimit = 60);
+
+    //! How much damage the monsters mean to do to the climber next.
+    static int IncomingDamage(const Battle& battle);
 
     //! Walks the phase on once whatever was going on has finished.
     void Settle();

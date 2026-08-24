@@ -328,6 +328,35 @@ int cts_load(cts_env env, const char* text)
     return Of(env)->Load(std::string(text)) ? 1 : 0;
 }
 
+size_t cts_peek_slots(void)
+{
+    return 6u;
+}
+
+int cts_peek(cts_env env, size_t index, int follow, int* out)
+{
+    if (env == nullptr || out == nullptr)
+    {
+        return 0;
+    }
+
+    const SpireEnv::TurnCost cost = Of(env)->Peek(index, follow);
+
+    if (!cost.looked)
+    {
+        return 0;
+    }
+
+    out[0] = cost.healthLost;
+    out[1] = cost.healthLeft;
+    out[2] = cost.monsterHealth;
+    out[3] = cost.monstersLeft;
+    out[4] = cost.over ? 1 : 0;
+    out[5] = cost.won ? 1 : 0;
+
+    return 1;
+}
+
 size_t cts_summary_slots(void)
 {
     return ConquerTheSpire::RunLog::Summary::SLOTS;

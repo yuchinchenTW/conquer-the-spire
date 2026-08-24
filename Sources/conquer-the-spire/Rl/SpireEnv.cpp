@@ -2210,6 +2210,243 @@ StepResult SpireEnv::StepIndex(std::size_t index)
     return Step(ActionFromIndex(index));
 }
 
+int SpireEnv::IncomingDamage(const Battle& battle)
+{
+    Battle& at = const_cast<Battle&>(battle);
+
+    if (!at.AreIntentsVisible())
+    {
+        return 0;
+    }
+
+    int total = 0;
+
+    for (const std::size_t slot : at.GetLivingMonsterIndices())
+    {
+        const Monster& monster = at.GetMonsters()[slot];
+        const MonsterMove& move = monster.GetCurrentMove();
+        const int strength = monster.GetPower(PowerType::STRENGTH);
+
+        for (const auto& effect : move.effects)
+        {
+            if (effect.type == MonsterEffectType::DAMAGE ||
+                effect.type == MonsterEffectType::DAMAGE_SCALED)
+            {
+                total += std::max(0, effect.amount + strength) *
+                         std::max(1, effect.times);
+            }
+        }
+    }
+
+    return total;
+}
+
+void SpireEnv::PlayOut(Battle& battle, int turnLimit)
+{
+    for (int turn = 0; turn < turnLimit && !battle.IsDone(); ++turn)
+    {
+        // Block first, and only as much as is coming. Blocking past that is
+        // damage not dealt, which is what the one-turn version of this got
+        // wrong: it hoarded block, the monsters lived longer, and more blood
+        // was spilt over the fight than had been saved in the turn.
+        int wanted = IncomingDamage(battle) - battle.GetPlayer().GetBlock();
+
+        for (int guard = 0; guard < 20 && wanted > 0; ++guard)
+        {
+            const std::vector<std::size_t> playable =
+                battle.GetPlayableCardIndices();
+            std::size_t pick = playable.size();
+            int most = 0;
+
+            for (const std::size_t slot : playable)
+            {
+                const Card& card = battle.GetPlayer().GetHand()[slot];
+                const CardWorth& worth =
+                    CardRegistry::Worth(card.GetId(), card.GetUpgradeCount());
+
+                if (worth.block > most)
+                {
+                    most = worth.block;
+                    pick = slot;
+                }
+            }
+
+            if (pick >= playable.size() && most == 0)
+            {
+                break;
+            }
+
+            const int before = battle.GetPlayer().GetBlock();
+
+            if (!battle.PlayCard(pick, 0))
+            {
+                break;
+            }
+
+            wanted -= std::max(1, battle.GetPlayer().GetBlock() - before);
+        }
+
+        // Then everything else at whatever is standing, weakest first, so
+        // that something dies rather than everything being scratched.
+        for (int guard = 0; guard < 20 && !battle.IsDone(); ++guard)
+        {
+            const std::vector<std::size_t> playable =
+                battle.GetPlayableCardIndices();
+            const std::vector<std::size_t> living =
+                battle.GetLivingMonsterIndices();
+
+            if (playable.empty() || living.empty())
+            {
+                break;
+            }
+
+            std::size_t weakest = living.front();
+
+            for (const std::size_t slot : living)
+            {
+                if (battle.GetMonsters()[slot].GetHealth() <
+                    battle.GetMonsters()[weakest].GetHealth())
+                {
+                    weakest = slot;
+                }
+            }
+
+            std::size_t pick = playable.front();
+            int most = -1;
+
+            for (const std::size_t slot : playable)
+            {
+                const Card& card = battle.GetPlayer().GetHand()[slot];
+                const CardWorth& worth =
+                    CardRegistry::Worth(card.GetId(), card.GetUpgradeCount());
+
+                if (worth.damage > most)
+                {
+                    most = worth.damage;
+                    pick = slot;
+                }
+            }
+
+            if (!battle.PlayCard(pick, weakest))
+            {
+                break;
+            }
+        }
+
+        if (!battle.IsDone())
+        {
+            battle.EndTurn();
+        }
+    }
+}
+
+SpireEnv::TurnCost SpireEnv::Peek(std::size_t index, int follow) const
+{
+    TurnCost out;
+
+    if (m_battle == nullptr || m_phase != EnvPhase::BATTLE)
+    {
+        return out;
+    }
+
+    const Action move = ActionFromIndex(index);
+
+    // Only what happens inside a turn can be looked into; a potion thrown
+    // away or a reward claimed is not part of one.
+    if (move.kind != ActionKind::PLAY_CARD &&
+        move.kind != ActionKind::END_TURN)
+    {
+        return out;
+    }
+
+    // The fight copies whole - every part of it is a value - so this plays
+    // out a future and throws it away.
+    Battle ahead = *m_battle;
+    const int healthBefore = ahead.GetPlayer().GetHealth();
+
+    if (move.kind == ActionKind::PLAY_CARD)
+    {
+        const std::vector<std::size_t> living =
+            ahead.GetLivingMonsterIndices();
+        const std::size_t target =
+            living.empty()
+                ? 0u
+                : living[std::min(static_cast<std::size_t>(
+                                      std::max(0, move.b)),
+                                  living.size() - 1u)];
+
+        if (!ahead.PlayCard(static_cast<std::size_t>(move.a), target))
+        {
+            return out;
+        }
+    }
+
+    // The rest of the fight, if that is what was asked for.
+    if (follow == FOLLOW_TO_THE_END)
+    {
+        PlayOut(ahead);
+
+        out.looked = true;
+        out.healthLeft = ahead.GetPlayer().GetHealth();
+        out.healthLost = std::max(0, healthBefore - out.healthLeft);
+        out.over = ahead.IsDone();
+        out.won = ahead.GetPhase() == BattlePhase::WON;
+
+        for (const std::size_t at : ahead.GetLivingMonsterIndices())
+        {
+            out.monsterHealth += ahead.GetMonsters()[at].GetHealth();
+            ++out.monstersLeft;
+        }
+
+        return out;
+    }
+
+    // The rest of the turn, however it was asked to be filled.
+    if (follow == FOLLOW_CHEAPEST)
+    {
+        // A card played can draw more, so this keeps going while there is
+        // something to play, bounded against a hand that refills itself.
+        for (int guard = 0; guard < 40 && !ahead.IsDone(); ++guard)
+        {
+            const std::vector<std::size_t> playable =
+                ahead.GetPlayableCardIndices();
+
+            if (playable.empty())
+            {
+                break;
+            }
+
+            const std::vector<std::size_t> living =
+                ahead.GetLivingMonsterIndices();
+
+            if (!ahead.PlayCard(playable.front(),
+                                living.empty() ? 0u : living.front()))
+            {
+                break;
+            }
+        }
+    }
+
+    if (!ahead.IsDone())
+    {
+        ahead.EndTurn();
+    }
+
+    out.looked = true;
+    out.healthLeft = ahead.GetPlayer().GetHealth();
+    out.healthLost = std::max(0, healthBefore - out.healthLeft);
+    out.over = ahead.IsDone();
+    out.won = ahead.GetPhase() == BattlePhase::WON;
+
+    for (const std::size_t at : ahead.GetLivingMonsterIndices())
+    {
+        out.monsterHealth += ahead.GetMonsters()[at].GetHealth();
+        ++out.monstersLeft;
+    }
+
+    return out;
+}
+
 std::string SpireEnv::Save() const
 {
     // A fight is not written out, so a save is taken between rooms.
