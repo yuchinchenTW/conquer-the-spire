@@ -1505,3 +1505,34 @@ TEST_CASE("A card counts the times it was actually played")
 
     CHECK(stranded == static_cast<int>(held));
 }
+
+TEST_CASE("What a card asks for is not netted off what it hands over")
+{
+    // Bloodletting is two energy for three health; Offering is two energy
+    // and three cards for six. Taken off the power, both came out at -1 -
+    // the same three numbers for two cards that are nothing alike, and the
+    // policy could only be telling them apart by name. It drafted Offering
+    // 28% of the time from a reward pile and Bloodletting none of 2629.
+    const CardWorth& letting =
+        CardRegistry::Worth(CardId::BLOODLETTING, 0);
+    const CardWorth& offering = CardRegistry::Worth(CardId::OFFERING, 0);
+
+    // Each hands something over, and neither is worth nothing.
+    CHECK(letting.power > 0);
+    CHECK(offering.power > 0);
+
+    // Offering hands over more, and asks more for it.
+    CHECK(offering.power > letting.power);
+    CHECK(offering.cost > letting.cost);
+
+    // And the cost stays inside the range the state scales it against, so
+    // that a card which pays in health does not swamp the number.
+    CHECK(letting.cost <= 3);
+    CHECK(offering.cost <= 3);
+
+    // A card that asks nothing of the climber is unchanged by any of this.
+    const CardWorth& strike = CardRegistry::Worth(CardId::STRIKE_RED, 0);
+
+    CHECK(strike.cost == 1);
+    CHECK(strike.damage == 6);
+}

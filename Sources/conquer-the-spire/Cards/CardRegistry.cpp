@@ -73,6 +73,11 @@ CardWorth WorthOf(const Card& card)
     // zero and honest about being a stand-in.
     constexpr int MULTIPLIER = 5;
 
+    // How much health reads as one point of cost. Three keeps the cost of
+    // the health-for-energy cards inside the nought-to-three range the state
+    // scales cost against: Bloodletting asks one, Offering two.
+    constexpr int HEALTH_A_COST = 3;
+
     CardWorth worth;
 
     worth.cost = card.GetCost();
@@ -155,18 +160,35 @@ CardWorth WorthOf(const Card& card)
                 worth.power += value;
                 break;
 
-            // What a card charges for itself. Counted against the rest of
-            // it, because a card that hurts to play is worth less than the
-            // same card that does not.
+            // What a card charges for itself goes to the cost, not against
+            // the power, because netting the two hides the card.
+            //
+            // Bloodletting is two energy for three health and Offering is
+            // two energy and three cards for six: taken off the power both
+            // came out at exactly -1, the same three numbers, and the policy
+            // took Offering from a reward pile 28% of the time and
+            // Bloodletting 0% of 2629 - it could only be telling them apart
+            // by name. Now the power is what a card hands over and the cost
+            // is what it asks, and they read as different cards.
             case EffectType::LOSE_HEALTH:
-                worth.power -= value;
+                worth.cost += (value + HEALTH_A_COST - 1) / HEALTH_A_COST;
                 break;
 
             case EffectType::ADD_CARD:
-                // A card handed into a pile: a Burn or a Wound most of the
-                // time, and the kind of thing that is done to a climber
-                // rather than for one.
-                worth.power -= value;
+                // A card handed into a pile. A Burn or a Wound is a price;
+                // a Shiv is not - Blade Dance hands over three of them and
+                // came out asking four when its energy is one. So the kind
+                // of card decides which way it counts.
+                if (effect.cardId != CardId::INVALID &&
+                    CardRegistry::Get(effect.cardId, 0).IsPlayable())
+                {
+                    worth.power += value;
+                }
+                else
+                {
+                    worth.cost += value;
+                }
+
                 break;
 
             case EffectType::INVALID:
