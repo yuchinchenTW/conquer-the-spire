@@ -183,11 +183,45 @@ if not defined PICK set "PICK=2"
 if /i "%PICK%"=="b" goto width
 if "%PICK%"=="1" set "GAMMA=0.995"
 if "%PICK%"=="2" set "GAMMA=0.999"
-if defined GAMMA goto size
+if defined GAMMA goto blood
 echo.
 echo   That was not one of them.
 pause
 goto sight
+
+rem ------------------------------------------------------ what blood is worth
+:blood
+cls
+echo ==========================================================
+echo   %CHARACTER%, act limit %ACTS% - what is a point of health worth?
+echo ==========================================================
+echo.
+echo     1. Dear   - 0.05 a point, so a whole health bar is four floors
+echo     2. Cheap  - 0.01 a point, so a whole bar is under one floor
+echo.
+echo   Cheap makes the cards that pay in health worth paying for - it drafted
+echo   Bloodletting none of 3185 times it was offered - but it also leaves
+echo   almost no reason to avoid damage until the climb actually dies, which
+echo   is a much thinner thing to learn from.
+echo.
+echo   Either way this changes what a climb is worth, so the reward on the
+echo   curve cannot be read against a run made with the other answer.
+echo.
+echo     B. Back
+echo.
+set "HPW="
+set "PICK="
+set /p "PICK=  Choose [1]: "
+
+if not defined PICK set "PICK=1"
+if /i "%PICK%"=="b" goto sight
+if "%PICK%"=="1" set "HPW=0.05"
+if "%PICK%"=="2" set "HPW=0.01"
+if defined HPW goto size
+echo.
+echo   That was not one of them.
+pause
+goto blood
 
 rem ------------------------------------------------------------ how hard to
 :size
@@ -207,7 +241,7 @@ set "PICK="
 set /p "PICK=  Choose [2]: "
 
 if not defined PICK set "PICK=2"
-if /i "%PICK%"=="b" goto sight
+if /i "%PICK%"=="b" goto blood
 if "%PICK%"=="1" set "ENVS=64"
 if "%PICK%"=="2" set "ENVS=128"
 if "%PICK%"=="3" set "ENVS=256"
@@ -228,6 +262,7 @@ echo   act limit   : %ACTS%   - 0 means the whole spire
 echo   climbs      : %ENVS% at once
 echo   brain       : %WIDTH% wide
 echo   looks ahead : %GAMMA%
+echo   a point of hp: %HPW%
 echo   saved to    : runs\%CHARACTER%\checkpoint.pt
 echo   the curve   : runs\%CHARACTER%\curve.csv
 echo.
@@ -238,7 +273,7 @@ echo   an act boss down. win stays at zero for a long while: that is the
 echo   game, not a fault.
 echo.
 
-%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --picks %FRESH% %EXTRA%
+%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --picks %FRESH% %EXTRA%
 
 echo.
 echo ==========================================================
