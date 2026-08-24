@@ -117,6 +117,12 @@ class VecSpireEnv(object):
             ctypes.POINTER(ctypes.c_float),
             ctypes.POINTER(ctypes.c_int),
         ]
+        lib.cts_vec_rank.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_size_t),
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ]
         lib.cts_vec_phase.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
         lib.cts_vec_phase.restype = ctypes.c_int
         lib.cts_vec_total_floors.argtypes = [ctypes.c_void_p,
@@ -214,6 +220,33 @@ class VecSpireEnv(object):
         lib.cts_vec_action_mask(self._vec, self._mask)
 
         return self.obs, self.ids, self.mask
+
+    # ------------------------------------------------- looking a fight ahead
+    def rank(self, candidates):
+        """Of the moves offered per climb, which comes out of the fight best.
+
+        ``candidates`` is ``[count, width]`` of move indices, best-first by
+        whatever offered them; an index at or past the action count is an
+        empty slot. Returns one index a climb: the candidate whose fight is
+        won, else costs least health, else leaves the monsters worst off. A
+        climb not in a fight gets its first candidate back.
+
+        The whole batch crosses in one call because the crossing costs more
+        than the work - a simulated fight is about five microseconds.
+        """
+        rows = np.ascontiguousarray(candidates, dtype=np.uintp)
+
+        if rows.ndim != 2 or rows.shape[0] != self.count:
+            raise ValueError("candidates must be [count, width]")
+
+        out = np.empty(self.count, dtype=np.uintp)
+        self._api.lib.cts_vec_rank(
+            self._vec,
+            rows.ctypes.data_as(ctypes.POINTER(ctypes.c_size_t)),
+            rows.shape[1],
+            out.ctypes.data_as(ctypes.POINTER(ctypes.c_size_t)))
+
+        return out.astype(np.int64)
 
     # ------------------------------------------------------------- a look
     def phase(self, index):

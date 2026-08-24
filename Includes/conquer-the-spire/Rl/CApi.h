@@ -218,6 +218,23 @@ CTS_API void cts_vec_step(cts_vec vec, const size_t* actions, float* rewards,
                           unsigned char* dones, unsigned char* taken,
                           float* returns, int* lengths);
 
+/* Looks a fight ahead in every climb at once, and says which of the moves
+ * offered comes out best.
+ *
+ * \p candidates holds \p width move indices a climb, in the order something
+ * else preferred them; a value at or past cts_action_count() is a slot that
+ * holds nothing. For each climb the fight is played out once per candidate
+ * and the best is written to \p out - the one that wins, else the one that
+ * costs the least health, else the one that leaves the monsters worst off.
+ * A climb that is not in a fight, or whose candidates cannot be looked
+ * into, gets its first candidate back unchanged.
+ *
+ * This is done here rather than a climb at a time from outside because the
+ * crossing costs more than the work: a whole simulated fight is about five
+ * microseconds. */
+CTS_API void cts_vec_rank(cts_vec vec, const size_t* candidates, size_t width,
+                          size_t* out);
+
 /* A look at one of the climbs, for the numbers that are worth reading on
  * their own. */
 CTS_API int cts_vec_phase(cts_vec vec, size_t index);

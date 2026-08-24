@@ -16,6 +16,7 @@
 
 #include <cstring>
 #include <random>
+#include <tuple>
 
 using ConquerTheSpire::CardColor;
 using ConquerTheSpire::SpireEnv;
@@ -698,6 +699,61 @@ void cts_vec_step(cts_vec vec, const size_t* actions, float* rewards,
     if (vec != nullptr)
     {
         VecOf(vec)->Step(actions, rewards, dones, taken, returns, lengths);
+    }
+}
+
+void cts_vec_rank(cts_vec vec, const size_t* candidates, size_t width,
+                  size_t* out)
+{
+    if (vec == nullptr || candidates == nullptr || out == nullptr ||
+        width == 0u)
+    {
+        return;
+    }
+
+    VecSpireEnv* envs = VecOf(vec);
+    const size_t none = SpireEnv::ActionCount();
+
+    for (size_t row = 0; row < envs->GetCount(); ++row)
+    {
+        const size_t* offered = candidates + row * width;
+
+        // Whatever preferred them goes first, so the head of the row is the
+        // answer when there is nothing to look into.
+        out[row] = offered[0];
+
+        const SpireEnv& env = envs->At(row);
+        bool found = false;
+        std::tuple<int, int, int> best;
+
+        for (size_t at = 0; at < width; ++at)
+        {
+            if (offered[at] >= none)
+            {
+                continue;
+            }
+
+            const SpireEnv::TurnCost cost =
+                env.Peek(offered[at], SpireEnv::FOLLOW_TO_THE_END);
+
+            if (!cost.looked)
+            {
+                continue;
+            }
+
+            // Won beats survived beats a fight the rule of thumb could not
+            // finish; then least health gone; then the monsters worst off.
+            const std::tuple<int, int, int> key(
+                cost.won ? 0 : (cost.over ? 1 : 2), cost.healthLost,
+                cost.monsterHealth);
+
+            if (!found || key < best)
+            {
+                found = true;
+                best = key;
+                out[row] = offered[at];
+            }
+        }
     }
 }
 
