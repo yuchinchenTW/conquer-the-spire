@@ -185,6 +185,12 @@ bool Battle::PlayCard(std::size_t handIndex, std::size_t monsterIndex,
     // the piles are being shuffled around.
     Card card = hand[handIndex];
 
+    // Counted here, where a card is actually played, rather than worked out
+    // from what a card says it does. A Clash is nought energy for fourteen
+    // damage on paper and unplayable two turns in three in fact, and nothing
+    // about the first number says so.
+    ++m_playedCounts[card.GetId()];
+
     // An X cost spends everything that is left.
     int energySpent = card.GetCost() == Card::COST_X
                           ? m_player.GetEnergy()
@@ -553,6 +559,11 @@ std::vector<std::size_t> Battle::GetLivingMonsterIndices() const
     }
 
     return indices;
+}
+
+const std::map<CardId, int>& Battle::GetPlayedCounts() const
+{
+    return m_playedCounts;
 }
 
 std::vector<std::size_t> Battle::GetPlayableCardIndices() const

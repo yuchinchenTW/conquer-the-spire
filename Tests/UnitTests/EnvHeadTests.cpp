@@ -1,5 +1,7 @@
 #include "doctest.h"
 
+#include <conquer-the-spire/Battle/Battle.hpp>
+#include <conquer-the-spire/Models/Player.hpp>
 #include <conquer-the-spire/Cards/CardRegistry.hpp>
 #include <conquer-the-spire/Events/EventLibrary.hpp>
 #include <conquer-the-spire/Monsters/EncounterLibrary.hpp>
@@ -1422,4 +1424,57 @@ TEST_CASE("The act limit is how many acts a climb is given")
 
         CHECK(DeepestActOf(env, rng) == 1);
     }
+}
+
+TEST_CASE("A card counts the times it was actually played")
+{
+    // What a card is worth on paper and what it does in a hand are different
+    // questions. A Clash is nought energy for fourteen damage and cannot be
+    // played with anything but attacks in hand, and nothing in the worth
+    // beside it says so - it was drafted 98% of the times it was offered.
+    // This is the count that would say otherwise.
+    std::mt19937 rng(3);
+    Monster dummy = MonsterRoster::Make(MonsterId::JAW_WORM, rng);
+    std::vector<Monster> monsters;
+    monsters.emplace_back(std::move(dummy));
+
+    Player player("Ironclad", 80);
+    player.SetColor(CardColor::RED);
+    player.AddCardToDeck(CardRegistry::Get(CardId::STRIKE_RED, 0));
+
+    Battle battle(player, std::move(monsters), 7);
+    battle.Start();
+
+    CHECK(battle.GetPlayedCounts().empty() == true);
+
+    // Whatever is playable, played once, is counted once.
+    const std::vector<std::size_t> playable = battle.GetPlayableCardIndices();
+
+    REQUIRE(playable.empty() == false);
+
+    const CardId first = battle.GetPlayer().GetHand()[playable.front()].GetId();
+
+    REQUIRE(battle.PlayCard(playable.front(), 0) == true);
+
+    CHECK(battle.GetPlayedCounts().count(first) == 1u);
+    CHECK(battle.GetPlayedCounts().at(first) == 1);
+
+    // And a copy of the fight counts into itself, leaving the original be:
+    // that is what lets a search play futures out without writing them down.
+    Battle ahead = battle;
+    const int before = battle.GetPlayedCounts().at(first);
+
+    for (int guard = 0; guard < 8; ++guard)
+    {
+        const std::vector<std::size_t> more = ahead.GetPlayableCardIndices();
+
+        if (more.empty())
+        {
+            break;
+        }
+
+        ahead.PlayCard(more.front(), 0);
+    }
+
+    CHECK(battle.GetPlayedCounts().at(first) == before);
 }

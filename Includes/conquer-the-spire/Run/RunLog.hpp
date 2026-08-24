@@ -68,6 +68,13 @@ enum class LogEntry
     CURSE_CHOSEN,
     CURSE_REFUSED,
 
+    //! A card played in a fight, once a line for each time. \p extra is how
+    //! many times, so a Strike played four times is one line and not four.
+    //! What a card is worth on paper and how often it is actually played are
+    //! different things - a Clash reads as nought energy for fourteen damage
+    //! and is unplayable two turns in three - and only this says the second.
+    CARD_PLAYED,
+
     //! A fight walked into. \p id is the monster leading it and \p extra its
     //! MonsterType, so a fight that was lost can be told from one that was
     //! never met: FIGHT_WON says only that one was won, and a climb that

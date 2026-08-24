@@ -210,6 +210,25 @@ void RunStats::Ingest(const RunLog& log)
                                : StatKind::FIGHT_FOUGHT);
                 break;
 
+            case LogEntry::CARD_PLAYED:
+                // Played is a pick, and carried through a fight without
+                // being played is a pass, so the rate is how much use the
+                // card turned out to be rather than what it says it does.
+                if (line.extra > 0)
+                {
+                    for (int again = 0; again < line.extra; ++again)
+                    {
+                        Note(StatKind::CARD_PLAYED, line.id, won, died,
+                             counts.floors, seen);
+                    }
+                }
+                else
+                {
+                    NotePassed(StatKind::CARD_PLAYED, line.id);
+                }
+
+                break;
+
             case LogEntry::FIGHT_WON:
                 if (inFight != 0)
                 {

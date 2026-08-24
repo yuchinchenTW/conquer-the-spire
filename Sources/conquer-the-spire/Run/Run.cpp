@@ -2011,6 +2011,41 @@ void Run::FinishBattle(const Battle& battle)
 {
     const Player& fought = battle.GetPlayer();
 
+    // What was actually played, before anything else: a climb that dies here
+    // returns below, and this is true either way. Only a real fight reaches
+    // this - a search's copy is thrown away without it - so a simulated
+    // future never counts into the record.
+    {
+        const LogSource was = Blame(LogSource::FIGHT);
+        const std::map<CardId, int>& played = battle.GetPlayedCounts();
+
+        for (const auto& counted : played)
+        {
+            Note(LogEntry::CARD_PLAYED, static_cast<int>(counted.first),
+                 counted.second);
+        }
+
+        // And the ones carried through the whole fight without being played,
+        // written as none: without them there is no denominator, and a card
+        // that is never playable would read the same as one that is never
+        // drawn. Once a card whatever the deck holds of it, because the
+        // question is about the card and not the copies.
+        std::vector<CardId> idle;
+
+        for (const auto& card : m_player.GetDeck())
+        {
+            if (played.find(card.GetId()) == played.end() &&
+                std::find(idle.begin(), idle.end(), card.GetId()) ==
+                    idle.end())
+            {
+                idle.emplace_back(card.GetId());
+                Note(LogEntry::CARD_PLAYED, static_cast<int>(card.GetId()), 0);
+            }
+        }
+
+        Blame(was);
+    }
+
     m_player.SetHealth(fought.GetHealth());
     m_player.SetMaxHealth(fought.GetMaxHealth());
     m_player.GetPotions() = fought.GetPotions();

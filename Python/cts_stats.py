@@ -49,10 +49,12 @@ KINDS = [
     "fight_fought",
     "elite_fought",
     "boss_fought",
+    "card_played",
 ]
 
 # The kinds whose ids are cards, so that a curse can be told from a strike.
 CARD_KINDS = [
+    "card_played",
     "card_taken",
     "card_bought",
     "card_removed",
@@ -86,6 +88,7 @@ _NAMERS = {
     "fight_fought": monster_name,
     "elite_fought": monster_name,
     "boss_fought": monster_name,
+    "card_played": card_name,
 }
 
 _DECLARED = False

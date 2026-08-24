@@ -50,7 +50,15 @@ enum class StatKind
     //! boss and a pair of slimes are not read against each other.
     FIGHT_FOUGHT,
     ELITE_FOUGHT,
-    BOSS_FOUGHT
+    BOSS_FOUGHT,
+
+    //! How often a card actually got played. The picks are the times it was
+    //! played and the passes the fights it was carried through without being
+    //! played once, so picks over the two together is how much use it turned
+    //! out to be - which is a different question from what it says it does.
+    //! A Clash reads as nought energy for fourteen damage and is unplayable
+    //! two turns in three.
+    CARD_PLAYED
 };
 
 //!

@@ -14,6 +14,7 @@
 #include <conquer-the-spire/Relics/RelicRegistry.hpp>
 
 #include <cstddef>
+#include <map>
 #include <random>
 #include <vector>
 
@@ -133,6 +134,11 @@ class Battle
     //! Returns the hand indices that PlayCard() would currently accept. Handy
     //! for enumerating legal moves.
     std::vector<std::size_t> GetPlayableCardIndices() const;
+
+    //! How many times each card was actually played this fight. What a card
+    //! is worth on paper and what it does in a hand are different questions,
+    //! and only this one answers the second.
+    const std::map<CardId, int>& GetPlayedCounts() const;
 
     //! Returns how many times the player has lost health this battle, which is
     //! what Blood for Blood reads.
@@ -355,6 +361,11 @@ class Battle
     //! action is over so that nothing holds a stale pointer.
     std::vector<Monster> m_pendingSpawns;
     int m_cardsPlayedThisTurn = 0;
+
+    //! Counted per card, and copied along with the rest of the fight - so a
+    //! fight simulated by a search counts into its own copy and leaves the
+    //! real one alone.
+    std::map<CardId, int> m_playedCounts;
     int m_cardsDiscardedThisTurn = 0;
     int m_attacksPlayedThisTurn = 0;
     int m_playDepth = 0;
