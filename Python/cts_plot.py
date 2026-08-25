@@ -39,8 +39,8 @@ PANELS = [
     ("curse_refusal", "curse offers turned down", "#9a4a7a"),
     ("return", "reward a climb", "#4a6fc7"),
     ("loss", "loss", "#8a8a8a"),
-    ("cards_upgraded", "cards sharpened a climb", "#c9a227"),
-    ("cards_removed", "cards torn up a climb", "#4a9a9a"),
+    ("cards_upgraded", "cards upgraded a climb", "#c9a227"),
+    ("cards_removed", "cards removed a climb", "#4a9a9a"),
 ]
 
 
@@ -197,8 +197,8 @@ def _svg(rows, key, title, colour, width=560, height=180):
 # The tables of choices the page shows, and what to call them.
 PICK_TABLES = [
     ("card_taken", "cards taken"),
-    ("card_removed", "cards torn up"),
-    ("card_upgraded", "cards sharpened"),
+    ("card_removed", "cards removed"),
+    ("card_upgraded", "cards upgraded"),
     ("relic_taken", "relics taken"),
     ("potion_taken", "potions taken"),
     ("room_answered", "rooms answered"),

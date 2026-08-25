@@ -132,12 +132,27 @@ class SpireEnv
     static constexpr float DEATH_REWARD = -20.0f;
     static constexpr float HEALTH_WEIGHT = 0.05f;
 
+    //! What a curse in the deck costs for every floor walked with it.
+    //!
+    //! The deck says which of its cards are curses, what holding one costs a
+    //! turn and that it can never be played, so the learner can see them -
+    //! but seeing is not paying. What a curse actually costs is a draw
+    //! wasted, a fight gone worse and a floor not reached, which arrives
+    //! late and mixed in with everything else; charged by the floor it
+    //! arrives at once, and stops the moment the card is torn out.
+    static constexpr float CURSE_A_FLOOR = 0.2f;
+
     //! What a point of health taken off actually costs this climb. It starts
     //! at HEALTH_WEIGHT and can be moved: how dearly health is held against
     //! how far the climb gets is the one number in here worth arguing about,
     //! so it is worth being able to try another.
     void SetHealthWeight(float weight);
     float GetHealthWeight() const;
+
+    //! What a curse in the deck costs a floor. Nought charges nothing, which
+    //! is how the climbs before this were scored.
+    void SetCursePenalty(float penalty);
+    float GetCursePenalty() const;
 
     //! How many monsters of a fight the state has room for, and how many
     //! cards of a hand, potions of a belt, rewards of a pile, options of a
@@ -434,6 +449,9 @@ class SpireEnv
 
     //! What a point of health is worth against a floor.
     float m_healthWeight = HEALTH_WEIGHT;
+
+    //! What a curse in the deck costs a floor.
+    float m_cursePenalty = CURSE_A_FLOOR;
     RunStats m_stats;
 };
 }  // namespace ConquerTheSpire

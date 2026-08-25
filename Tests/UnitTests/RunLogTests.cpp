@@ -838,3 +838,69 @@ TEST_CASE("Walking counts the places it walked past")
     CHECK(picked == walked);
     CHECK(left == static_cast<int>(choices));
 }
+
+TEST_CASE("Taking a card out counts the ones left in")
+{
+    Run run(CardColor::RED, 6);
+
+    run.AddCardToDeck(CardRegistry::Get(CardId::REGRET));
+    run.OpenShop();
+    run.AddGold(999);
+
+    // What the deck holds, by name: five Strikes, four Defends, a Bash and
+    // the curse - four different cards, whatever the copies.
+    std::vector<CardId> kinds;
+
+    for (const auto& card : run.GetDeck())
+    {
+        if (std::find(kinds.begin(), kinds.end(), card.GetId()) ==
+            kinds.end())
+        {
+            kinds.emplace_back(card.GetId());
+        }
+    }
+
+    REQUIRE(kinds.size() == 4u);
+
+    // Tearing out the curse: the other three were there to tear out and
+    // were not.
+    const std::size_t curse = run.GetDeck().size() - 1u;
+
+    REQUIRE(run.BuyCardRemoval(curse) == true);
+
+    CHECK(Count(run, LogEntry::CARD_REMOVED) == 1);
+    CHECK(Count(run, LogEntry::CARD_NOT_REMOVED) == 3);
+
+    RunStats stats;
+
+    stats.Ingest(run.GetLog());
+
+    for (const auto& row : stats.GetRows())
+    {
+        if (row.second.kind != static_cast<int>(StatKind::CARD_REMOVED))
+        {
+            continue;
+        }
+
+        const bool wasCurse =
+            row.second.id == static_cast<int>(CardId::REGRET);
+
+        // The one taken out was picked; the rest were offered and left, so
+        // the rate reads as how often a card is the one chosen.
+        CHECK(row.second.picks == (wasCurse ? 1 : 0));
+        CHECK(row.second.passes == (wasCurse ? 0 : 1));
+    }
+}
+
+TEST_CASE("Putting a card to the whetstone counts the ones left blunt")
+{
+    Run run(CardColor::RED, 6);
+
+    // A curse cannot be sharpened, so it is not one of the ones left blunt.
+    run.AddCardToDeck(CardRegistry::Get(CardId::REGRET));
+
+    REQUIRE(run.Smith(0) == true);
+
+    CHECK(Count(run, LogEntry::CARD_UPGRADED) == 1);
+    CHECK(Count(run, LogEntry::CARD_NOT_UPGRADED) == 2);
+}

@@ -469,6 +469,24 @@ void cts_vec_set_health_weight(void* vec, float weight)
     }
 }
 
+void cts_set_curse_penalty(void* env, float penalty)
+{
+    if (auto* one = static_cast<ConquerTheSpire::SpireEnv*>(env);
+        one != nullptr)
+    {
+        one->SetCursePenalty(penalty);
+    }
+}
+
+void cts_vec_set_curse_penalty(void* vec, float penalty)
+{
+    if (auto* row = static_cast<ConquerTheSpire::VecSpireEnv*>(vec);
+        row != nullptr)
+    {
+        row->SetCursePenalty(penalty);
+    }
+}
+
 void cts_set_act_limit(void* env, int acts)
 {
     if (auto* one = static_cast<ConquerTheSpire::SpireEnv*>(env);

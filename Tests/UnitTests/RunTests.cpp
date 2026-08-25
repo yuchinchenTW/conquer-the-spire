@@ -334,3 +334,31 @@ TEST_CASE("A whole act can be walked and fought through")
     run.FinishBoss();
     CHECK(run.IsFinished() == true);
 }
+
+TEST_CASE("A parasite charges three of the most to leave")
+{
+    Run run(CardColor::RED, 12);
+
+    run.AddCardToDeck(CardRegistry::Get(CardId::PARASITE));
+
+    const int most = run.GetPlayer().GetMaxHealth();
+    const std::size_t slot = run.GetDeck().size() - 1u;
+
+    run.OpenShop();
+    run.AddGold(999);
+
+    REQUIRE(run.BuyCardRemoval(slot) == true);
+
+    // Three off the maximum, immediately, as the card says.
+    CHECK(run.GetPlayer().GetMaxHealth() == most - 3);
+    CHECK(run.GetPlayer().GetHealth() <= run.GetPlayer().GetMaxHealth());
+
+    // Any other card comes out for nothing.
+    const int now = run.GetPlayer().GetMaxHealth();
+
+    run.OpenShop();
+    run.AddGold(999);
+
+    REQUIRE(run.BuyCardRemoval(0) == true);
+    CHECK(run.GetPlayer().GetMaxHealth() == now);
+}

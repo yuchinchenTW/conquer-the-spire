@@ -149,6 +149,10 @@ CTS_API size_t cts_event_name(int id, char* out, size_t size);
 CTS_API void cts_set_health_weight(void* env, float weight);
 CTS_API void cts_vec_set_health_weight(void* vec, float weight);
 
+/* What a curse in the deck costs for every floor walked with it. */
+CTS_API void cts_set_curse_penalty(void* env, float penalty);
+CTS_API void cts_vec_set_curse_penalty(void* vec, float penalty);
+
 /* Ends a climb once this many acts are cleared; 0 for the whole spire. */
 CTS_API void cts_set_act_limit(void* env, int acts);
 CTS_API void cts_vec_set_act_limit(void* vec, int acts);

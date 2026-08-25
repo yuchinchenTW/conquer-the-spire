@@ -364,6 +364,11 @@ class Battle
     std::vector<Monster> m_pendingSpawns;
     int m_cardsPlayedThisTurn = 0;
 
+    //! How many copies a Pride played this turn owes the draw pile. They go
+    //! on at the end of the turn, so that drawing after playing one cannot
+    //! turn it up again in the same turn.
+    int m_prideCopies = 0;
+
     //! Counted per card, and copied along with the rest of the fight - so a
     //! fight simulated by a search counts into its own copy and leaves the
     //! real one alone.

@@ -969,3 +969,46 @@ TEST_CASE("A curse says what holding it costs")
     CHECK(CardRegistry::Worth(CardId::DEMON_FORM, 0).rarity == 3);
     CHECK(CardRegistry::Worth(CardId::INFLAME, 0).rarity == 2);
 }
+
+TEST_CASE("A Pride leaves its copy behind at the end of the turn")
+{
+    // Playing it puts a copy on top of the draw pile - but not until the
+    // turn is over, so drawing after playing one cannot turn it up again in
+    // the same turn.
+    Battle battle = BattleWith({ CardId::PRIDE, CardId::OFFERING },
+                               { Dummy(60) });
+
+    const std::size_t before = battle.GetPlayer().GetDrawPile().size();
+
+    REQUIRE(battle.PlayCard(Idx(battle, "Pride")) == true);
+
+    // Gone from the hand, and nothing added to the pile yet.
+    CHECK(battle.GetPlayer().GetExhaustPile().size() == 1u);
+    CHECK(battle.GetPlayer().GetDrawPile().size() == before);
+
+    // Drawing three cards this turn cannot turn up the copy.
+    REQUIRE(battle.PlayCard(Idx(battle, "Offering")) == true);
+
+    for (const auto& card : battle.GetPlayer().GetHand())
+    {
+        CHECK(card.GetId() != CardId::PRIDE);
+    }
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // Now it is back: put on top as the turn ended, and drawn again with the
+    // next hand, which is where a card on top of the pile goes.
+    bool found = false;
+
+    for (const auto& card : battle.GetPlayer().GetDrawPile())
+    {
+        found = found || card.GetId() == CardId::PRIDE;
+    }
+
+    for (const auto& card : battle.GetPlayer().GetHand())
+    {
+        found = found || card.GetId() == CardId::PRIDE;
+    }
+
+    CHECK(found == true);
+}

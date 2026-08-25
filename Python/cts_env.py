@@ -272,6 +272,14 @@ class SpireEnv(object):
         lib.cts_set_health_weight.argtypes = [ctypes.c_void_p, ctypes.c_float]
         lib.cts_set_health_weight(self._env, ctypes.c_float(float(weight)))
 
+    def set_curse_penalty(self, penalty):
+        """What a curse in the deck costs for every floor walked with it."""
+        lib = self._api.lib
+
+        lib.cts_set_curse_penalty.argtypes = [ctypes.c_void_p,
+                                              ctypes.c_float]
+        lib.cts_set_curse_penalty(self._env, ctypes.c_float(float(penalty)))
+
     def set_act_limit(self, acts):
         """Ends a climb once ``acts`` of the spire are cleared, 0 for all.
 

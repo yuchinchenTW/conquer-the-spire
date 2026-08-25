@@ -112,10 +112,13 @@ Card MakeCurseCard(CardId id, int upgradeCount)
                            CardFlag::NONE);
 
         case CardId::PRIDE:
-            // Playable: it exhausts and leaves a copy on top of the draw pile.
+            // Playable, and the only curse that is. It exhausts as it goes;
+            // the copy it leaves is put on the draw pile at the end of the
+            // turn rather than the moment it is played, which is what keeps
+            // it out of the same turn it was played in. Battle::EndPlayerTurn
+            // is where that happens.
             return Card(id, "Pride", CardColor::CURSE, CardType::CURSE,
-                        CardRarity::SPECIAL, CardTarget::SELF, 1,
-                        { CE::AddCard(CardId::PRIDE, CardPile::DRAW_TOP) },
+                        CardRarity::SPECIAL, CardTarget::SELF, 1, {},
                         CardFlag::EXHAUST | CardFlag::INNATE);
 
         case CardId::REGRET:

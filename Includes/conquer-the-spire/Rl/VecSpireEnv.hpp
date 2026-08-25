@@ -50,6 +50,10 @@ class VecSpireEnv
     //! What a point of health taken off costs every climb of the row.
     void SetHealthWeight(float weight);
 
+    //! What a curse in the deck costs every climb of the row, a floor at a
+    //! time.
+    void SetCursePenalty(float penalty);
+
     //! Whether a climb that ends starts another one on its own. It does by
     //! default.
     bool GetAutoReset() const;

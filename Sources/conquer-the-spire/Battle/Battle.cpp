@@ -961,6 +961,16 @@ void Battle::BeginPlayerTurn()
 
 void Battle::EndPlayerTurn()
 {
+    // What a Pride played this turn owes: on top of the draw pile, now that
+    // nothing more will be drawn from it this turn.
+    for (int i = 0; i < m_prideCopies; ++i)
+    {
+        m_player.GetDrawPile().insert(m_player.GetDrawPile().begin(),
+                                      CardRegistry::Get(CardId::PRIDE));
+    }
+
+    m_prideCopies = 0;
+
     ResolveEndOfTurnHandCards();
     ExhaustEtherealCards();
     RetainPlannedCards();
@@ -2407,6 +2417,12 @@ void Battle::OnCardPlayed(const Card& card, const PlayTriggers& before)
         {
             GainBlock(m_player.CalculateBlockGain(rage));
         }
+    }
+
+    // A Pride leaves a copy behind, but not until the turn is over.
+    if (card.GetId() == CardId::PRIDE)
+    {
+        ++m_prideCopies;
     }
 
     // Whatever the card was, some things answer every one of them.

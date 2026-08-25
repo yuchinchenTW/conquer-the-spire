@@ -1617,6 +1617,8 @@ bool Run::BuyCardRemoval(std::size_t deckIndex)
         return false;
     }
 
+    NoteCardsLeft(LogEntry::CARD_NOT_REMOVED, deckIndex);
+
     if (!SpendGold(m_shop.GetRemovalPrice()))
     {
         return false;
@@ -2158,6 +2160,8 @@ bool Run::Toke(std::size_t index)
         return false;
     }
 
+    NoteCardsLeft(LogEntry::CARD_NOT_REMOVED, index);
+
     return RemoveCardFromDeck(index);
 }
 
@@ -2209,6 +2213,8 @@ bool Run::Smith(std::size_t index)
     {
         return false;
     }
+
+    NoteCardsLeft(LogEntry::CARD_NOT_UPGRADED, index);
 
     const Card& card = deck[index];
     const CardId sharpened = card.GetId();
@@ -2266,6 +2272,35 @@ void Run::AddCardToDeck(Card card)
     }
 }
 
+void Run::NoteCardsLeft(LogEntry entry, std::size_t slot)
+{
+    const std::vector<Card>& deck = m_player.GetDeck();
+
+    if (slot >= deck.size())
+    {
+        return;
+    }
+
+    const bool removing = entry == LogEntry::CARD_NOT_REMOVED;
+    std::vector<CardId> already = { deck[slot].GetId() };
+
+    for (std::size_t at = 0; at < deck.size(); ++at)
+    {
+        const CardId id = deck[at].GetId();
+
+        if (std::find(already.begin(), already.end(), id) != already.end())
+        {
+            continue;
+        }
+
+        if (removing ? IsRemovable(at) : IsUpgradeable(at))
+        {
+            already.emplace_back(id);
+            Note(entry, static_cast<int>(id));
+        }
+    }
+}
+
 bool Run::RemoveCardFromDeck(std::size_t index)
 {
     if (index < m_player.GetDeck().size())
@@ -2279,6 +2314,18 @@ bool Run::RemoveCardFromDeck(std::size_t index)
     if (index >= deck.size())
     {
         return false;
+    }
+
+    // A parasite does not come out for nothing: taking one out of the deck,
+    // or turning it into something else, costs three of the climber's
+    // maximum health. Both go through here.
+    if (deck[index].GetId() == CardId::PARASITE)
+    {
+        const int most = m_player.GetMaxHealth();
+
+        m_player.SetMaxHealth(std::max(1, most - 3));
+        m_player.SetHealth(std::min(m_player.GetHealth(),
+                                    m_player.GetMaxHealth()));
     }
 
     deck.erase(deck.begin() + static_cast<std::ptrdiff_t>(index));

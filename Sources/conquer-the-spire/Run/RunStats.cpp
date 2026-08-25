@@ -186,6 +186,14 @@ void RunStats::Ingest(const RunLog& log)
                 NotePassed(StatKind::NODE_WALKED, line.id);
                 break;
 
+            case LogEntry::CARD_NOT_REMOVED:
+                NotePassed(StatKind::CARD_REMOVED, line.id);
+                break;
+
+            case LogEntry::CARD_NOT_UPGRADED:
+                NotePassed(StatKind::CARD_UPGRADED, line.id);
+                break;
+
             case LogEntry::ROOM_PASSED:
                 NotePassed(StatKind::ROOM_ANSWERED,
                            line.id * 100 + line.extra);

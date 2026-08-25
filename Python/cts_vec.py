@@ -156,6 +156,15 @@ class VecSpireEnv(object):
         lib.cts_vec_set_health_weight(self._vec,
                                       ctypes.c_float(float(weight)))
 
+    def set_curse_penalty(self, penalty):
+        """What a curse costs every climb of the row, a floor at a time."""
+        lib = self._api.lib
+
+        lib.cts_vec_set_curse_penalty.argtypes = [ctypes.c_void_p,
+                                                  ctypes.c_float]
+        lib.cts_vec_set_curse_penalty(self._vec,
+                                      ctypes.c_float(float(penalty)))
+
     def set_act_limit(self, acts):
         """Ends every climb of the row once ``acts`` are cleared, 0 for all."""
         lib = self._api.lib

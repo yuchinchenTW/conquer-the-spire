@@ -1620,3 +1620,46 @@ TEST_CASE("What a card asks for is not netted off what it hands over")
     CHECK(strike.cost == 1);
     CHECK(strike.damage == 6);
 }
+
+TEST_CASE("A curse is charged for by the floor")
+{
+    // Seeing a curse is not paying for one. What it actually costs - a draw
+    // wasted, a fight gone worse, a floor not reached - arrives late and
+    // mixed in with everything else, so it is charged where it can be told
+    // apart: every floor walked with it in the deck.
+    SpireEnv clean;
+    SpireEnv cursed;
+
+    clean.Reset(CardColor::RED, 9);
+    cursed.Reset(CardColor::RED, 9);
+
+    CHECK(clean.GetCursePenalty() ==
+          doctest::Approx(SpireEnv::CURSE_A_FLOOR));
+
+    cursed.GetRun().AddCardToDeck(CardRegistry::Get(CardId::REGRET));
+    cursed.GetRun().AddCardToDeck(CardRegistry::Get(CardId::PAIN));
+
+    // The same step of the same climb, one deck two curses heavier.
+    const std::vector<int> ahead = clean.GetRun().GetAvailableColumns();
+
+    REQUIRE(ahead.empty() == false);
+
+    const float paid =
+        clean.Step(Action(ActionKind::TRAVEL, ahead.front())).reward;
+    const float charged =
+        cursed.Step(Action(ActionKind::TRAVEL, ahead.front())).reward;
+
+    CHECK(paid - charged ==
+          doctest::Approx(2.0f * SpireEnv::CURSE_A_FLOOR));
+
+    // And nothing at all is charged when it is set to nothing, which is how
+    // the climbs before this were scored.
+    SpireEnv free;
+
+    free.SetCursePenalty(0.0f);
+    free.Reset(CardColor::RED, 9);
+    free.GetRun().AddCardToDeck(CardRegistry::Get(CardId::REGRET));
+
+    CHECK(free.Step(Action(ActionKind::TRAVEL, ahead.front())).reward ==
+          doctest::Approx(paid));
+}

@@ -1397,8 +1397,22 @@ StepResult SpireEnv::Step(const Action& action)
         m_phase = EnvPhase::OVER;
     }
 
-    result.reward += FLOOR_REWARD *
-                     static_cast<float>(m_run.GetFloor() - floorBefore);
+    const int walked = m_run.GetFloor() - floorBefore;
+
+    result.reward += FLOOR_REWARD * static_cast<float>(walked);
+
+    // And what the deck is dragging up those floors with it.
+    if (walked > 0 && m_cursePenalty > 0.0f)
+    {
+        int curses = 0;
+
+        for (const auto& card : m_run.GetDeck())
+        {
+            curses += card.GetCardType() == CardType::CURSE ? 1 : 0;
+        }
+
+        result.reward -= m_cursePenalty * static_cast<float>(curses * walked);
+    }
     result.reward -=
         m_healthWeight *
         static_cast<float>(std::max(0, healthBefore -
@@ -1629,6 +1643,16 @@ void SpireEnv::SetHealthWeight(float weight)
 float SpireEnv::GetHealthWeight() const
 {
     return m_healthWeight;
+}
+
+void SpireEnv::SetCursePenalty(float penalty)
+{
+    m_cursePenalty = penalty >= 0.0f ? penalty : 0.0f;
+}
+
+float SpireEnv::GetCursePenalty() const
+{
+    return m_cursePenalty;
 }
 
 void SpireEnv::SetActLimit(int acts)

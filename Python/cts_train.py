@@ -157,6 +157,9 @@ class Trainer(object):
         if args.hp_weight >= 0.0:
             self.vec.set_health_weight(args.hp_weight)
 
+        if args.curse_penalty >= 0.0:
+            self.vec.set_curse_penalty(args.curse_penalty)
+
         self.updates = 0
         self.steps = 0
         self.episodes = 0
@@ -828,6 +831,11 @@ def main(argv=None):
                         dest="pick_least",
                         help="how many times a thing has to turn up in a "
                              "window before its rates are written down")
+    parser.add_argument("--curse-penalty", type=float, default=-1.0,
+                        dest="curse_penalty",
+                        help="what a curse in the deck costs for every floor "
+                             "walked with it, against a floor being worth "
+                             "one; below zero keeps the engine's own")
     parser.add_argument("--hp-weight", type=float, default=-1.0,
                         dest="hp_weight",
                         help="what a point of health lost costs, against a "

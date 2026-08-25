@@ -81,6 +81,13 @@ enum class LogEntry
     //! died left nothing at all behind to say what killed it.
     FIGHT_STARTED,
 
+    //! A card of the deck that could have been taken out, or put to the
+    //! whetstone, and was not. One of these for every other card the deck
+    //! held at the time, which is what makes taking one out a choice among
+    //! the rest rather than the only thing that happened.
+    CARD_NOT_REMOVED,
+    CARD_NOT_UPGRADED,
+
     //! How many kinds of line there are, which is what anything reading the
     //! log from outside counts against so that the two cannot drift apart.
     COUNT

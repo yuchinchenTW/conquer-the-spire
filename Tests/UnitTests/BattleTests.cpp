@@ -342,3 +342,4 @@ TEST_CASE("A card aimed at a dead monster is refused")
     CHECK(battle.PlayCard(0, 1) == true);
     CHECK(battle.GetMonsters()[1].GetHealth() == 44);
 }
+

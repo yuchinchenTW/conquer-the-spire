@@ -336,6 +336,12 @@ class Run
     bool IsRemovable(std::size_t index) const;
     bool IsUpgradeable(std::size_t index) const;
 
+    //! Writes down the cards that could have been chosen instead of the one
+    //! in \p slot and were not - one line for each different card, not for
+    //! each copy, so that the rate reads as how often that card is the one
+    //! picked when it is there to pick.
+    void NoteCardsLeft(LogEntry entry, std::size_t slot);
+
     //! Returns true when the potion at \p index can be drunk right here.
     bool CanDrinkPotion(std::size_t index) const;
 
