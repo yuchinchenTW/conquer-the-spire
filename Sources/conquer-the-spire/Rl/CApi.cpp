@@ -99,12 +99,12 @@ size_t cts_action_count(void)
 
 size_t cts_layout_slots(void)
 {
-    return 29u;
+    return 31u;
 }
 
 size_t cts_id_layout_slots(void)
 {
-    return 14u;
+    return 15u;
 }
 
 void cts_layout(size_t* out)
@@ -150,6 +150,8 @@ void cts_layout(size_t* out)
     // And what a played card is asking about.
     out[27] = layout.choices;
     out[28] = layout.choiceStride;
+    out[29] = layout.asking;
+    out[30] = layout.askingStride;
 }
 
 void cts_observe(cts_env env, float* out)
@@ -190,8 +192,9 @@ void cts_id_layout(size_t* out)
     out[9] = layout.event;
     out[10] = layout.monsters;
     out[11] = layout.deck;
-    out[12] = layout.choices;
-    out[13] = layout.total;
+    out[12] = layout.asking;
+    out[13] = layout.choices;
+    out[14] = layout.total;
 }
 
 void cts_observe_ids(cts_env env, int* out)

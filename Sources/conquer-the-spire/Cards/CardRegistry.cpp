@@ -399,6 +399,14 @@ CardWorth WorthOf(const Card& card)
             case EffectType::EVOKE_ALL_ORBS:
             case EffectType::ADD_ORB_SLOTS:
             case EffectType::TRIGGER_DARK_ORBS:
+            // Three held out and one taken is one card, not three. The
+            // number on the card says how wide the choice is; being able to
+            // pick is worth more than a roll, and how much more is left to
+            // whoever reads this - what comes in is one card either way.
+            case EffectType::OFFER_CARDS:
+                ++worth.power;
+                break;
+
             case EffectType::OBTAIN_POTION:
             case EffectType::SETUP_CARD:
             case EffectType::REMEMBER_CARD:

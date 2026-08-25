@@ -222,6 +222,12 @@ struct CardEffect
     static CardEffect AddRandomCard(int count,
                                     CardPile pile = CardPile::HAND);
 
+    //! Holds out \p count random cards of the player's colour and takes the
+    //! one the climber picks into the hand, costing no energy this turn.
+    //! Which of them it is is a choice rather than a roll, which is the
+    //! difference between a Discovery and a Jack of All Trades.
+    static CardEffect OfferRandomCards(int count);
+
     //! Forces the cards in hand to cost \p cost. Only one card is touched,
     //! picked at random, when \p onlyOne is true. The cost goes back at the
     //! end of the turn unless \p wholeBattle, which holds it down for the

@@ -81,18 +81,20 @@ TEST_CASE("A card that wants one of the climber's own cards says so")
     // this there was no way to ask: every one of them was handed nought and
     // worked on whatever sat at the front of the hand.
     CHECK(Battle::NeedsCardChoice(CardRegistry::Get(CardId::ARMAMENTS)));
-    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::ARMAMENTS)) ==
-          CardPile::HAND);
-    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::WARCRY)) ==
-          CardPile::HAND);
-    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::DUAL_WIELD)) ==
-          CardPile::HAND);
-    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::BURNING_PACT)) ==
-          CardPile::HAND);
-    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::HEADBUTT)) ==
-          CardPile::DISCARD);
-    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::EXHUME)) ==
-          CardPile::EXHAUST);
+    CHECK(Battle::ChoiceSourceOf(CardRegistry::Get(CardId::ARMAMENTS)) ==
+          ChoiceSource::HAND);
+    CHECK(Battle::ChoiceSourceOf(CardRegistry::Get(CardId::WARCRY)) ==
+          ChoiceSource::HAND);
+    CHECK(Battle::ChoiceSourceOf(CardRegistry::Get(CardId::DUAL_WIELD)) ==
+          ChoiceSource::HAND);
+    CHECK(Battle::ChoiceSourceOf(CardRegistry::Get(CardId::BURNING_PACT)) ==
+          ChoiceSource::HAND);
+    CHECK(Battle::ChoiceSourceOf(CardRegistry::Get(CardId::HEADBUTT)) ==
+          ChoiceSource::DISCARD);
+    CHECK(Battle::ChoiceSourceOf(CardRegistry::Get(CardId::EXHUME)) ==
+          ChoiceSource::EXHAUST);
+    CHECK(Battle::ChoiceSourceOf(CardRegistry::Get(CardId::DISCOVERY)) ==
+          ChoiceSource::OFFERED);
 
     // And which ask nothing. A Strike has no question; an Apotheosis works
     // on the lot and so has none either; an armaments sharpened works on the

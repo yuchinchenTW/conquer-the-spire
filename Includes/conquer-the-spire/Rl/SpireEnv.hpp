@@ -319,6 +319,13 @@ class SpireEnv
         //! from the ids beside the state.
         std::size_t deckCards = 0;
 
+        //! Which card is doing the asking, and what it is worth. Being picked
+        //! out by an Armaments is a card being sharpened and being picked out
+        //! by a Burning Pact is a card being burnt; without this the state
+        //! held out a row of cards to choose between and did not say what
+        //! choosing one of them would do to it.
+        std::size_t asking = 0;
+
         //! Where the cards a played card is asking about begin. The pile is
         //! whichever one that card picks out of - a hand, a discard pile, an
         //! exhaust pile - so this is the only place the last two are written
@@ -335,6 +342,7 @@ class SpireEnv
         std::size_t monsterStride = 0;
         std::size_t handStride = 0;
         std::size_t choiceStride = 0;
+        std::size_t askingStride = 0;
         std::size_t pileStride = 0;
         std::size_t rewardStride = 0;
         std::size_t eventStride = 0;
@@ -370,6 +378,9 @@ class SpireEnv
         //! to a room - is blind without this.
         std::size_t deck = 0;
 
+        //! Which card is doing the asking. \see Layout::asking
+        std::size_t asking = 0;
+
         //! Which card sits in each place a played card is asking about.
         //! \see Layout::choices
         std::size_t choices = 0;
@@ -396,6 +407,10 @@ class SpireEnv
     //! doing the asking, because that card has left the hand by the time its
     //! own effects run and the answers are numbered against what is left.
     std::vector<CardId> ChoosableCards() const;
+
+    //! Returns the card that is doing the asking, or nothing at all when
+    //! nothing is being asked.
+    CardId AskingCard() const;
 
     std::vector<int> ObserveIds() const;
 

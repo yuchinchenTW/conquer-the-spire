@@ -1126,6 +1126,20 @@ StepResult SpireEnv::Step(const Action& action)
             // exhaust pile has nothing to ask.
             if (slot < m_battle->GetPlayer().GetHand().size() &&
                 m_battle->CanPlay(slot) &&
+                Battle::NeedsCardChoice(m_battle->GetPlayer().GetHand()[slot]))
+            {
+                // A card that holds cards out rolls them up now, so that they
+                // can be looked at before one of them is picked.
+                if (Battle::ChoiceSourceOf(
+                        m_battle->GetPlayer().GetHand()[slot]) ==
+                    ChoiceSource::OFFERED)
+                {
+                    m_battle->RollOffer(m_battle->GetPlayer().GetHand()[slot]);
+                }
+            }
+
+            if (slot < m_battle->GetPlayer().GetHand().size() &&
+                m_battle->CanPlay(slot) &&
                 Battle::NeedsCardChoice(m_battle->GetPlayer().GetHand()[slot]) &&
                 m_battle->ChoiceCount(m_battle->GetPlayer().GetHand()[slot]) >
                     0u)
@@ -1628,7 +1642,10 @@ SpireEnv::Layout SpireEnv::GetLayout()
     layout.deckCards = layout.map + MAP_SLOTS;
     layout.deckStride = DECK_CARD_SLOTS;
 
-    layout.choices = layout.deckCards + DECK_SLOTS * layout.deckStride;
+    layout.asking = layout.deckCards + DECK_SLOTS * layout.deckStride;
+    layout.askingStride = OFFER_SLOTS;
+
+    layout.choices = layout.asking + layout.askingStride;
     // What the card is, and whether it has been named already.
     layout.choiceStride = OFFER_SLOTS + 1;
     layout.total = layout.choices + CHOICE_SLOTS * layout.choiceStride;
@@ -1654,7 +1671,8 @@ SpireEnv::IdLayout SpireEnv::GetIdLayout()
     layout.event = layout.shopPotions + SHOP_POTION_SLOTS;
     layout.monsters = layout.event + 1u;
     layout.deck = layout.monsters + OBSERVED_MONSTERS;
-    layout.choices = layout.deck + DECK_SLOTS;
+    layout.asking = layout.deck + DECK_SLOTS;
+    layout.choices = layout.asking + 1u;
     layout.total = layout.choices + CHOICE_SLOTS;
 
     return layout;
@@ -1777,6 +1795,8 @@ std::vector<int> SpireEnv::ObserveIds() const
         out[layout.deck + slot] = static_cast<int>(deck[slot].GetId());
     }
 
+    out[layout.asking] = static_cast<int>(AskingCard());
+
     const std::vector<CardId> asking = ChoosableCards();
 
     for (std::size_t i = 0; i < std::min(asking.size(), CHOICE_SLOTS); ++i)
@@ -1810,6 +1830,17 @@ float SpireEnv::GetHealthWeight() const
     return m_healthWeight;
 }
 
+CardId SpireEnv::AskingCard() const
+{
+    if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
+        m_chosen >= m_battle->GetPlayer().GetHand().size())
+    {
+        return CardId::INVALID;
+    }
+
+    return m_battle->GetPlayer().GetHand()[m_chosen].GetId();
+}
+
 std::vector<CardId> SpireEnv::ChoosableCards() const
 {
     std::vector<CardId> out;
@@ -1824,9 +1855,12 @@ std::vector<CardId> SpireEnv::ChoosableCards() const
     const Card& asking = player.GetHand()[m_chosen];
     const std::vector<Card>* pile = nullptr;
 
-    switch (Battle::ChoicePileOf(asking))
+    switch (Battle::ChoiceSourceOf(asking))
     {
-        case CardPile::HAND:
+        case ChoiceSource::OFFERED:
+            return m_battle->GetOffered();
+
+        case ChoiceSource::HAND:
             // Without the card doing the asking: it is gone from the hand by
             // the time its own effects run, so the answers are numbered
             // against the rest.
@@ -1840,11 +1874,11 @@ std::vector<CardId> SpireEnv::ChoosableCards() const
 
             return out;
 
-        case CardPile::DISCARD:
+        case ChoiceSource::DISCARD:
             pile = &player.GetDiscardPile();
             break;
 
-        case CardPile::EXHAUST:
+        case ChoiceSource::EXHAUST:
             pile = &player.GetExhaustPile();
             break;
 
@@ -2329,8 +2363,10 @@ std::vector<float> SpireEnv::Observe() const
                              : 0.0f);
     }
 
-    // And what a card that is asking has to pick from, which is nothing at
-    // all at every other moment of a climb.
+    // Which card is asking, and what it has to pick from. Nothing at all at
+    // every other moment of a climb.
+    PushOffer(out, AskingCard());
+
     const std::vector<CardId> asking = ChoosableCards();
 
     for (std::size_t i = 0; i < CHOICE_SLOTS; ++i)

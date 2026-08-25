@@ -110,6 +110,12 @@ def families(layout, ids):
         Family("option", 6, layout["event"] + 2, layout["event_stride"],
                layout["event_stride"], shared=ids["event"]),
 
+        # The card doing the asking. Being picked out by an Armaments and
+        # being picked out by a Burning Pact are opposite things, and this is
+        # what tells them apart.
+        Family("asking", 1, layout["asking"], layout["asking_stride"],
+               layout["asking_stride"], ids=ids["asking"]),
+
         # What a played card is asking about: the cards it may pick out,
         # each with what it asks and what it is worth beside its id. The
         # only place a discard pile or an exhaust pile is named at all.
@@ -136,7 +142,8 @@ RULES = {
     "buy_removal": ("remove", "deck", None),
     "smith": ("smith", "deck", None),
     "toke": ("toke", "deck", None),
-    "choose_card": ("pick", "choice", None),
+    "choose_card": ("pick", "choice", "asking"),
+    "choose_done": ("done", "asking", None),
 }
 
 QUESTIONS = sorted({rule[0] for rule in RULES.values()})

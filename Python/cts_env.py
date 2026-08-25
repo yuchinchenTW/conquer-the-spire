@@ -207,6 +207,8 @@ class SpireEnv(object):
             "offer_stride",
             "choices",
             "choice_stride",
+            "asking",
+            "asking_stride",
         ]
         # The engine says how many it writes, so that this list cannot fall
         # out of step with it without saying so.
@@ -238,6 +240,7 @@ class SpireEnv(object):
             "event",
             "monsters",
             "deck",
+            "asking",
             "choices",
             "total",
         ]

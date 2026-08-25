@@ -883,6 +883,120 @@ TEST_CASE("A card that takes as many as are named keeps being asked")
     CHECK(battle->GetPlayer().GetHand().size() == held - 3u);
 }
 
+TEST_CASE("The state says which card is doing the asking")
+{
+    // Being picked out by an Armaments is a card being sharpened; being
+    // picked out by a Burning Pact is a card being burnt. A row of cards to
+    // choose between says nothing at all without this.
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    REQUIRE(env.Step(env.LegalActions().front()).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::BATTLE);
+
+    const SpireEnv::Layout layout = SpireEnv::GetLayout();
+    const SpireEnv::IdLayout ids = SpireEnv::GetIdLayout();
+
+    // Nothing is asking, so nothing is said.
+    CHECK(env.AskingCard() == CardId::INVALID);
+    CHECK(env.ObserveIds()[ids.asking] == 0);
+    CHECK(env.Observe()[layout.asking] == 0.0f);
+
+    Battle* battle = const_cast<Battle*>(env.GetBattle());
+
+    battle->GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::BURNING_PACT));
+
+    const std::size_t at = battle->GetPlayer().GetHand().size() - 1u;
+
+    REQUIRE(env.Step(Action(ActionKind::PLAY_CARD, static_cast<int>(at), 0))
+                .taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::CHOOSING);
+
+    // And now it says which card, by name and by what it asks: the first of
+    // the figures beside an offered card is what it costs, and a Burning Pact
+    // costs one.
+    CHECK(env.AskingCard() == CardId::BURNING_PACT);
+    CHECK(env.ObserveIds()[ids.asking] ==
+          static_cast<int>(CardId::BURNING_PACT));
+    CHECK(env.Observe()[layout.asking] == doctest::Approx(1.0f / 3.0f));
+
+    // And it is not a row of noughts, which is what it says when nothing is
+    // asking.
+    float said = 0.0f;
+
+    for (std::size_t i = 0; i < layout.askingStride; ++i)
+    {
+        said += std::abs(env.Observe()[layout.asking + i]);
+    }
+
+    CHECK(said > 0.0f);
+}
+
+TEST_CASE("A discovery holds three out to the climber")
+{
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    REQUIRE(env.Step(env.LegalActions().front()).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::BATTLE);
+
+    Battle* battle = const_cast<Battle*>(env.GetBattle());
+
+    battle->GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::DISCOVERY));
+
+    const std::size_t at = battle->GetPlayer().GetHand().size() - 1u;
+    const std::size_t held = battle->GetPlayer().GetHand().size();
+
+    REQUIRE(env.Step(Action(ActionKind::PLAY_CARD, static_cast<int>(at), 0))
+                .taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::CHOOSING);
+
+    // Three cards held out, and nothing else to do but pick one of them.
+    const std::vector<Action> answers = env.LegalActions();
+
+    REQUIRE(answers.size() == 3u);
+
+    for (const Action& answer : answers)
+    {
+        CHECK(answer.kind == ActionKind::CHOOSE_CARD);
+    }
+
+    // They are named in the state, so the choice is between cards rather
+    // than between places.
+    const SpireEnv::IdLayout ids = SpireEnv::GetIdLayout();
+    const std::vector<int> named = env.ObserveIds();
+    const std::vector<CardId> shown = env.ChoosableCards();
+
+    REQUIRE(shown.size() == 3u);
+
+    for (std::size_t i = 0; i < 3u; ++i)
+    {
+        CHECK(named[ids.choices + i] == static_cast<int>(shown[i]));
+        CHECK(shown[i] != CardId::INVALID);
+    }
+
+    // Picking the last of them brings that card in, and the discovery is
+    // gone: one card in, one card out, so the hand is the size it was.
+    const CardId wanted = shown.back();
+
+    REQUIRE(env.Step(answers.back()).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::BATTLE);
+    CHECK(battle->GetPlayer().GetHand().size() == held);
+
+    bool arrived = false;
+
+    for (const Card& card : battle->GetPlayer().GetHand())
+    {
+        arrived = arrived || card.GetId() == wanted;
+    }
+
+    CHECK(arrived == true);
+}
+
 TEST_CASE("Nothing the mask offers is ever turned down")
 {
     // The point of this one is the count: a mask that offers a move the run

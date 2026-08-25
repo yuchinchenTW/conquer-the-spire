@@ -463,7 +463,7 @@ TEST_CASE("The colourless pool holds every card that is not a character's")
     }
 }
 
-TEST_CASE("A discovery is held out at nought and only burns unsharpened")
+TEST_CASE("A discovery holds out three and takes the one that is picked")
 {
     const Card plain = CardRegistry::Get(CardId::DISCOVERY);
     const Card sharp = CardRegistry::Get(CardId::DISCOVERY, 1);
@@ -480,15 +480,39 @@ TEST_CASE("A discovery is held out at nought and only burns unsharpened")
     CHECK(sharp.Has(CardFlag::EXHAUST) == false);
 
     Battle battle = BattleWith({ CardId::DISCOVERY }, { Dummy(50) });
-    const std::size_t held = battle.GetPlayer().GetHand().size();
+    const std::size_t at = Idx(battle, "Discovery");
 
-    REQUIRE(battle.PlayCard(Idx(battle, "Discovery")) == true);
+    REQUIRE(at < battle.GetPlayer().GetHand().size());
 
-    // A card turned up in the hand in its place, and it is free this turn.
+    // Nothing on offer until it is played, and then three different cards.
+    CHECK(battle.GetOffered().empty() == true);
+
+    battle.RollOffer(battle.GetPlayer().GetHand()[at]);
+
+    const std::vector<CardId> shown = battle.GetOffered();
+
+    REQUIRE(shown.size() == 3u);
+    CHECK(battle.ChoiceCount(battle.GetPlayer().GetHand()[at]) == 3u);
+
+    for (std::size_t i = 0; i < shown.size(); ++i)
+    {
+        for (std::size_t j = i + 1u; j < shown.size(); ++j)
+        {
+            CHECK(shown[i] != shown[j]);
+        }
+    }
+
+    // The second of them, and it is the second of them that turns up.
+    REQUIRE(battle.PlayCard(at, 0, 1u) == true);
+
     const std::vector<Card>& hand = battle.GetPlayer().GetHand();
 
-    REQUIRE(hand.size() == held);
-    CHECK(battle.GetEffectiveCost(hand.back()) == 0);
+    REQUIRE(hand.size() == 1u);
+    CHECK(hand.front().GetId() == shown[1]);
+    CHECK(battle.GetEffectiveCost(hand.front()) == 0);
+
+    // And the handful is put away again.
+    CHECK(battle.GetOffered().empty() == true);
 }
 
 TEST_CASE("An enlightenment holds the cost for a turn, sharpened for a fight")

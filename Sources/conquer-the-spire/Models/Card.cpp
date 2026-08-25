@@ -515,6 +515,16 @@ CardEffect CardEffect::AddRandomCard(int count, CardPile pile)
     return effect;
 }
 
+CardEffect CardEffect::OfferRandomCards(int count)
+{
+    CardEffect effect;
+    effect.type = EffectType::OFFER_CARDS;
+    effect.value = count;
+    effect.pile = CardPile::HAND;
+
+    return effect;
+}
+
 CardEffect CardEffect::SetHandCost(int cost, bool onlyOne, bool wholeBattle)
 {
     CardEffect effect;

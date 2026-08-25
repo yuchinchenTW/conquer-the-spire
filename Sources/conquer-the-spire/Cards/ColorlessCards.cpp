@@ -73,14 +73,13 @@ Card MakeColorlessCard(CardId id, int upgradeCount)
                                .From(ValueSource::FIXED, 1) });
 
         case CardId::DISCOVERY:
-            // The real card holds out three cards of the climber's own colour
-            // and takes the one that is picked. Nothing in a fight is picked
-            // by the climber yet - Battle::PlayCard is handed a choice and the
-            // learner has no way to say one - so this takes one of the three
-            // at random, the way Jack of All Trades already does. The cost of
-            // nought this turn and the exhaust are the card's own.
+            // Three cards of the climber's own colour held out, and the one
+            // that is picked comes into the hand at nought for the turn. The
+            // picking is the card: taking one of the three at random, which
+            // is what this did while nothing in a fight could be picked, is a
+            // Jack of All Trades with a smaller number on it.
             return Skill(id, "Discovery", CardRarity::UNCOMMON,
-                         CardTarget::SELF, 1, { CE::AddRandomCard(1) },
+                         CardTarget::SELF, 1, { CE::OfferRandomCards(3) },
                          up ? CardFlag::NONE : CardFlag::EXHAUST);
 
         case CardId::DRAMATIC_ENTRANCE:

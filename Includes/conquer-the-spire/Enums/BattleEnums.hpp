@@ -76,6 +76,18 @@ enum class CardPile
     EXHAUST
 };
 
+//! Where the cards a played card is asking the climber about come from.
+//! Three of them are piles the climber already has; the fourth is a handful
+//! rolled up on the spot, which is what a Discovery holds out.
+enum class ChoiceSource
+{
+    NONE = 0,
+    HAND,
+    DISCARD,
+    EXHAUST,
+    OFFERED
+};
+
 //! One of the four orbs the Defect can put into orbit.
 enum class OrbType
 {
@@ -299,6 +311,7 @@ enum class EffectType
     INCREASE_CLAW_DAMAGE,  //!< Claw.
     REDUCE_SELF_COST,      //!< Streamline.
     ADD_RANDOM_CARD,       //!< Jack of All Trades, Transmutation.
+    OFFER_CARDS,           //!< Discovery: three held out, one picked.
     SET_HAND_COST,         //!< Enlightenment, Madness.
     TAKE_FROM_DRAW_BY_TYPE,  //!< Secret Technique, Secret Weapon, Violence.
     HEAL_PERCENT,            //!< Blood Potion.

@@ -143,9 +143,18 @@ class Battle
     //! PlayCard() is handed as its choice is that card's place in a pile.
     static bool NeedsCardChoice(const Card& card);
 
-    //! Returns the pile \p card picks out of. Only worth asking when
+    //! Returns where \p card picks from. Only worth asking when
     //! NeedsCardChoice() says yes.
-    static CardPile ChoicePileOf(const Card& card);
+    static ChoiceSource ChoiceSourceOf(const Card& card);
+
+    //! Rolls up the handful \p card holds out, for a card that offers cards
+    //! rather than picking among ones the climber already has. Must be called
+    //! before the cards on offer can be seen or picked.
+    void RollOffer(const Card& card);
+
+    //! Returns the handful last rolled up, which is empty except while one is
+    //! being picked from.
+    const std::vector<CardId>& GetOffered() const;
 
     //! Returns how many cards \p card has to pick from right now, which is
     //! how many of them are worth offering.
@@ -401,6 +410,10 @@ class Battle
     //! works on more than one of them. Empty the rest of the time, and the
     //! single choice is used instead.
     std::vector<std::size_t> m_choices;
+
+    //! The handful a card is holding out to be picked from. Empty except
+    //! while one is being picked.
+    std::vector<CardId> m_offered;
 
     //! Puts a copy of every Pride still in hand on top of the draw pile,
     //! which is what holding one costs.

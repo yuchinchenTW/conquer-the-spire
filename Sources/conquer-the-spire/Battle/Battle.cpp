@@ -431,7 +431,7 @@ namespace
 //! Which pile an effect picks a card out of, and nothing for the effects that
 //! pick nothing. An effect that takes one at random, or takes the lot, is
 //! choosing nothing: there is no question to put to anybody.
-CardPile PileOfChoice(const CardEffect& effect)
+ChoiceSource SourceOfChoice(const CardEffect& effect)
 {
     switch (effect.type)
     {
@@ -440,69 +440,127 @@ CardPile PileOfChoice(const CardEffect& effect)
         case EffectType::SETUP_CARD:
         case EffectType::REMEMBER_CARD:
         case EffectType::EXHAUST_FOR_ENERGY:
-            return CardPile::HAND;
+            return ChoiceSource::HAND;
 
         case EffectType::DISCARD_CARDS:
         case EffectType::EXHAUST_HAND_CARD:
-            return effect.randomPick ? CardPile::INVALID : CardPile::HAND;
+            return effect.randomPick ? ChoiceSource::NONE
+                                     : ChoiceSource::HAND;
 
         // A nought here means every card in every pile, which is an
         // Apotheosis rather than a question.
         case EffectType::UPGRADE_HAND_CARD:
-            return effect.value == 0 || effect.randomPick ? CardPile::INVALID
-                                                          : CardPile::HAND;
+            return effect.value == 0 || effect.randomPick
+                       ? ChoiceSource::NONE
+                       : ChoiceSource::HAND;
 
         case EffectType::DISCARD_TO_DRAW_TOP:
-            return CardPile::DISCARD;
+            return ChoiceSource::DISCARD;
 
         // And an extra of one here means every card of the pile that costs
         // nothing, which is not a question either.
         case EffectType::RETURN_FROM_DISCARD:
-            return effect.extra == 1 ? CardPile::INVALID : CardPile::DISCARD;
+            return effect.extra == 1 ? ChoiceSource::NONE
+                                     : ChoiceSource::DISCARD;
 
         case EffectType::RETURN_FROM_EXHAUST:
-            return CardPile::EXHAUST;
+            return ChoiceSource::EXHAUST;
+
+        // Nothing the climber already has: a handful rolled up to be picked
+        // from, which is what a Discovery does.
+        case EffectType::OFFER_CARDS:
+            return ChoiceSource::OFFERED;
 
         default:
-            return CardPile::INVALID;
+            return ChoiceSource::NONE;
     }
 }
 }  // namespace
 
 bool Battle::NeedsCardChoice(const Card& card)
 {
-    return ChoicePileOf(card) != CardPile::INVALID;
+    return ChoiceSourceOf(card) != ChoiceSource::NONE;
 }
 
-CardPile Battle::ChoicePileOf(const Card& card)
+ChoiceSource Battle::ChoiceSourceOf(const Card& card)
 {
     for (const auto& effect : card.GetEffects())
     {
-        const CardPile pile = PileOfChoice(effect);
+        const ChoiceSource source = SourceOfChoice(effect);
 
-        if (pile != CardPile::INVALID)
+        if (source != ChoiceSource::NONE)
         {
-            return pile;
+            return source;
         }
     }
 
-    return CardPile::INVALID;
+    return ChoiceSource::NONE;
+}
+
+void Battle::RollOffer(const Card& card)
+{
+    m_offered.clear();
+
+    for (const auto& effect : card.GetEffects())
+    {
+        if (effect.type != EffectType::OFFER_CARDS)
+        {
+            continue;
+        }
+
+        const std::vector<CardId>& pool =
+            CardRegistry::GetPool(PoolColor(effect, card));
+
+        if (pool.empty())
+        {
+            return;
+        }
+
+        // As many different cards as are asked for, or as many as the pool
+        // holds when it is smaller than that.
+        std::uniform_int_distribution<std::size_t> pick(0, pool.size() - 1);
+
+        for (int tries = 0;
+             tries < effect.value * 20 &&
+             static_cast<int>(m_offered.size()) < effect.value &&
+             m_offered.size() < pool.size();
+             ++tries)
+        {
+            const CardId rolled = pool[pick(m_rng)];
+
+            if (std::find(m_offered.begin(), m_offered.end(), rolled) ==
+                m_offered.end())
+            {
+                m_offered.emplace_back(rolled);
+            }
+        }
+
+        return;
+    }
+}
+
+const std::vector<CardId>& Battle::GetOffered() const
+{
+    return m_offered;
 }
 
 std::size_t Battle::ChoiceCount(const Card& card) const
 {
-    switch (ChoicePileOf(card))
+    switch (ChoiceSourceOf(card))
     {
-        case CardPile::HAND:
+        case ChoiceSource::OFFERED:
+            return m_offered.size();
+
+        case ChoiceSource::HAND:
             // The card being played is still in the hand while its own
             // effects run, and it is not one of the cards it may pick.
             return m_player.GetHand().empty() ? 0u
                                               : m_player.GetHand().size() - 1u;
 
-        case CardPile::DISCARD:
+        case ChoiceSource::DISCARD:
             return m_player.GetDiscardPile().size();
 
-        case CardPile::EXHAUST:
+        case ChoiceSource::EXHAUST:
             return m_player.GetExhaustPile().size();
 
         default:
@@ -1869,6 +1927,23 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
 
                 m_player.AddCardToPile(std::move(skill), effect.pile, m_rng);
             }
+            break;
+        }
+
+        case EffectType::OFFER_CARDS:
+        {
+            // Whichever of the handful was picked, into the hand at nought
+            // for the turn. The handful was rolled up when the card was
+            // played, so that it could be looked at before being picked from.
+            if (choiceIndex < m_offered.size())
+            {
+                Card taken = CardRegistry::Get(m_offered[choiceIndex]);
+
+                taken.SetCostThisTurn(0);
+                m_player.AddCardToPile(std::move(taken), effect.pile, m_rng);
+            }
+
+            m_offered.clear();
             break;
         }
 
