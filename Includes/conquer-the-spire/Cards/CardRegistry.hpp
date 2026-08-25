@@ -68,6 +68,42 @@ struct CardWorth
     //! counts here too, at a stand-in worth, because the alternative is
     //! calling it one.
     int lasting = 0;
+
+    //! How many of the climber's own cards it throws away - the hand it
+    //! exhausts, the cards it discards, and itself if it exhausts.
+    //!
+    //! Stated rather than judged. Thrown away is a price when the cards were
+    //! worth playing and a payment when they were not, it thins what is left
+    //! to draw from, and a deck holding Dark Embrace or Feel No Pain is paid
+    //! for every card that goes. Which of those it is depends on the deck,
+    //! which is beside this in the state, so the number is left as a count
+    //! and the sign is left to whoever reads it.
+    int exhausts = 0;
+
+    //! What holding it costs, near enough, for every turn it sits in the
+    //! hand. A curse deals no damage and blocks nothing, so every figure
+    //! above it is nought - the same nought a card that does nothing has -
+    //! and the only thing telling a Regret from a blank was its name.
+    //!
+    //! Where the harm is written down in the fight rather than on the card,
+    //! this mirrors it. Battle::EndOfTurnCurses is the other half.
+    int harm = 0;
+
+    //! Whether it cannot be played at all. An unplayable card is a draw
+    //! wasted every time it turns up, and its cost is a sentinel rather than
+    //! a price: written into the state as it stands, a curse read as cheaper
+    //! than a Strike.
+    int unplayable = 0;
+
+    //! How far up the rarities it is, from a basic card at nought to a rare
+    //! at three. What is worth tearing out of a deck is mostly what sits at
+    //! the bottom of this.
+    int rarity = 0;
+
+    //! Whether any of these figures is read off the table rather than
+    //! written on the card. Fiend Fire hits for seven a card exhausted;
+    //! seven is what the damage says, and this says the seven is a rate.
+    int scales = 0;
 };
 
 class CardRegistry

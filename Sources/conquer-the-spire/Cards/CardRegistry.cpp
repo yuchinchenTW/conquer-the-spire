@@ -141,9 +141,13 @@ PowerWorth WorthOfPower(PowerType power)
         case PowerType::BIASED_COGNITION:
         case PowerType::HELLO_WORLD:
         case PowerType::DUPLICATION:
+        case PowerType::INTANGIBLE:
             return PowerWorth::RULE;
 
-        // Bad to hold, whoever ends up holding it.
+        // Bad to hold, whoever ends up holding it. The Bomb is not one of
+        // these: it is put on the climber and goes off in the enemies' faces
+        // three turns later, and calling it harm made a rare card read as a
+        // price paid for nothing.
         case PowerType::VULNERABLE:
         case PowerType::WEAK:
         case PowerType::FRAIL:
@@ -160,11 +164,73 @@ PowerWorth WorthOfPower(PowerType power)
         case PowerType::SLOW:
         case PowerType::LOCK_ON:
         case PowerType::DRAW_REDUCTION:
-        case PowerType::THE_BOMB:
             return PowerWorth::HARM;
 
         default:
             return PowerWorth::ONCE;
+    }
+}
+
+//! How many cards a hand thrown away is reckoned to hold. The real answer
+//! is however many are left when it is played, which is not knowable from
+//! the card.
+constexpr int A_HAND = 4;
+
+//! What holding \p id costs for a turn, where the fight does the harm
+//! rather than the card. The numbers are health a turn where the curse deals
+//! damage, and a stand-in of the same size where it does something else:
+//! Doubt and Shame hand over a Weak and a Frail, Pain charges for every card
+//! played, and the rest are simply a draw that does nothing.
+//!
+//! Battle::EndOfTurnCurses is where these actually happen; a curse added
+//! there wants a line here.
+int HarmOf(CardId id, int upgradeCount)
+{
+    switch (id)
+    {
+        case CardId::BURN:
+            return upgradeCount > 0 ? 4 : 2;
+
+        case CardId::DECAY:
+            return 2;
+
+        case CardId::REGRET:
+            // A hand of cards, each one a point.
+            return 4;
+
+        case CardId::PAIN:
+            // A point for every card played, and a turn is a few cards.
+            return 3;
+
+        case CardId::DOUBT:
+        case CardId::SHAME:
+            // A Weak or a Frail every turn, which is a quarter of a turn.
+            return 2;
+
+        case CardId::NORMALITY:
+            // Three cards a turn and no more.
+            return 2;
+
+        case CardId::VOID:
+            // An energy gone the moment it is drawn.
+            return 2;
+
+        case CardId::INJURY:
+        case CardId::CLUMSY:
+        case CardId::WRITHE:
+        case CardId::PARASITE:
+        case CardId::PRIDE:
+        case CardId::ASCENDERS_BANE:
+        case CardId::CURSE_OF_THE_BELL:
+        case CardId::NECRONOMICURSE:
+        case CardId::WOUND:
+        case CardId::DAZED:
+        case CardId::SLIMED:
+            // Nothing of their own; a draw wasted is the whole of it.
+            return 1;
+
+        default:
+            return 0;
     }
 }
 
@@ -183,21 +249,39 @@ CardWorth WorthOf(const Card& card)
 
     CardWorth worth;
 
-    worth.cost = card.GetCost();
+    // An unplayable card has a sentinel where its price would be. Written
+    // out as it stands it reads as a card that hands energy back.
+    worth.unplayable = card.IsPlayable() ? 0 : 1;
+    worth.cost = std::max(0, card.GetCost());
+    worth.rarity = std::max(0, static_cast<int>(card.GetRarity()) - 1);
 
     for (const auto& effect : card.GetEffects())
     {
         const int times = std::max(1, effect.times);
-        const int value = std::max(1, effect.value) * times;
+
+        // What one of it is worth. A figure read off the table has its rate
+        // in the extra: Fiend Fire is written as nought damage from the
+        // cards exhausted, seven each, and reading only the nought called
+        // one of the strongest attacks in the game a card that does nothing.
+        const int each = effect.valueSource != ValueSource::FIXED &&
+                                 effect.value == 0
+                             ? std::max(1, effect.extra)
+                             : std::max(1, effect.value);
+        const int value = each * times;
+
+        if (effect.valueSource != ValueSource::FIXED)
+        {
+            worth.scales = 1;
+        }
 
         switch (effect.type)
         {
             case EffectType::DEAL_DAMAGE:
-                worth.damage += effect.value * times;
+                worth.damage += value;
                 break;
 
             case EffectType::GAIN_BLOCK:
-                worth.block += effect.value * times;
+                worth.block += value;
                 break;
 
             case EffectType::INCREASE_SELF_DAMAGE:
@@ -240,6 +324,23 @@ CardWorth WorthOf(const Card& card)
             case EffectType::RETURN_FROM_DISCARD:
             case EffectType::COPY_HAND_CARD:
                 worth.draw += value;
+                break;
+
+            case EffectType::UPGRADE_HAND_CARD:
+                // A value of nought means every card the climber holds, in
+                // hand and in both piles, for the rest of the fight.
+                // Counted as one thing handed over, Apotheosis - upgrade
+                // the whole deck - read as worth the same as Armaments
+                // sharpening a single card.
+                if (effect.value == 0)
+                {
+                    worth.lasting += RULE_WORTH;
+                }
+                else
+                {
+                    worth.power += value;
+                }
+
                 break;
 
             case EffectType::APPLY_POWER:
@@ -286,7 +387,6 @@ CardWorth WorthOf(const Card& card)
             case EffectType::HEAL:
             case EffectType::INCREASE_MAX_HEALTH:
             case EffectType::HEAL_PERCENT:
-            case EffectType::UPGRADE_HAND_CARD:
             case EffectType::PLAY_TOP_CARD:
             case EffectType::COPY_SELF_TO_DISCARD:
             case EffectType::DISCARD_TO_DRAW_TOP:
@@ -308,10 +408,7 @@ CardWorth WorthOf(const Card& card)
             case EffectType::ADD_RANDOM_POWER:
             case EffectType::ADD_RANDOM_COMMON:
             case EffectType::ADD_RANDOM_CARD:
-            case EffectType::EXHAUST_HAND:
-            case EffectType::EXHAUST_HAND_CARD:
-            case EffectType::DISCARD_CARDS:
-            case EffectType::DISCARD_HAND:
+
             case EffectType::RESHUFFLE_ALL:
             case EffectType::REMOVE_ALL_ORBS:
                 worth.power += value;
@@ -324,6 +421,18 @@ CardWorth WorthOf(const Card& card)
             // energy. Bloodletting and Offering are nought energy cards.
             case EffectType::LOSE_HEALTH:
                 worth.health += value;
+                break;
+
+            // What it throws away of its own. Counted, not judged: see
+            // CardWorth::exhausts.
+            case EffectType::EXHAUST_HAND:
+            case EffectType::DISCARD_HAND:
+                worth.exhausts += A_HAND;
+                break;
+
+            case EffectType::EXHAUST_HAND_CARD:
+            case EffectType::DISCARD_CARDS:
+                worth.exhausts += value;
                 break;
 
             case EffectType::ADD_CARD:
@@ -346,6 +455,14 @@ CardWorth WorthOf(const Card& card)
             case EffectType::INVALID:
                 break;
         }
+    }
+
+    worth.harm = HarmOf(card.GetId(), card.GetUpgradeCount());
+
+    // A card that exhausts itself is one more card gone from the fight.
+    if (card.Has(CardFlag::EXHAUST))
+    {
+        ++worth.exhausts;
     }
 
     return worth;
@@ -378,7 +495,14 @@ const CardWorth& CardRegistry::Worth(CardId id, int upgradeCount)
         return nothing;
     }
 
-    return known.emplace(key, WorthOf(card)).first->second;
+    CardWorth worth = WorthOf(card);
+
+    // A status keeps its name when it is sharpened, so the card cannot say
+    // how many times it has been: a Burn that hits for four looks exactly
+    // like one that hits for two. The count asked for is the one that knows.
+    worth.harm = HarmOf(id, at);
+
+    return known.emplace(key, worth).first->second;
 }
 
 bool CardRegistry::CanUpgrade(CardId id, int upgradeCount)

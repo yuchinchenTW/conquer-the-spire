@@ -86,17 +86,22 @@ def families(layout, ids):
         Family("monster", 8, layout["monsters"], layout["monster_stride"],
                layout["monster_stride"], ids=ids["monsters"]),
 
-        # A reward slot says what kind it is and what it is worth; the four
-        # things it offers are ids of their own.
+        # A reward slot says what kind of pile it is and how much is on it;
+        # each of the four things it holds out is a card of its own, with
+        # what it asks and what it is worth beside its id.
         Family("reward", 6, layout["rewards"], layout["reward_stride"],
                layout["reward_stride"], ids=ids["reward_kinds"]),
-        Family("offer", 24, ids=ids["reward_options"],
+        Family("offer", 24, layout["offers"], layout["offer_stride"],
+               layout["offer_stride"], ids=ids["reward_options"],
                kinds=ids["reward_option_kinds"]),
 
-        Family("shopcard", 7, layout["shop"], 2, 2, ids=ids["shop_cards"]),
-        Family("shoprelic", 3, layout["shop"] + 14, 2, 2,
+        # The shelf: its cards carry the same figures, behind the price.
+        Family("shopcard", 7, layout["shop_cards"],
+               layout["shop_card_stride"], layout["shop_card_stride"],
+               ids=ids["shop_cards"]),
+        Family("shoprelic", 3, layout["shop"], 2, 2,
                ids=ids["shop_relics"]),
-        Family("shoppotion", 3, layout["shop"] + 20, 2, 2,
+        Family("shoppotion", 3, layout["shop"] + 6, 2, 2,
                ids=ids["shop_potions"]),
 
         # A room option carries what taking it would do to the climber - the

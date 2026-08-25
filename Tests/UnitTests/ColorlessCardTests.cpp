@@ -490,3 +490,27 @@ TEST_CASE("Every card in the registry builds and reports itself")
     // 14 curses.
     CHECK(total == 285);
 }
+
+TEST_CASE("A card that changes the rules is not worth one of anything")
+{
+    // Apotheosis sharpens every card the climber holds for the rest of the
+    // fight. Counted as one thing handed over, it read as worth what
+    // Armaments is worth for sharpening a single card in hand.
+    const CardWorth& all = CardRegistry::Worth(CardId::APOTHEOSIS, 0);
+    const CardWorth& one = CardRegistry::Worth(CardId::ARMAMENTS, 0);
+
+    CHECK(all.lasting > 1);
+    CHECK(all.power == 0);
+    CHECK(one.power > 0);
+    CHECK(one.lasting == 0);
+
+    // Apparition turns every hit of a turn into a single point. That is not
+    // one stack of a buff, whatever the number on the card says.
+    const CardWorth& ghost = CardRegistry::Worth(CardId::APPARITION, 0);
+
+    CHECK(ghost.lasting > 1);
+    CHECK(ghost.power == 0);
+
+    // And a plain buff is still counted as what it hands over.
+    CHECK(CardRegistry::Worth(CardId::INFLAME, 0).power == 2);
+}

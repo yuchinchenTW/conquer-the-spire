@@ -123,11 +123,35 @@ constexpr std::size_t CARD_KINDS = 5;
 //! whether sharpening it again would change anything, how many of that same
 //! card the deck holds, what it is worth now - cost, damage, block, power -
 //! and what sharpening it would add to each of those.
-constexpr std::size_t DECK_CARD_SLOTS = 20 + CARD_KINDS;
+//! How many numbers PushWorth writes for one card.
+constexpr std::size_t WORTH_SLOTS = 12;
+
+//! What a whetstone would add to each figure it can move: the cost and the
+//! seven of the worth that a sharpening ever changes.
+constexpr std::size_t DECK_WHETSTONE_SLOTS = 8;
+
+//! What each slot of the deck says besides which card it is: that there is
+//! one there at all, which kind, whether it is sharpened, whether sharpening
+//! would change anything, and how many of it the deck holds - then what it
+//! costs, what it is worth, and what a whetstone would buy.
+//!
+//! Worked out rather than written down: every figure added to the worth used
+//! to want this number changed by hand, and forgetting left the state and
+//! the layout disagreeing about how long the state was.
+constexpr std::size_t DECK_CARD_SLOTS =
+    5 + CARD_KINDS + WORTH_SLOTS + DECK_WHETSTONE_SLOTS;
 
 //! What a card in hand is worth, beside what it costs and whether it can be
-//! played: damage, block and power.
-constexpr std::size_t HAND_WORTH_SLOTS = 7;
+//! played.
+constexpr std::size_t HAND_WORTH_SLOTS = WORTH_SLOTS;
+
+//! What a card being offered says: what it asks at the orb, and what it is
+//! worth. Which card it is comes from the ids beside the state.
+constexpr std::size_t OFFER_SLOTS = 1 + WORTH_SLOTS;
+
+//! What a card on the shelf says: the price, whether it is still there, and
+//! then the same as any other card on offer.
+constexpr std::size_t SHOP_CARD_SLOTS_WIDE = 2 + OFFER_SLOTS;
 
 //! What can stand on a place on the map, counting everything but the empty
 //! places: a fight, an elite, a question mark, a fire, a shop, a chest and a
@@ -151,8 +175,12 @@ constexpr std::size_t MAP_SLOTS =
 float Scaled(int value, int by);
 
 //! Writes out what a card is worth: damage, block and whatever else it hands
-//! over. Three numbers, in that order.
+//! over.
 void PushWorth(std::vector<float>& out, const CardWorth& worth);
+
+//! Writes out a card being held out to the climber: what it asks at the orb
+//! and what it is worth. An invalid card says nothing.
+void PushOffer(std::vector<float>& out, CardId id);
 
 //! Writes out one row of the map: every column of it, whether \p reachable
 //! holds that column, and what waits there.
@@ -415,6 +443,33 @@ void PushWorth(std::vector<float>& out, const CardWorth& worth)
 
     // And what it charges in health, which is not what it charges in energy.
     out.emplace_back(Scaled(worth.health, 10));
+
+    // How many of its own cards it throws away, and whether these figures
+    // are rates rather than amounts. Both are facts about the card; what
+    // they are worth depends on the deck, which is beside this.
+    out.emplace_back(Scaled(worth.exhausts, 5));
+    out.emplace_back(worth.scales > 0 ? 1.0f : 0.0f);
+
+    // What holding it costs, whether it can be played at all, and how far
+    // up the rarities it is.
+    out.emplace_back(Scaled(worth.harm, 4));
+    out.emplace_back(worth.unplayable > 0 ? 1.0f : 0.0f);
+    out.emplace_back(Scaled(worth.rarity, 3));
+}
+
+void PushOffer(std::vector<float>& out, CardId id)
+{
+    if (id == CardId::INVALID)
+    {
+        out.insert(out.end(), OFFER_SLOTS, 0.0f);
+
+        return;
+    }
+
+    const CardWorth& worth = CardRegistry::Worth(id, 0);
+
+    out.emplace_back(Scaled(worth.cost, 3));
+    PushWorth(out, worth);
 }
 
 void PushRow(std::vector<float>& out, const Map& map, int row,
@@ -1386,11 +1441,16 @@ SpireEnv::Layout SpireEnv::GetLayout()
     layout.rewardStride = REWARD_KINDS + REWARD_EXTRAS;
 
     layout.shop = layout.rewards + REWARD_SLOTS * layout.rewardStride;
-    layout.event =
-        layout.shop +
-        (SHOP_CARD_SLOTS + SHOP_RELIC_SLOTS + SHOP_POTION_SLOTS) *
-            SHOP_EXTRAS +
+    layout.shopCards =
+        layout.shop + (SHOP_RELIC_SLOTS + SHOP_POTION_SLOTS) * SHOP_EXTRAS +
         SHOP_EXTRAS;
+    layout.shopCardStride = SHOP_CARD_SLOTS_WIDE;
+    layout.offers =
+        layout.shopCards + SHOP_CARD_SLOTS * layout.shopCardStride;
+    layout.offerStride = OFFER_SLOTS;
+    layout.event =
+        layout.offers +
+        REWARD_SLOTS * OBSERVED_OPTIONS * layout.offerStride;
     layout.eventStride = EVENT_OPTION_SLOTS;
 
     layout.potions =
@@ -1791,15 +1851,6 @@ std::vector<float> SpireEnv::Observe() const
     // What the shelf is asking.
     const Shop& shop = m_run.GetShop();
 
-    for (std::size_t i = 0; i < SHOP_CARD_SLOTS; ++i)
-    {
-        const bool there = i < shop.GetCards().size();
-
-        out.emplace_back(there ? Scaled(shop.GetCards()[i].price, 200)
-                               : 0.0f);
-        out.emplace_back(there && !shop.GetCards()[i].sold ? 1.0f : 0.0f);
-    }
-
     for (std::size_t i = 0; i < SHOP_RELIC_SLOTS; ++i)
     {
         const bool there = i < shop.GetRelics().size();
@@ -1820,6 +1871,33 @@ std::vector<float> SpireEnv::Observe() const
 
     out.emplace_back(Scaled(shop.GetRemovalPrice(), 200));
     out.emplace_back(shop.IsRemovalSpent() ? 0.0f : 1.0f);
+
+    // The cards on the shelf, each one a run of numbers of its own: what it
+    // is being sold for, whether it is still there, and what it is.
+    for (std::size_t i = 0; i < SHOP_CARD_SLOTS; ++i)
+    {
+        const bool there = i < shop.GetCards().size();
+
+        out.emplace_back(there ? Scaled(shop.GetCards()[i].price, 200)
+                               : 0.0f);
+        out.emplace_back(there && !shop.GetCards()[i].sold ? 1.0f : 0.0f);
+
+        PushOffer(out, there ? shop.GetCards()[i].id : CardId::INVALID);
+    }
+
+    // And every card a pile is holding out. A pile of relics or a potion
+    // says nothing here: what those are is an id, and an id is enough.
+    for (std::size_t i = 0; i < REWARD_SLOTS; ++i)
+    {
+        for (std::size_t option = 0; option < OBSERVED_OPTIONS; ++option)
+        {
+            const bool there = i < rewards.size() &&
+                               option < rewards[i].cards.size();
+
+            PushOffer(out, there ? rewards[i].cards[option]
+                                 : CardId::INVALID);
+        }
+    }
 
     // What the room is offering.
     const Event& room = m_run.GetEvent();

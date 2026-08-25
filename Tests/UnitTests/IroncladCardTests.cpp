@@ -875,3 +875,97 @@ TEST_CASE("What a card keeps giving is told apart from what it gives once")
     CHECK(offering.energy == 2);
     CHECK(offering.draw == 3);
 }
+
+TEST_CASE("A card that reads off the table says its rate, not nought")
+{
+    // Fiend Fire throws the hand away and hits for seven a card. Written as
+    // nought damage from the cards exhausted, it came out as a two energy
+    // card that does nothing at all - and it is one of the hardest hitting
+    // cards the Ironclad has.
+    const CardWorth& fiend = CardRegistry::Worth(CardId::FIEND_FIRE, 0);
+
+    CHECK(fiend.damage == 7);
+    CHECK(fiend.scales == 1);
+    CHECK(CardRegistry::Worth(CardId::FIEND_FIRE, 1).damage == 10);
+
+    // Second Wind blocks five a card exhausted.
+    CHECK(CardRegistry::Worth(CardId::SECOND_WIND, 0).block == 5);
+
+    // Heavy Blade has its damage written on it and the strength on top, so
+    // the written figure stands and the rate only says it grows.
+    const CardWorth& heavy = CardRegistry::Worth(CardId::HEAVY_BLADE, 0);
+
+    CHECK(heavy.damage == 14);
+    CHECK(heavy.scales == 1);
+
+    // A plain card says nothing about rates.
+    CHECK(CardRegistry::Worth(CardId::STRIKE_RED, 0).scales == 0);
+}
+
+TEST_CASE("What a card throws away is counted, not judged")
+{
+    // Thrown away is a price when the cards were worth playing and a payment
+    // when they were not; a deck with Dark Embrace in it is paid for every
+    // card that goes. So the count is stated and the sign is left to
+    // whoever reads it beside the deck.
+    const CardWorth& fiend = CardRegistry::Worth(CardId::FIEND_FIRE, 0);
+
+    // The hand it eats, and itself.
+    CHECK(fiend.exhausts == 5);
+    CHECK(fiend.power == 0);
+
+    // True Grit exhausts one card of the hand.
+    CHECK(CardRegistry::Worth(CardId::TRUE_GRIT, 0).exhausts >= 1);
+
+    // A card that exhausts itself and nothing else counts one.
+    CHECK(CardRegistry::Worth(CardId::LIMIT_BREAK, 0).exhausts == 1);
+    CHECK(CardRegistry::Worth(CardId::LIMIT_BREAK, 1).exhausts == 0);
+
+    // And one that stays in the deck throws nothing away.
+    CHECK(CardRegistry::Worth(CardId::STRIKE_RED, 0).exhausts == 0);
+}
+
+TEST_CASE("A bomb put on yourself is not a debuff")
+{
+    // The Bomb sits on the climber for three turns and then goes off in the
+    // enemies faces. Counted among the things that are bad to hold, it read
+    // as a two energy card that charges you and hands over nothing.
+    const CardWorth& bomb = CardRegistry::Worth(CardId::THE_BOMB, 0);
+
+    CHECK(bomb.cost == 2);
+    CHECK(bomb.power > 0);
+}
+
+TEST_CASE("A curse says what holding it costs")
+{
+    // A curse deals no damage and blocks nothing, so every figure of its
+    // worth was nought - the same nought a card that does nothing has - and
+    // its cost was the sentinel an unplayable card carries, which read as a
+    // card that hands energy back. A Regret came out cheaper than a Strike.
+    const CardWorth& regret = CardRegistry::Worth(CardId::REGRET, 0);
+    const CardWorth& strike = CardRegistry::Worth(CardId::STRIKE_RED, 0);
+
+    CHECK(regret.cost == 0);
+    CHECK(regret.unplayable == 1);
+    CHECK(regret.harm > 0);
+
+    CHECK(strike.cost == 1);
+    CHECK(strike.unplayable == 0);
+    CHECK(strike.harm == 0);
+
+    // The ones that do something every turn say more than the ones that only
+    // take up a draw.
+    CHECK(CardRegistry::Worth(CardId::DECAY, 0).harm >
+          CardRegistry::Worth(CardId::CLUMSY, 0).harm);
+    CHECK(CardRegistry::Worth(CardId::BURN, 1).harm >
+          CardRegistry::Worth(CardId::BURN, 0).harm);
+
+    // And a status is a wasted draw like the rest.
+    CHECK(CardRegistry::Worth(CardId::WOUND, 0).harm > 0);
+    CHECK(CardRegistry::Worth(CardId::WOUND, 0).unplayable == 1);
+
+    // What is worth tearing out sits at the bottom of the rarities.
+    CHECK(strike.rarity == 0);
+    CHECK(CardRegistry::Worth(CardId::DEMON_FORM, 0).rarity == 3);
+    CHECK(CardRegistry::Worth(CardId::INFLAME, 0).rarity == 2);
+}

@@ -201,6 +201,10 @@ class SpireEnv(object):
             "reward_stride",
             "event_stride",
             "deck_stride",
+            "shop_cards",
+            "shop_card_stride",
+            "offers",
+            "offer_stride",
         ]
         # The engine says how many it writes, so that this list cannot fall
         # out of step with it without saying so.

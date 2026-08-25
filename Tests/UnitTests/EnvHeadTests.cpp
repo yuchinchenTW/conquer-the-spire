@@ -436,13 +436,73 @@ TEST_CASE("The ids say what the shelf is offering")
               static_cast<int>(shop.GetPotions()[i].id));
     }
 
-    // The prices are in the numbers.
+    // The prices are in the numbers, and a card on the shelf says what it
+    // is as well as what it costs: the price, whether it is still there,
+    // what it asks at the orb, and then what it is worth.
     const SpireEnv::Layout layout = SpireEnv::GetLayout();
     const std::vector<float> state = env.Observe();
+    const CardId first = shop.GetCards().front().id;
+    const CardWorth& worth = CardRegistry::Worth(first, 0);
 
-    CHECK(state[layout.shop] ==
+    CHECK(state[layout.shopCards] ==
           doctest::Approx(shop.GetCards().front().price / 200.0f));
-    CHECK(state[layout.shop + 1] == 1.0f);
+    CHECK(state[layout.shopCards + 1] == 1.0f);
+    CHECK(state[layout.shopCards + 2] == doctest::Approx(worth.cost / 3.0f));
+    CHECK(state[layout.shopCards + 3] ==
+          doctest::Approx(worth.damage / 20.0f));
+
+    // A shelf with nothing in a slot says nothing in it.
+    const std::size_t empty =
+        layout.shopCards +
+        (shop.GetCards().size()) * layout.shopCardStride;
+
+    if (shop.GetCards().size() < SpireEnv::SHOP_CARD_SLOTS)
+    {
+        for (std::size_t i = 0; i < layout.shopCardStride; ++i)
+        {
+            CHECK(state[empty + i] == 0.0f);
+        }
+    }
+}
+
+TEST_CASE("A card being offered says what it is, not only which it is")
+{
+    // The whole point: what a card costs and what it does used to reach the
+    // state only once it was in the deck, which is after the choosing is
+    // done with. A pile now holds its cards out with their figures on them.
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    Run& run = env.GetRun();
+
+    // Putting a pile down by hand: what is on it has to be known for the
+    // figures beside it to be worth checking.
+    auto& pile = const_cast<std::vector<Reward>&>(run.GetRewards());
+
+    pile.clear();
+    pile.emplace_back(
+        Reward::CardChoice({ CardId::STRIKE_RED, CardId::DEMON_FORM }));
+
+    const SpireEnv::Layout layout = SpireEnv::GetLayout();
+    const std::vector<float> state = env.Observe();
+    const CardWorth& strike = CardRegistry::Worth(CardId::STRIKE_RED, 0);
+    const CardWorth& demon = CardRegistry::Worth(CardId::DEMON_FORM, 0);
+
+    // The first pile, its first two cards.
+    const std::size_t first = layout.offers;
+    const std::size_t second = first + layout.offerStride;
+
+    CHECK(state[first] == doctest::Approx(strike.cost / 3.0f));
+    CHECK(state[first + 1] == doctest::Approx(strike.damage / 20.0f));
+
+    CHECK(state[second] == doctest::Approx(demon.cost / 3.0f));
+    CHECK(state[second + 1] == 0.0f);
+
+    // Demon Form keeps handing Strength over; the Strike does not. That is
+    // the sixth of the figures.
+    CHECK(state[second + 6] > 0.0f);
+    CHECK(state[first + 6] == 0.0f);
 }
 
 TEST_CASE("The ids say which room the climber is standing in")
@@ -1088,14 +1148,19 @@ TEST_CASE("The state says what a whetstone would buy")
     CHECK(before[at + 6] == 0.0f);
     CHECK(before[at + 7] == 1.0f);
 
-    // Five Strikes in a starting deck, and six damage now with three more
-    // to be had from a whetstone. The worth is damage, block, cards drawn,
-    // energy, what it hands over once and what it keeps handing over; the
-    // difference a whetstone makes follows in the same order behind the
-    // cost, so the damage it adds is the second of those.
-    CHECK(before[at + 8] == doctest::Approx(5.0f / 5.0f));
-    CHECK(before[at + 10] == doctest::Approx(6.0f / 20.0f));
-    CHECK(before[at + 18] == doctest::Approx(3.0f / 10.0f));
+    // A slot reads: there, five kinds, sharpened, worth sharpening, how
+    // many of it the deck holds, what it costs, what it is worth, then what
+    // a whetstone would add to each of those. The worth itself is damage,
+    // block, drawn, energy given, once, kept, health, thrown away, and
+    // whether the figures are rates.
+    const std::size_t copies = at + 1u + 5u + 2u;
+    const std::size_t worth = copies + 2u;
+    // Past the twelve figures of the worth, the whetstone difference.
+    const std::size_t whetstone = worth + 12u;
+
+    CHECK(before[copies] == doctest::Approx(5.0f / 5.0f));
+    CHECK(before[worth] == doctest::Approx(6.0f / 20.0f));
+    CHECK(before[whetstone + 1u] == doctest::Approx(3.0f / 10.0f));
 
     REQUIRE(run.Smith(0) == true);
 
@@ -1105,9 +1170,9 @@ TEST_CASE("The state says what a whetstone would buy")
     // Strikes: sharpening one does not make it another card.
     CHECK(after[at + 6] == 1.0f);
     CHECK(after[at + 7] == 0.0f);
-    CHECK(after[at + 8] == doctest::Approx(5.0f / 5.0f));
-    CHECK(after[at + 10] == doctest::Approx(9.0f / 20.0f));
-    CHECK(after[at + 18] == 0.0f);
+    CHECK(after[copies] == doctest::Approx(5.0f / 5.0f));
+    CHECK(after[worth] == doctest::Approx(9.0f / 20.0f));
+    CHECK(after[whetstone + 1u] == 0.0f);
 
     // And the fire will not put it to the whetstone twice.
     CHECK(run.Smith(0) == false);

@@ -99,7 +99,7 @@ size_t cts_action_count(void)
 
 size_t cts_layout_slots(void)
 {
-    return 23u;
+    return 27u;
 }
 
 size_t cts_id_layout_slots(void)
@@ -142,6 +142,10 @@ void cts_layout(size_t* out)
     out[20] = layout.rewardStride;
     out[21] = layout.eventStride;
     out[22] = layout.deckStride;
+    out[23] = layout.shopCards;
+    out[24] = layout.shopCardStride;
+    out[25] = layout.offers;
+    out[26] = layout.offerStride;
 }
 
 void cts_observe(cts_env env, float* out)

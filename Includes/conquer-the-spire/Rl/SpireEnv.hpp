@@ -236,6 +236,18 @@ class SpireEnv
         std::size_t potions = 0;
         std::size_t moves = 0;
 
+        //! Where what is on offer begins: every card a pile is holding
+        //! out, and every card on the shelf, with the same figures the deck
+        //! carries. Kept in blocks of their own so that each is a run of
+        //! numbers belonging to one card, which is what a learner reading
+        //! by the card needs.
+        //!
+        //! Without these a card being chosen was an id and nothing else -
+        //! what it costs and what it does only reached the state once it was
+        //! already in the deck, which is after the choosing is over.
+        std::size_t offers = 0;
+        std::size_t shopCards = 0;
+
         //! Where the deck begins: what sits in each of its slots, which is
         //! what an action naming a slot is about. Which card it is comes
         //! from the ids beside the state.
@@ -254,6 +266,8 @@ class SpireEnv
         std::size_t eventStride = 0;
         std::size_t moveStride = 0;
         std::size_t deckStride = 0;
+        std::size_t offerStride = 0;
+        std::size_t shopCardStride = 0;
     };
 
     //!
