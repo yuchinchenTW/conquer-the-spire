@@ -22,9 +22,9 @@ const PowerType WATCHED_POWERS[] = {
     PowerType::STRENGTH,    PowerType::DEXTERITY,  PowerType::VULNERABLE,
     PowerType::WEAK,        PowerType::FRAIL,      PowerType::POISON,
     PowerType::ARTIFACT,    PowerType::INTANGIBLE, PowerType::THORNS,
-    PowerType::METALLICIZE, PowerType::BARRICADE,  PowerType::DEMON_FORM,
-    PowerType::CONFUSED,    PowerType::HEX,        PowerType::NO_DRAW,
-    PowerType::ENERGIZED,
+    PowerType::METALLICIZE, PowerType::BARRICADE,  PowerType::CORRUPTION,
+    PowerType::DEMON_FORM,  PowerType::CONFUSED,   PowerType::HEX,
+    PowerType::NO_DRAW,     PowerType::ENERGIZED,
 
     // And what the monsters bring of their own. Every one of these decides
     // how a fight has to be played - a guardian shifting mode, a nob raging

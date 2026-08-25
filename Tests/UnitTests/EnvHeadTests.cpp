@@ -330,6 +330,22 @@ TEST_CASE("The layout adds up to the size of the state")
           layout.map);
 }
 
+TEST_CASE("The state says when Corruption is active")
+{
+    SpireEnv env = InBattle();
+
+    Battle* battle = const_cast<Battle*>(env.GetBattle());
+    battle->GetPlayer().AddPower(PowerType::CORRUPTION, 1);
+
+    const SpireEnv::Layout layout = SpireEnv::GetLayout();
+    const std::vector<float> state = env.Observe();
+
+    constexpr std::size_t CORRUPTION_SLOT = 11;
+
+    REQUIRE(state.size() == layout.total);
+    CHECK(state[layout.powers + CORRUPTION_SLOT] == doctest::Approx(0.1f));
+}
+
 TEST_CASE("Every card of every pool fits in the state")
 {
     const CardColor colors[] = { CardColor::RED, CardColor::GREEN,
