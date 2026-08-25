@@ -306,7 +306,7 @@ void PushOption(std::vector<float>& out, const EventOption* option)
 
                 case EventEffectType::TRANSFORM_CARDS:
                 case EventEffectType::DUPLICATE_CARD:
-                case EventEffectType::REPLACE_ALL_OF_TYPE:
+                case EventEffectType::REPLACE_EVERY:
                     note(OptionSignal::CHANGE_CARD, count);
                     break;
 
@@ -1046,6 +1046,7 @@ StepResult SpireEnv::Step(const Action& action)
     }
 
     const int healthBefore = m_run.GetPlayer().GetHealth();
+    const int maxBefore = m_run.GetPlayer().GetMaxHealth();
     const int floorBefore = m_run.GetFloor();
 
     switch (action.kind)
@@ -1417,6 +1418,14 @@ StepResult SpireEnv::Step(const Action& action)
         m_healthWeight *
         static_cast<float>(std::max(0, healthBefore -
                                           m_run.GetPlayer().GetHealth()));
+
+    // And the ceiling, both ways. A room that lowers it can leave the health
+    // under it untouched - a climber at fifty-five of eighty walks out of the
+    // vampires at fifty-five of fifty-six - so the charge above finds nothing
+    // to charge for, and a third of the climber was sold for nothing.
+    result.reward += m_maxHealthWeight *
+                     static_cast<float>(m_run.GetPlayer().GetMaxHealth() -
+                                        maxBefore);
     // The move limit is counted at the top, where every way through Step()
     // passes it.
     result.done = m_phase == EnvPhase::OVER;
@@ -1643,6 +1652,16 @@ void SpireEnv::SetHealthWeight(float weight)
 float SpireEnv::GetHealthWeight() const
 {
     return m_healthWeight;
+}
+
+void SpireEnv::SetMaxHealthWeight(float weight)
+{
+    m_maxHealthWeight = weight >= 0.0f ? weight : 0.0f;
+}
+
+float SpireEnv::GetMaxHealthWeight() const
+{
+    return m_maxHealthWeight;
 }
 
 void SpireEnv::SetCursePenalty(float penalty)

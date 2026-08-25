@@ -363,12 +363,11 @@ EventEffect EventEffect::UpgradeAllBasic()
     return effect;
 }
 
-EventEffect EventEffect::ReplaceAllOfType(CardType type, CardId card,
-                                          int count)
+EventEffect EventEffect::ReplaceEvery(CardId goes, CardId card, int count)
 {
     EventEffect effect;
-    effect.type = EventEffectType::REPLACE_ALL_OF_TYPE;
-    effect.cardType = type;
+    effect.type = EventEffectType::REPLACE_EVERY;
+    effect.goes = goes;
     effect.card = card;
     effect.count = count;
 

@@ -993,6 +993,118 @@ TEST_CASE("An act limit ends the climb where the act does")
     CHECK(whole.GetActLimit() == 0);
 }
 
+namespace
+{
+//! Walks \p env until it is standing in a room with options, and says
+//! whether it got there. Which room it is does not matter: the room is
+//! replaced with the one the test is about.
+bool WalkToARoom(SpireEnv& env, unsigned int seed, int limit = 400)
+{
+    std::mt19937 rng(seed);
+
+    for (int step = 0; step < limit && !env.IsDone(); ++step)
+    {
+        if (env.GetPhase() == EnvPhase::EVENT)
+        {
+            return true;
+        }
+
+        const std::vector<Action> moves = env.LegalActions();
+
+        if (moves.empty())
+        {
+            return false;
+        }
+
+        std::uniform_int_distribution<std::size_t> pick(0,
+                                                        moves.size() - 1);
+
+        if (!env.Step(moves[pick(rng)]).taken)
+        {
+            return false;
+        }
+    }
+
+    return env.GetPhase() == EnvPhase::EVENT;
+}
+}  // namespace
+
+TEST_CASE("A ceiling sold off is charged for")
+{
+    // What the vampires ask for is a third of the ceiling, and a climber that
+    // walks in already hurt pays no health at all for it: the health under
+    // the ceiling is only pulled down to meet the new one. So the charge for
+    // health lost finds nothing to charge, and without a price on the ceiling
+    // a third of the climber goes for nothing.
+    const unsigned int seed = 8u;
+    float paid[2] = { 0.0f, 0.0f };
+    int ceiling[2] = { 0, 0 };
+
+    for (int which = 0; which < 2; ++which)
+    {
+        SpireEnv env;
+
+        env.SetMaxHealthWeight(which == 0 ? 0.0f : 0.05f);
+        env.Reset(CardColor::RED, seed);
+
+        REQUIRE(WalkToARoom(env, seed) == true);
+
+        // The room it walked into, whichever it was, becomes the one the
+        // vampires keep.
+        env.GetRun().StartEvent(EventId::VAMPIRES);
+
+        const int whole = env.GetRun().GetPlayer().GetMaxHealth();
+
+        // Hurt enough that the new ceiling is still above the health under
+        // it, so that nothing is lost except the ceiling itself.
+        env.GetRun().GetPlayer().SetHealth(whole / 2);
+
+        const int before = env.GetRun().GetPlayer().GetHealth();
+        const std::size_t accept =
+            env.GetRun().GetEvent().GetOptions().size() - 2;
+
+        REQUIRE(env.GetRun().CanChooseEventOption(accept) == true);
+
+        const StepResult step = env.Step(
+            Action(ActionKind::CHOOSE_OPTION, static_cast<int>(accept), -1));
+
+        REQUIRE(step.taken == true);
+
+        // The ceiling came down and the health under it did not move.
+        CHECK(env.GetRun().GetPlayer().GetMaxHealth() < whole);
+        CHECK(env.GetRun().GetPlayer().GetHealth() == before);
+
+        paid[which] = step.reward;
+        ceiling[which] = env.GetRun().GetPlayer().GetMaxHealth();
+    }
+
+    // The same seed, the same walk, the same deal: the only difference is
+    // what the ceiling was worth.
+    REQUIRE(ceiling[0] == ceiling[1]);
+    CHECK(paid[0] == doctest::Approx(0.0f));
+    CHECK(paid[1] < paid[0]);
+}
+
+TEST_CASE("What the ceiling costs can be set")
+{
+    SpireEnv env;
+
+    CHECK(env.GetMaxHealthWeight() ==
+          doctest::Approx(SpireEnv::MAX_HEALTH_WEIGHT));
+
+    env.SetMaxHealthWeight(0.0f);
+    env.Reset(CardColor::RED, 8);
+
+    // A reset leaves it alone: it is how the climb is being scored, not
+    // anything about the climb.
+    CHECK(env.GetMaxHealthWeight() == 0.0f);
+
+    // Nothing below nought: a ceiling cannot be worth being rid of.
+    env.SetMaxHealthWeight(-1.0f);
+
+    CHECK(env.GetMaxHealthWeight() == 0.0f);
+}
+
 TEST_CASE("What health costs can be set")
 {
     SpireEnv env;

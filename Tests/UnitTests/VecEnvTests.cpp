@@ -29,6 +29,82 @@ std::size_t FirstLegal(const std::vector<unsigned char>& mask,
 }
 }  // namespace
 
+TEST_CASE("Starting over is not paid for the ceiling coming back")
+{
+    // A climber that dies at a ceiling it sold down starts the next climb at
+    // eighty again, and a price on the ceiling that is paid both ways would
+    // hand over a reward for the difference: a reward for dying. The next
+    // climb is started after the step is scored rather than during it, and
+    // this is the test that says so.
+    const std::size_t rows = 8u;
+    const std::size_t stride = SpireEnv::ActionCount();
+    float paid[2] = { 0.0f, 0.0f };
+    int ended[2] = { 0, 0 };
+
+    for (int which = 0; which < 2; ++which)
+    {
+        VecSpireEnv row(rows);
+
+        row.SetAutoReset(true);
+        row.SetMaxHealthWeight(which == 0 ? 0.0f : 0.05f);
+        row.Reset(CardColor::RED, 41u);
+
+        std::vector<unsigned char> mask(rows * stride, 0u);
+        std::vector<std::size_t> actions(rows, 0u);
+        std::vector<float> rewards(rows, 0.0f);
+        std::vector<unsigned char> dones(rows, 0u);
+        std::mt19937 rng(11u);
+
+        for (int tick = 0; tick < 400; ++tick)
+        {
+            row.ActionMask(mask.data());
+
+            for (std::size_t i = 0; i < rows; ++i)
+            {
+                std::vector<std::size_t> open;
+
+                for (std::size_t slot = 0; slot < stride; ++slot)
+                {
+                    if (mask[i * stride + slot] != 0u)
+                    {
+                        open.emplace_back(slot);
+                    }
+                }
+
+                if (open.empty())
+                {
+                    actions[i] = 0u;
+                    continue;
+                }
+
+                std::uniform_int_distribution<std::size_t> pick(
+                    0, open.size() - 1);
+
+                actions[i] = open[pick(rng)];
+            }
+
+            row.Step(actions.data(), rewards.data(), dones.data(), nullptr,
+                     nullptr, nullptr);
+
+            for (std::size_t i = 0; i < rows; ++i)
+            {
+                // Only the steps that ended a climb, which are the only ones
+                // a start-over could be hiding in.
+                if (dones[i] != 0u)
+                {
+                    paid[which] += rewards[i];
+                    ++ended[which];
+                }
+            }
+        }
+    }
+
+    // The same rows, the same die, the same climbs ending in the same places.
+    REQUIRE(ended[0] > 0);
+    REQUIRE(ended[0] == ended[1]);
+    CHECK(paid[1] == doctest::Approx(paid[0]));
+}
+
 TEST_CASE("A row of climbs is seeded one after another")
 {
     VecSpireEnv row(4);

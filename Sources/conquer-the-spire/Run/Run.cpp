@@ -1138,18 +1138,17 @@ void Run::ResolveEventEffect(const EventEffect& effect,
             break;
         }
 
-        case EventEffectType::REPLACE_ALL_OF_TYPE:
+        case EventEffectType::REPLACE_EVERY:
         {
             std::vector<Card>& deck = m_player.GetDeck();
             const std::size_t before = deck.size();
 
-            // Only the plain ones go: a bite is traded for a strike.
+            // The named card and nothing else. The vampires ask for the
+            // strikes; a bash is a starting card of the same plain rarity,
+            // and stays where it is, which is what the deal says.
             deck.erase(std::remove_if(deck.begin(), deck.end(),
                                       [&effect](const Card& card) {
-                                          return card.GetCardType() ==
-                                                     effect.cardType &&
-                                                 card.GetRarity() ==
-                                                     CardRarity::BASIC;
+                                          return card.GetId() == effect.goes;
                                       }),
                        deck.end());
 

@@ -459,14 +459,14 @@ Event MakeVampires()
     options.emplace_back(
         EventOption("Offer: Blood Vial",
                     { EventEffect::LoseRelic(RelicId::BLOOD_VIAL),
-                      EventEffect::ReplaceAllOfType(CardType::ATTACK,
-                                                    CardId::BITE, 5) })
+                      EventEffect::ReplaceEvery(CardId::STRIKE_RED,
+                                                CardId::BITE, 5) })
             .NeedsRelic(RelicId::BLOOD_VIAL));
     options.emplace_back(
         EventOption("Accept",
                     { EventEffect::LoseMaxHealthPercent(30),
-                      EventEffect::ReplaceAllOfType(CardType::ATTACK,
-                                                    CardId::BITE, 5) }));
+                      EventEffect::ReplaceEvery(CardId::STRIKE_RED,
+                                                CardId::BITE, 5) }));
     options.emplace_back(EventOption("Refuse", {}));
 
     event.AddStage(std::move(options));

@@ -58,6 +58,9 @@ struct EventEffect
     std::vector<RelicId> relics;
     CardType cardType = CardType::INVALID;
 
+    //! The card an option takes every copy of out of the deck.
+    CardId goes = CardId::INVALID;
+
     static EventEffect Gold(int amount);
     static EventEffect GoldRange(int low, int high);
     static EventEffect LoseGold(int low, int high);
@@ -111,8 +114,7 @@ struct EventEffect
 
     //! Takes every card of \p type out and hands over \p count copies of
     //! \p card, which is the bargain the vampires offer.
-    static EventEffect ReplaceAllOfType(CardType type, CardId card,
-                                        int count);
+    static EventEffect ReplaceEvery(CardId goes, CardId card, int count);
 
     //! Gives up \p id, or any relic at all when it is invalid.
     static EventEffect LoseRelic(RelicId id);

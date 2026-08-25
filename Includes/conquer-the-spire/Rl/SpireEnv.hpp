@@ -132,6 +132,18 @@ class SpireEnv
     static constexpr float DEATH_REWARD = -20.0f;
     static constexpr float HEALTH_WEIGHT = 0.05f;
 
+    //! What a point of the health ceiling is worth, taken off or handed
+    //! over.
+    //!
+    //! Health lost is health a fire can put back. A ceiling taken off is
+    //! gone for the rest of the climb, and takes a little off every fire
+    //! after it as well, so a point of it is worth at least what a point of
+    //! health is worth - this is the floor of its price, not the ceiling of
+    //! it. Charged and paid both ways, so that the five the fish offers is
+    //! worth something and the third of a climber the vampires ask for
+    //! costs something.
+    static constexpr float MAX_HEALTH_WEIGHT = 0.05f;
+
     //! What a curse in the deck costs for every floor walked with it.
     //!
     //! The deck says which of its cards are curses, what holding one costs a
@@ -148,6 +160,13 @@ class SpireEnv
     //! so it is worth being able to try another.
     void SetHealthWeight(float weight);
     float GetHealthWeight() const;
+
+    //! What a point of the health ceiling is worth. Nought charges nothing
+    //! for one, which is how the climbs before this were scored: the option
+    //! said plainly that it wanted a third of the ceiling, and nothing was
+    //! ever taken for it.
+    void SetMaxHealthWeight(float weight);
+    float GetMaxHealthWeight() const;
 
     //! What a curse in the deck costs a floor. Nought charges nothing, which
     //! is how the climbs before this were scored.
@@ -449,6 +468,9 @@ class SpireEnv
 
     //! What a point of health is worth against a floor.
     float m_healthWeight = HEALTH_WEIGHT;
+
+    //! What a point of the health ceiling is worth against a floor.
+    float m_maxHealthWeight = MAX_HEALTH_WEIGHT;
 
     //! What a curse in the deck costs a floor.
     float m_cursePenalty = CURSE_A_FLOOR;

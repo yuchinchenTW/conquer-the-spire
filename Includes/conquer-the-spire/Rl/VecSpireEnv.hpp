@@ -50,6 +50,10 @@ class VecSpireEnv
     //! What a point of health taken off costs every climb of the row.
     void SetHealthWeight(float weight);
 
+    //! What a point of the health ceiling is worth, for every climb of the
+    //! row.
+    void SetMaxHealthWeight(float weight);
+
     //! What a curse in the deck costs every climb of the row, a floor at a
     //! time.
     void SetCursePenalty(float penalty);

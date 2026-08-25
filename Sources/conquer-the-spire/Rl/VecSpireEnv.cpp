@@ -65,6 +65,14 @@ void VecSpireEnv::SetHealthWeight(float weight)
     }
 }
 
+void VecSpireEnv::SetMaxHealthWeight(float weight)
+{
+    for (auto& env : m_envs)
+    {
+        env.SetMaxHealthWeight(weight);
+    }
+}
+
 void VecSpireEnv::SetCursePenalty(float penalty)
 {
     for (auto& env : m_envs)

@@ -155,7 +155,7 @@ enum class EventEffectType
     UPGRADE_ALL_BASIC,
 
     //! Takes every card of a kind out, and hands over copies of another.
-    REPLACE_ALL_OF_TYPE,
+    REPLACE_EVERY,
 
     //! Gives up a relic: the one named, or one at random.
     LOSE_RELIC,

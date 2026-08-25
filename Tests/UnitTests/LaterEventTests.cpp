@@ -340,6 +340,24 @@ TEST_CASE("The vampires trade every plain strike for a bite")
     CHECK(run.GetPlayer().GetMaxHealth() == whole - whole * 30 / 100);
 }
 
+TEST_CASE("The vampires leave the bash where it is")
+{
+    Run run = RunInRoom(EventId::VAMPIRES);
+
+    // A bash is a starting card of the same plain rarity as a strike, and an
+    // attack like it, so anything that goes by the kind of a card takes the
+    // bash as well. The deal names the strikes.
+    REQUIRE(Count(run, CardId::BASH) == 1);
+
+    const std::size_t accept = OptionOf(run.GetEvent(), "Accept");
+
+    REQUIRE(run.ChooseEventOption(accept) == true);
+
+    CHECK(Count(run, CardId::STRIKE_RED) == 0);
+    CHECK(Count(run, CardId::BASH) == 1);
+    CHECK(Count(run, CardId::DEFEND_RED) == 4);
+}
+
 TEST_CASE("A blood vial buys the bites for nothing")
 {
     Run run = RunInRoom(EventId::VAMPIRES);

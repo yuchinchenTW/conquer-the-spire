@@ -149,6 +149,10 @@ CTS_API size_t cts_event_name(int id, char* out, size_t size);
 CTS_API void cts_set_health_weight(void* env, float weight);
 CTS_API void cts_vec_set_health_weight(void* vec, float weight);
 
+/* What a point of the health ceiling is worth, off or handed over. */
+CTS_API void cts_set_max_health_weight(void* env, float weight);
+CTS_API void cts_vec_set_max_health_weight(void* vec, float weight);
+
 /* What a curse in the deck costs for every floor walked with it. */
 CTS_API void cts_set_curse_penalty(void* env, float penalty);
 CTS_API void cts_vec_set_curse_penalty(void* vec, float penalty);
