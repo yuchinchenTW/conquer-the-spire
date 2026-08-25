@@ -555,6 +555,7 @@ void SpireEnv::Reset(CardColor character, unsigned int seed)
     // A question nobody answered does not carry into the next climb.
     m_chosen = 0;
     m_chosenTarget = 0;
+    m_askedByPotion = false;
     m_answers.clear();
     m_totalFloors = 0;
     m_bossFight = false;
@@ -741,14 +742,20 @@ std::vector<Action> SpireEnv::LegalActions() const
         case EnvPhase::CHOOSING:
         {
             if (m_battle == nullptr ||
-                m_chosen >= m_battle->GetPlayer().GetHand().size())
+                (m_askedByPotion
+                     ? m_chosen >= m_battle->GetPlayer().GetPotions().size()
+                     : m_chosen >= m_battle->GetPlayer().GetHand().size()))
             {
                 break;
             }
 
             const std::size_t much = ChoosableCards().size();
-            const bool many = Battle::ChoiceTakesMany(
-                m_battle->GetPlayer().GetHand()[m_chosen]);
+            const bool many =
+                m_askedByPotion
+                    ? Battle::ChoiceTakesMany(
+                          m_battle->GetPlayer().GetPotions()[m_chosen])
+                    : Battle::ChoiceTakesMany(
+                          m_battle->GetPlayer().GetHand()[m_chosen]);
 
             for (std::size_t i = 0; i < much && i < CHOICE_SLOTS; ++i)
             {
@@ -1170,6 +1177,8 @@ StepResult SpireEnv::Step(const Action& action)
             {
                 m_chosen = slot;
                 m_chosenTarget = action.b;
+                m_askedByPotion = false;
+                m_answers.clear();
                 m_phase = EnvPhase::CHOOSING;
                 result.taken = true;
                 break;
@@ -1203,8 +1212,7 @@ StepResult SpireEnv::Step(const Action& action)
 
             // A card that takes as many as are named keeps being asked until
             // the climber says that is all of them.
-            if (Battle::ChoiceTakesMany(
-                    m_battle->GetPlayer().GetHand()[m_chosen]))
+            if (AskerTakesMany())
             {
                 if (std::find(m_answers.begin(), m_answers.end(), named) ==
                     m_answers.end())
@@ -1222,8 +1230,7 @@ StepResult SpireEnv::Step(const Action& action)
             m_phase = EnvPhase::BATTLE;
             m_answers.clear();
 
-            if (!m_battle->PlayCard(m_chosen, TargetOf(m_chosenTarget),
-                                    named))
+            if (!Answer({ named }))
             {
                 return result;
             }
@@ -1235,9 +1242,7 @@ StepResult SpireEnv::Step(const Action& action)
         case ActionKind::CHOOSE_DONE:
         {
             if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
-                m_chosen >= m_battle->GetPlayer().GetHand().size() ||
-                !Battle::ChoiceTakesMany(
-                    m_battle->GetPlayer().GetHand()[m_chosen]))
+                !AskerTakesMany())
             {
                 return result;
             }
@@ -1247,8 +1252,7 @@ StepResult SpireEnv::Step(const Action& action)
             m_phase = EnvPhase::BATTLE;
             m_answers.clear();
 
-            if (!m_battle->PlayCard(m_chosen, TargetOf(m_chosenTarget),
-                                    named))
+            if (!Answer(named))
             {
                 return result;
             }
@@ -1277,6 +1281,32 @@ StepResult SpireEnv::Step(const Action& action)
             const PotionId drunk = which < held.size()
                                        ? held[which].GetId()
                                        : PotionId::INVALID;
+
+            // A potion that wants a card picked out is held back until it
+            // has an answer, the same as a card is - and only when there is
+            // something to pick from: an Elixir over an empty hand and a
+            // Liquid Memories over an empty discard pile have nothing to ask.
+            if (which < held.size() &&
+                m_battle->CanUsePotion(which, TargetOf(action.b)) &&
+                Battle::NeedsCardChoice(held[which]))
+            {
+                if (Battle::ChoiceSourceOf(held[which]) ==
+                    ChoiceSource::OFFERED)
+                {
+                    m_battle->RollOffer(held[which]);
+                }
+
+                if (m_battle->ChoiceCount(held[which]) > 0u)
+                {
+                    m_chosen = which;
+                    m_chosenTarget = action.b;
+                    m_askedByPotion = true;
+                    m_answers.clear();
+                    m_phase = EnvPhase::CHOOSING;
+                    result.taken = true;
+                    break;
+                }
+            }
 
             if (!m_battle->UsePotion(which, TargetOf(action.b)))
             {
@@ -1690,7 +1720,11 @@ SpireEnv::Layout SpireEnv::GetLayout()
     layout.asking = layout.deckCards + DECK_SLOTS * layout.deckStride;
     layout.askingStride = OFFER_SLOTS;
 
-    layout.choices = layout.asking + layout.askingStride;
+    // A potion is one number: which one it is, and the state already says
+    // what is in the belt.
+    layout.askingPotion = layout.asking + layout.askingStride;
+
+    layout.choices = layout.askingPotion + 1u;
     // What the card is, and whether it has been named already.
     layout.choiceStride = OFFER_SLOTS + 1;
     layout.total = layout.choices + CHOICE_SLOTS * layout.choiceStride;
@@ -1717,7 +1751,8 @@ SpireEnv::IdLayout SpireEnv::GetIdLayout()
     layout.monsters = layout.event + 1u;
     layout.deck = layout.monsters + OBSERVED_MONSTERS;
     layout.asking = layout.deck + DECK_SLOTS;
-    layout.choices = layout.asking + 1u;
+    layout.askingPotion = layout.asking + 1u;
+    layout.choices = layout.askingPotion + 1u;
     layout.total = layout.choices + CHOICE_SLOTS;
 
     return layout;
@@ -1841,6 +1876,7 @@ std::vector<int> SpireEnv::ObserveIds() const
     }
 
     out[layout.asking] = static_cast<int>(AskingCard());
+    out[layout.askingPotion] = static_cast<int>(AskingPotion());
 
     const std::vector<CardId> asking = ChoosableCards();
 
@@ -1875,9 +1911,57 @@ float SpireEnv::GetHealthWeight() const
     return m_healthWeight;
 }
 
+bool SpireEnv::AskerTakesMany() const
+{
+    if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr)
+    {
+        return false;
+    }
+
+    const Player& player = m_battle->GetPlayer();
+
+    if (m_askedByPotion)
+    {
+        return m_chosen < player.GetPotions().size() &&
+               Battle::ChoiceTakesMany(player.GetPotions()[m_chosen]);
+    }
+
+    return m_chosen < player.GetHand().size() &&
+           Battle::ChoiceTakesMany(player.GetHand()[m_chosen]);
+}
+
+bool SpireEnv::Answer(const std::vector<std::size_t>& named)
+{
+    if (m_battle == nullptr)
+    {
+        return false;
+    }
+
+    // Whichever of them was asking is what is now let go.
+    if (m_askedByPotion)
+    {
+        const std::size_t which = m_chosen;
+        const std::vector<Potion>& held = m_battle->GetPlayer().GetPotions();
+        const PotionId drunk =
+            which < held.size() ? held[which].GetId() : PotionId::INVALID;
+
+        if (!m_battle->UsePotion(which, TargetOf(m_chosenTarget), named))
+        {
+            return false;
+        }
+
+        m_run.Note(LogEntry::POTION_DRUNK, static_cast<int>(drunk));
+
+        return true;
+    }
+
+    return m_battle->PlayCard(m_chosen, TargetOf(m_chosenTarget), named);
+}
+
 CardId SpireEnv::AskingCard() const
 {
     if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
+        m_askedByPotion ||
         m_chosen >= m_battle->GetPlayer().GetHand().size())
     {
         return CardId::INVALID;
@@ -1886,32 +1970,53 @@ CardId SpireEnv::AskingCard() const
     return m_battle->GetPlayer().GetHand()[m_chosen].GetId();
 }
 
+PotionId SpireEnv::AskingPotion() const
+{
+    if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
+        !m_askedByPotion ||
+        m_chosen >= m_battle->GetPlayer().GetPotions().size())
+    {
+        return PotionId::INVALID;
+    }
+
+    return m_battle->GetPlayer().GetPotions()[m_chosen].GetId();
+}
+
 std::vector<CardId> SpireEnv::ChoosableCards() const
 {
     std::vector<CardId> out;
 
-    if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
-        m_chosen >= m_battle->GetPlayer().GetHand().size())
+    if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr)
     {
         return out;
     }
 
     const Player& player = m_battle->GetPlayer();
-    const Card& asking = player.GetHand()[m_chosen];
+
+    if (m_askedByPotion ? m_chosen >= player.GetPotions().size()
+                        : m_chosen >= player.GetHand().size())
+    {
+        return out;
+    }
+
+    const ChoiceSource source =
+        m_askedByPotion
+            ? Battle::ChoiceSourceOf(player.GetPotions()[m_chosen])
+            : Battle::ChoiceSourceOf(player.GetHand()[m_chosen]);
     const std::vector<Card>* pile = nullptr;
 
-    switch (Battle::ChoiceSourceOf(asking))
+    switch (source)
     {
         case ChoiceSource::OFFERED:
             return m_battle->GetOffered();
 
         case ChoiceSource::HAND:
-            // Without the card doing the asking: it is gone from the hand by
-            // the time its own effects run, so the answers are numbered
-            // against the rest.
+            // A card doing the asking is gone from the hand by the time its
+            // own effects run, so the answers are numbered against the rest.
+            // A potion was never in the hand, so every card of it counts.
             for (std::size_t i = 0; i < player.GetHand().size(); ++i)
             {
-                if (i != m_chosen)
+                if (m_askedByPotion || i != m_chosen)
                 {
                     out.emplace_back(player.GetHand()[i].GetId());
                 }
@@ -2411,6 +2516,7 @@ std::vector<float> SpireEnv::Observe() const
     // Which card is asking, and what it has to pick from. Nothing at all at
     // every other moment of a climb.
     PushOffer(out, AskingCard());
+    out.emplace_back(AskingPotion() == PotionId::INVALID ? 0.0f : 1.0f);
 
     const std::vector<CardId> asking = ChoosableCards();
 

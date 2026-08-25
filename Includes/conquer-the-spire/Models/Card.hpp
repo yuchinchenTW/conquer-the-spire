@@ -96,7 +96,10 @@ struct CardEffect
 
     //! Exhausts \p count cards from hand, randomly when \p random is true and
     //! by choice otherwise.
-    static CardEffect ExhaustHandCard(int count, bool random);
+    //! Exhausts \p count cards of the hand, or as many as the climber names
+    //! when \p manyCards - which is what an Elixir does.
+    static CardEffect ExhaustHandCard(int count, bool random,
+                                      bool manyCards = false);
 
     //! Exhausts every card in hand that passes \p filter.
     static CardEffect ExhaustHand(CardFilter filter = CardFilter::ANY);
@@ -125,7 +128,10 @@ struct CardEffect
 
     //! Discards \p count cards, at random when \p random is true and by
     //! choice otherwise.
-    static CardEffect DiscardCards(int count, bool random);
+    //! Discards \p count cards of the hand, or as many as the climber names
+    //! when \p manyCards - which is what a Gambler's Brew does.
+    static CardEffect DiscardCards(int count, bool random,
+                                   bool manyCards = false);
 
     //! Discards every card in hand that passes \p filter.
     static CardEffect DiscardHand(CardFilter filter = CardFilter::ANY);
@@ -225,8 +231,11 @@ struct CardEffect
     //! Holds out \p count random cards of the player's colour and takes the
     //! one the climber picks into the hand, costing no energy this turn.
     //! Which of them it is is a choice rather than a roll, which is the
-    //! difference between a Discovery and a Jack of All Trades.
-    static CardEffect OfferRandomCards(int count);
+    //! difference between a Discovery and a Jack of All Trades. With \p type
+    //! only cards of that kind are held out, which is what the attack, skill
+    //! and power potions do.
+    static CardEffect OfferRandomCards(int count,
+                                       CardFilter only = CardFilter::ANY);
 
     //! Forces the cards in hand to cost \p cost. Only one card is touched,
     //! picked at random, when \p onlyOne is true. The cost goes back at the

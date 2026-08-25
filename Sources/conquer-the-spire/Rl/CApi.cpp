@@ -99,12 +99,12 @@ size_t cts_action_count(void)
 
 size_t cts_layout_slots(void)
 {
-    return 31u;
+    return 32u;
 }
 
 size_t cts_id_layout_slots(void)
 {
-    return 15u;
+    return 16u;
 }
 
 void cts_layout(size_t* out)
@@ -152,6 +152,7 @@ void cts_layout(size_t* out)
     out[28] = layout.choiceStride;
     out[29] = layout.asking;
     out[30] = layout.askingStride;
+    out[31] = layout.askingPotion;
 }
 
 void cts_observe(cts_env env, float* out)
@@ -193,8 +194,9 @@ void cts_id_layout(size_t* out)
     out[10] = layout.monsters;
     out[11] = layout.deck;
     out[12] = layout.asking;
-    out[13] = layout.choices;
-    out[14] = layout.total;
+    out[13] = layout.askingPotion;
+    out[14] = layout.choices;
+    out[15] = layout.total;
 }
 
 void cts_observe_ids(cts_env env, int* out)

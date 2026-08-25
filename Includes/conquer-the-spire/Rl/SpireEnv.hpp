@@ -326,6 +326,11 @@ class SpireEnv
         //! choosing one of them would do to it.
         std::size_t asking = 0;
 
+        //! Which potion is doing the asking, when it is a potion. A card and
+        //! a potion are named in different tables, so they are named in
+        //! different places; whichever is asking, the other says nothing.
+        std::size_t askingPotion = 0;
+
         //! Where the cards a played card is asking about begin. The pile is
         //! whichever one that card picks out of - a hand, a discard pile, an
         //! exhaust pile - so this is the only place the last two are written
@@ -381,6 +386,9 @@ class SpireEnv
         //! Which card is doing the asking. \see Layout::asking
         std::size_t asking = 0;
 
+        //! Which potion is doing the asking. \see Layout::askingPotion
+        std::size_t askingPotion = 0;
+
         //! Which card sits in each place a played card is asking about.
         //! \see Layout::choices
         std::size_t choices = 0;
@@ -420,8 +428,19 @@ class SpireEnv
     std::vector<CardId> ChoosableCards() const;
 
     //! Returns the card that is doing the asking, or nothing at all when
-    //! nothing is being asked.
+    //! nothing is being asked or a potion is asking.
     CardId AskingCard() const;
+
+    //! Returns the potion that is doing the asking, or nothing at all when
+    //! nothing is being asked or a card is asking.
+    PotionId AskingPotion() const;
+
+    //! Returns whether whatever is asking takes as many cards as are named.
+    bool AskerTakesMany() const;
+
+    //! Lets the thing that was asking go, with \p named behind it: a card is
+    //! played, a potion is drunk.
+    bool Answer(const std::vector<std::size_t>& named);
 
     std::vector<int> ObserveIds() const;
 
@@ -553,6 +572,10 @@ class SpireEnv
     //! The cards named so far, for a card that takes as many as are named.
     //! Empty the rest of the time.
     std::vector<std::size_t> m_answers;
+
+    //! Whether what is asking is a potion in the belt rather than a card in
+    //! the hand. \p m_chosen is the slot either way.
+    bool m_askedByPotion = false;
 
     //! What a point of health is worth against a floor.
     float m_healthWeight = HEALTH_WEIGHT;

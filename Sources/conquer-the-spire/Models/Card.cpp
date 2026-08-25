@@ -186,12 +186,14 @@ CardEffect CardEffect::UpgradeRandomHandCard()
     return effect;
 }
 
-CardEffect CardEffect::ExhaustHandCard(int count, bool random)
+CardEffect CardEffect::ExhaustHandCard(int count, bool random,
+                                      bool manyCards)
 {
     CardEffect effect;
     effect.type = EffectType::EXHAUST_HAND_CARD;
     effect.value = count;
     effect.randomPick = random;
+    effect.manyCards = manyCards;
 
     return effect;
 }
@@ -266,12 +268,13 @@ CardEffect CardEffect::IncreaseSelfDamage(int value)
     return effect;
 }
 
-CardEffect CardEffect::DiscardCards(int count, bool random)
+CardEffect CardEffect::DiscardCards(int count, bool random, bool manyCards)
 {
     CardEffect effect;
     effect.type = EffectType::DISCARD_CARDS;
     effect.value = count;
     effect.randomPick = random;
+    effect.manyCards = manyCards;
 
     return effect;
 }
@@ -515,12 +518,13 @@ CardEffect CardEffect::AddRandomCard(int count, CardPile pile)
     return effect;
 }
 
-CardEffect CardEffect::OfferRandomCards(int count)
+CardEffect CardEffect::OfferRandomCards(int count, CardFilter only)
 {
     CardEffect effect;
     effect.type = EffectType::OFFER_CARDS;
     effect.value = count;
     effect.pile = CardPile::HAND;
+    effect.filter = only;
 
     return effect;
 }

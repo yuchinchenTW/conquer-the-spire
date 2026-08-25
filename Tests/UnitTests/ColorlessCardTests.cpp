@@ -511,8 +511,10 @@ TEST_CASE("A discovery holds out three and takes the one that is picked")
     CHECK(hand.front().GetId() == shown[1]);
     CHECK(battle.GetEffectiveCost(hand.front()) == 0);
 
-    // And the handful is put away again.
-    CHECK(battle.GetOffered().empty() == true);
+    // The handful stays where it is until the next one is rolled up: a
+    // Sacred Bark pours a potion twice and what that gives is two copies of
+    // the one card that was picked, not two pickings.
+    CHECK(battle.GetOffered().size() == 3u);
 }
 
 TEST_CASE("An enlightenment holds the cost for a turn, sharpened for a fight")

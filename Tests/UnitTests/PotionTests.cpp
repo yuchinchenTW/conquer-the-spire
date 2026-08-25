@@ -333,13 +333,32 @@ TEST_CASE("Liquid Memories takes a card back out of the discard pile")
     CHECK(battle.GetPlayer().GetDiscardPile().empty());
 }
 
-TEST_CASE("Attack Potion hands over an attack of the character's colour")
+TEST_CASE("Attack Potion holds out three attacks and takes the one picked")
 {
     Battle battle = BattleWith({ CardId::STRIKE_RED },
                                { PotionId::ATTACK_POTION }, { Dummy(50) });
 
-    REQUIRE(battle.UsePotion(0) == true);
+    battle.RollOffer(battle.GetPlayer().GetPotions().front());
+
+    const std::vector<CardId> shown = battle.GetOffered();
+
+    // Three of them, all attacks, all different.
+    REQUIRE(shown.size() == 3u);
+
+    for (std::size_t i = 0; i < shown.size(); ++i)
+    {
+        CHECK(CardRegistry::Get(shown[i]).GetCardType() == CardType::ATTACK);
+
+        for (std::size_t j = i + 1u; j < shown.size(); ++j)
+        {
+            CHECK(shown[i] != shown[j]);
+        }
+    }
+
+    // And the one picked is the one that arrives.
+    REQUIRE(battle.UsePotion(0, 0, 2u) == true);
     REQUIRE(battle.GetPlayer().GetHand().size() == 2u);
+    CHECK(battle.GetPlayer().GetHand().back().GetId() == shown[2]);
 
     bool foundRedAttack = false;
 
@@ -366,16 +385,59 @@ TEST_CASE("Sacred Bark pours a double")
     CHECK(battle.GetPlayer().GetBlock() == 24);
 }
 
-TEST_CASE("Sacred Bark leaves the listed exceptions alone")
+TEST_CASE("An elixir burns as many as are named, and no more")
 {
     Battle battle = BattleWith({ CardId::STRIKE_RED, CardId::DEFEND_RED,
                                 CardId::BASH, CardId::ANGER,
                                 CardId::SHRUG_IT_OFF },
+                               { PotionId::ELIXIR }, { Dummy(50) });
+
+    REQUIRE(battle.GetPlayer().GetHand().size() == 5u);
+
+    // The first and the last of them, named in that order, and taking one out
+    // must not move the other along.
+    const CardId first = battle.GetPlayer().GetHand().front().GetId();
+    const CardId last = battle.GetPlayer().GetHand().back().GetId();
+
+    REQUIRE(battle.UsePotion(0, 0, std::vector<std::size_t>{ 0u, 4u }) ==
+            true);
+
+    CHECK(battle.GetPlayer().GetHand().size() == 3u);
+    REQUIRE(battle.GetPlayer().GetExhaustPile().size() == 2u);
+    CHECK(battle.GetPlayer().GetExhaustPile()[0].GetId() == first);
+    CHECK(battle.GetPlayer().GetExhaustPile()[1].GetId() == last);
+
+    // And naming none of them burns none of them.
+    Battle spared = BattleWith({ CardId::STRIKE_RED, CardId::DEFEND_RED },
+                               { PotionId::ELIXIR }, { Dummy(50) });
+
+    REQUIRE(spared.UsePotion(0, 0, std::vector<std::size_t>{}) == true);
+
+    CHECK(spared.GetPlayer().GetExhaustPile().empty() == true);
+    CHECK(spared.GetPlayer().GetHand().size() == 2u);
+}
+
+TEST_CASE("Sacred Bark leaves the listed exceptions alone")
+{
+    // The wiki names five it cannot double, because there is no second half
+    // to pour. An elixir run twice would burn twice as much, which is the
+    // opposite of what it is for.
+    Battle doubled = BattleWith({ CardId::STRIKE_RED },
+                                { PotionId::BLOCK_POTION }, { Dummy(50) },
+                                { RelicId::SACRED_BARK });
+
+    REQUIRE(doubled.UsePotion(0) == true);
+    CHECK(doubled.GetPlayer().GetBlock() == 24);
+
+    // And the same relic pours one elixir, not two.
+    Battle spared = BattleWith({ CardId::STRIKE_RED, CardId::DEFEND_RED,
+                                CardId::BASH },
                                { PotionId::ELIXIR }, { Dummy(50) },
                                { RelicId::SACRED_BARK });
 
-    REQUIRE(battle.UsePotion(0) == true);
-    CHECK(battle.GetPlayer().GetExhaustPile().size() == 3u);
+    REQUIRE(spared.UsePotion(0, 0, std::vector<std::size_t>{ 0u }) == true);
+
+    CHECK(spared.GetPlayer().GetExhaustPile().size() == 1u);
 }
 
 TEST_CASE("The belt holds three, and five with the Potion Belt")

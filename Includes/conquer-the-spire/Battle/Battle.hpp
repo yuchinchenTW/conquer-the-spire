@@ -74,7 +74,13 @@ class Battle
     //! when the potion needs one. Returns false and changes nothing when the
     //! potion cannot be drunk here: wrong phase, bad index, dead target, or a
     //! potion whose work happens outside a battle.
-    bool UsePotion(std::size_t index, std::size_t monsterIndex = 0);
+    bool UsePotion(std::size_t index, std::size_t monsterIndex = 0,
+                   std::size_t choiceIndex = 0);
+
+    //! Drinks the potion at \p index with a whole list of named cards behind
+    //! it, for the potions that work on as many as are named.
+    bool UsePotion(std::size_t index, std::size_t monsterIndex,
+                   const std::vector<std::size_t>& choices);
 
     //! Returns true when the potion at \p index can be drunk right now at
     //! \p monsterIndex. A potion that is only of use outside a fight, or one
@@ -142,15 +148,26 @@ class Battle
     //! to sharpen, a Warcry what to put back, an Exhume what to fetch. What
     //! PlayCard() is handed as its choice is that card's place in a pile.
     static bool NeedsCardChoice(const Card& card);
+    static bool NeedsCardChoice(const Potion& potion);
 
     //! Returns where \p card picks from. Only worth asking when
     //! NeedsCardChoice() says yes.
     static ChoiceSource ChoiceSourceOf(const Card& card);
+    static ChoiceSource ChoiceSourceOf(const Potion& potion);
+    static ChoiceSource ChoiceSourceOf(
+        const std::vector<CardEffect>& effects);
 
     //! Rolls up the handful \p card holds out, for a card that offers cards
     //! rather than picking among ones the climber already has. Must be called
     //! before the cards on offer can be seen or picked.
     void RollOffer(const Card& card);
+    void RollOffer(const Potion& potion);
+
+ private:
+    void RollOffer(const Card& card,
+                   const std::vector<CardEffect>& effects);
+
+ public:
 
     //! Returns the handful last rolled up, which is empty except while one is
     //! being picked from.
@@ -159,10 +176,14 @@ class Battle
     //! Returns how many cards \p card has to pick from right now, which is
     //! how many of them are worth offering.
     std::size_t ChoiceCount(const Card& card) const;
+    std::size_t ChoiceCount(const Potion& potion) const;
+    std::size_t ChoiceCount(ChoiceSource source) const;
 
     //! Returns true if \p card works on as many of the picked cards as are
     //! named rather than on one of them.
     static bool ChoiceTakesMany(const Card& card);
+    static bool ChoiceTakesMany(const Potion& potion);
+    static bool ChoiceTakesMany(const std::vector<CardEffect>& effects);
 
     //! Returns true if PlayCard() would accept this play.
     bool CanPlay(std::size_t handIndex, std::size_t monsterIndex = 0) const;
@@ -306,6 +327,7 @@ class Battle
     //! behind them. \p target is what the effects aim at, and \p color is the
     //! pool the ones that hand over a card draw from.
     void ResolveEffectsWithoutCard(const std::vector<CardEffect>& effects,
+                                   std::size_t choiceIndex,
                                    CardTarget target, CardColor color,
                                    Monster* aimedAt);
 
@@ -315,6 +337,12 @@ class Battle
     //! Returns the pool a card handing over another card draws from.
     CardColor PoolColor(const CardEffect& effect, const Card& card) const;
     void DiscardCards(int count, bool random, std::size_t choiceIndex);
+
+    //! Throws away every card the climber named, from the back forwards so
+    //! that taking one out does not move the next along. \p exhaust says
+    //! whether they burn or go to the discard pile, and it returns how many
+    //! went - which is what a Gambler's Brew draws again.
+    int ThrowAwayNamed(bool exhaust);
     void DiscardWholeHand(CardFilter filter);
     void GainBlock(int amount);
     void DealDamageToMonster(Monster& monster, int base, bool fromAttack);

@@ -84,7 +84,7 @@ Potion PotionRegistry::Get(PotionId id)
 
         case PotionId::ATTACK_POTION:
             return Drink(id, "Attack Potion", PotionRarity::COMMON,
-                         { CE::AddRandomAttack() });
+                         { CE::OfferRandomCards(3, CardFilter::ATTACK_ONLY) });
 
         case PotionId::BLOCK_POTION:
             return Drink(id, "Block Potion", PotionRarity::COMMON,
@@ -100,7 +100,8 @@ Potion PotionRegistry::Get(PotionId id)
 
         case PotionId::COLORLESS_POTION:
             return Drink(id, "Colorless Potion", PotionRarity::COMMON,
-                         { CE::AddRandomCard(1) });
+                         { CE::OfferRandomCards(3)
+                               .FromPool(CardColor::COLORLESS) });
 
         case PotionId::DEXTERITY_POTION:
             return Drink(id, "Dexterity Potion", PotionRarity::COMMON,
@@ -130,11 +131,11 @@ Potion PotionRegistry::Get(PotionId id)
 
         case PotionId::POWER_POTION:
             return Drink(id, "Power Potion", PotionRarity::COMMON,
-                         { CE::AddRandomPower() });
+                         { CE::OfferRandomCards(3, CardFilter::POWER_ONLY) });
 
         case PotionId::SKILL_POTION:
             return Drink(id, "Skill Potion", PotionRarity::COMMON,
-                         { CE::AddRandomSkill() });
+                         { CE::OfferRandomCards(3, CardFilter::SKILL_ONLY) });
 
         case PotionId::SPEED_POTION:
             return Drink(id, "Speed Potion", PotionRarity::COMMON,
@@ -176,10 +177,8 @@ Potion PotionRegistry::Get(PotionId id)
                          { CE::ApplyPowerToSelf(PowerType::DUPLICATION, 1) });
 
         case PotionId::ELIXIR:
-            // The real potion exhausts as many cards as the player likes; this
-            // one takes up to three.
             return Drink(id, "Elixir", PotionRarity::UNCOMMON,
-                         { CE::ExhaustHandCard(3, false) });
+                         { CE::ExhaustHandCard(0, false, true) });
 
         case PotionId::ESSENCE_OF_STEEL:
             // Plated Armor is not modelled, so this hands over block.
@@ -191,8 +190,11 @@ Potion PotionRegistry::Get(PotionId id)
                          { CE::ApplyPowerToSelf(PowerType::FOCUS, 2) });
 
         case PotionId::GAMBLERS_BREW:
+            // Any number of cards, not the whole hand: which of them go is
+            // the potion, and throwing the lot away is a different and much
+            // worse potion.
             return Drink(id, "Gambler's Brew", PotionRarity::UNCOMMON,
-                         { CE::DiscardHand(),
+                         { CE::DiscardCards(0, false, true),
                            CE::Draw(0).From(ValueSource::CARDS_DISCARDED,
                                             1) });
 

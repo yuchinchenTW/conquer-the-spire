@@ -6,6 +6,7 @@
 #include <conquer-the-spire/Events/EventLibrary.hpp>
 #include <conquer-the-spire/Monsters/EncounterLibrary.hpp>
 #include <conquer-the-spire/Monsters/MonsterRoster.hpp>
+#include <conquer-the-spire/Potions/PotionRegistry.hpp>
 #include <conquer-the-spire/Rl/SpireEnv.hpp>
 
 #include <algorithm>
@@ -1076,6 +1077,119 @@ TEST_CASE("A discovery holds three out to the climber")
     }
 
     CHECK(arrived == true);
+}
+
+TEST_CASE("A potion that asks is held back until the climber answers")
+{
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    REQUIRE(env.Step(env.LegalActions().front()).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::BATTLE);
+
+    Battle* battle = const_cast<Battle*>(env.GetBattle());
+
+    battle->GetPlayer().GetPotions().clear();
+    battle->GetPlayer().GetPotions().emplace_back(
+        PotionRegistry::Get(PotionId::ELIXIR));
+
+    const std::size_t held = battle->GetPlayer().GetHand().size();
+
+    REQUIRE(held >= 3u);
+
+    // Drinking it does not drink it: it asks first, and it is the potion
+    // asking, not a card.
+    REQUIRE(env.Step(Action(ActionKind::USE_POTION, 0, 0)).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::CHOOSING);
+    CHECK(env.AskingCard() == CardId::INVALID);
+    CHECK(env.AskingPotion() == PotionId::ELIXIR);
+
+    // Every card of the hand is on offer - a potion was never in the hand, so
+    // it does not count itself out the way a card does - and so is the word
+    // that there are no more of them.
+    std::size_t picks = 0;
+    bool done = false;
+
+    for (const Action& move : env.LegalActions())
+    {
+        picks += move.kind == ActionKind::CHOOSE_CARD ? 1u : 0u;
+        done = done || move.kind == ActionKind::CHOOSE_DONE;
+    }
+
+    CHECK(picks == held);
+    CHECK(done == true);
+
+    // The state names the potion, in the potions' own table.
+    const SpireEnv::IdLayout ids = SpireEnv::GetIdLayout();
+    const SpireEnv::Layout layout = SpireEnv::GetLayout();
+
+    CHECK(env.ObserveIds()[ids.askingPotion] ==
+          static_cast<int>(PotionId::ELIXIR));
+    CHECK(env.ObserveIds()[ids.asking] == 0);
+    CHECK(env.Observe()[layout.askingPotion] == 1.0f);
+
+    // Two named and then done: two cards burnt, the potion gone.
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_CARD, 0)).taken == true);
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_CARD, 2)).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::CHOOSING);
+
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_DONE)).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::BATTLE);
+
+    CHECK(battle->GetPlayer().GetHand().size() == held - 2u);
+    CHECK(battle->GetPlayer().GetExhaustPile().size() == 2u);
+    CHECK(battle->GetPlayer().GetPotions().empty() == true);
+}
+
+TEST_CASE("An attack potion holds three attacks out to the climber")
+{
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    REQUIRE(env.Step(env.LegalActions().front()).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::BATTLE);
+
+    Battle* battle = const_cast<Battle*>(env.GetBattle());
+
+    battle->GetPlayer().GetPotions().clear();
+    battle->GetPlayer().GetPotions().emplace_back(
+        PotionRegistry::Get(PotionId::ATTACK_POTION));
+
+    REQUIRE(env.Step(Action(ActionKind::USE_POTION, 0, 0)).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::CHOOSING);
+
+    // Three, all attacks of the climber's own colour, and named in the state
+    // so the choice is between cards rather than between places.
+    const std::vector<CardId> shown = env.ChoosableCards();
+    const SpireEnv::IdLayout ids = SpireEnv::GetIdLayout();
+    const std::vector<int> named = env.ObserveIds();
+
+    REQUIRE(shown.size() == 3u);
+    REQUIRE(env.LegalActions().size() == 3u);
+
+    for (std::size_t i = 0; i < 3u; ++i)
+    {
+        const Card held = CardRegistry::Get(shown[i]);
+
+        CHECK(held.GetCardType() == CardType::ATTACK);
+        CHECK(held.GetColor() == CardColor::RED);
+        CHECK(named[ids.choices + i] == static_cast<int>(shown[i]));
+    }
+
+    // It is the one picked that arrives, and it is free this turn.
+    const std::size_t before = battle->GetPlayer().GetHand().size();
+
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_CARD, 1)).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::BATTLE);
+
+    REQUIRE(battle->GetPlayer().GetHand().size() == before + 1u);
+
+    const Card& arrived = battle->GetPlayer().GetHand().back();
+
+    CHECK(arrived.GetId() == shown[1]);
+    CHECK(battle->GetEffectiveCost(arrived) == 0);
 }
 
 TEST_CASE("Nothing the mask offers is ever turned down")

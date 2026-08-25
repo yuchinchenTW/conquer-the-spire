@@ -327,7 +327,8 @@ enum class CardFilter
     NON_ATTACK,       //!< Second Wind, Sever Soul.
     ATTACK_OR_POWER,  //!< Dual Wield.
     ATTACK_ONLY,      //!< Secret Weapon, Violence.
-    SKILL_ONLY        //!< Secret Technique.
+    SKILL_ONLY,       //!< Secret Technique.
+    POWER_ONLY        //!< The power potion.
 };
 
 //! Where an effect reads its amount from, when it is not a plain number.

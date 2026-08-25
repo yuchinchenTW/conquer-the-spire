@@ -58,6 +58,9 @@ bool PassesFilter(const Card& card, CardFilter filter)
         case CardFilter::SKILL_ONLY:
             return card.GetCardType() == CardType::SKILL;
 
+        case CardFilter::POWER_ONLY:
+            return card.GetCardType() == CardType::POWER;
+
         case CardFilter::ANY:
             break;
     }
@@ -171,9 +174,9 @@ void Battle::Start()
     BeginPlayerTurn();
 }
 
-bool Battle::ChoiceTakesMany(const Card& card)
+bool Battle::ChoiceTakesMany(const std::vector<CardEffect>& effects)
 {
-    for (const auto& effect : card.GetEffects())
+    for (const auto& effect : effects)
     {
         if (effect.manyCards)
         {
@@ -182,6 +185,16 @@ bool Battle::ChoiceTakesMany(const Card& card)
     }
 
     return false;
+}
+
+bool Battle::ChoiceTakesMany(const Card& card)
+{
+    return ChoiceTakesMany(card.GetEffects());
+}
+
+bool Battle::ChoiceTakesMany(const Potion& potion)
+{
+    return ChoiceTakesMany(potion.GetEffects());
 }
 
 bool Battle::PlayCard(std::size_t handIndex, std::size_t monsterIndex,
@@ -483,9 +496,14 @@ bool Battle::NeedsCardChoice(const Card& card)
     return ChoiceSourceOf(card) != ChoiceSource::NONE;
 }
 
-ChoiceSource Battle::ChoiceSourceOf(const Card& card)
+bool Battle::NeedsCardChoice(const Potion& potion)
 {
-    for (const auto& effect : card.GetEffects())
+    return ChoiceSourceOf(potion) != ChoiceSource::NONE;
+}
+
+ChoiceSource Battle::ChoiceSourceOf(const std::vector<CardEffect>& effects)
+{
+    for (const auto& effect : effects)
     {
         const ChoiceSource source = SourceOfChoice(effect);
 
@@ -498,19 +516,58 @@ ChoiceSource Battle::ChoiceSourceOf(const Card& card)
     return ChoiceSource::NONE;
 }
 
+ChoiceSource Battle::ChoiceSourceOf(const Card& card)
+{
+    return ChoiceSourceOf(card.GetEffects());
+}
+
+ChoiceSource Battle::ChoiceSourceOf(const Potion& potion)
+{
+    return ChoiceSourceOf(potion.GetEffects());
+}
+
+void Battle::RollOffer(const Potion& potion)
+{
+    // A potion has no colour of its own, so it borrows the same stand-in it
+    // borrows to resolve: the pool is the climber's unless an effect names
+    // another, which is what the colourless potion does.
+    const Card stand(CardId::INVALID, "Trinket", m_player.GetColor(),
+                     CardType::SKILL, CardRarity::SPECIAL,
+                     potion.GetTarget(), 0, {});
+
+    RollOffer(stand, potion.GetEffects());
+}
+
 void Battle::RollOffer(const Card& card)
+{
+    RollOffer(card, card.GetEffects());
+}
+
+void Battle::RollOffer(const Card& card,
+                       const std::vector<CardEffect>& effects)
 {
     m_offered.clear();
 
-    for (const auto& effect : card.GetEffects())
+    for (const auto& effect : effects)
     {
         if (effect.type != EffectType::OFFER_CARDS)
         {
             continue;
         }
 
-        const std::vector<CardId>& pool =
+        const std::vector<CardId>& whole =
             CardRegistry::GetPool(PoolColor(effect, card));
+        std::vector<CardId> pool;
+
+        // Only the kind asked for, which is how an attack potion differs from
+        // a skill potion. No kind asked for means any of them.
+        for (const CardId id : whole)
+        {
+            if (PassesFilter(CardRegistry::Get(id), effect.filter))
+            {
+                pool.emplace_back(id);
+            }
+        }
 
         if (pool.empty())
         {
@@ -547,16 +604,29 @@ const std::vector<CardId>& Battle::GetOffered() const
 
 std::size_t Battle::ChoiceCount(const Card& card) const
 {
-    switch (ChoiceSourceOf(card))
+    const ChoiceSource source = ChoiceSourceOf(card);
+    const std::size_t much = ChoiceCount(source);
+
+    // A card doing the asking is still in the hand while it asks, and gone
+    // from it by the time its own effects run, so it is not one of the cards
+    // it may pick. A potion was never in the hand at all.
+    return source == ChoiceSource::HAND && much > 0u ? much - 1u : much;
+}
+
+std::size_t Battle::ChoiceCount(const Potion& potion) const
+{
+    return ChoiceCount(ChoiceSourceOf(potion));
+}
+
+std::size_t Battle::ChoiceCount(ChoiceSource source) const
+{
+    switch (source)
     {
         case ChoiceSource::OFFERED:
             return m_offered.size();
 
         case ChoiceSource::HAND:
-            // The card being played is still in the hand while its own
-            // effects run, and it is not one of the cards it may pick.
-            return m_player.GetHand().empty() ? 0u
-                                              : m_player.GetHand().size() - 1u;
+            return m_player.GetHand().size();
 
         case ChoiceSource::DISCARD:
             return m_player.GetDiscardPile().size();
@@ -1746,6 +1816,13 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
         }
 
         case EffectType::EXHAUST_HAND_CARD:
+            // As many as the climber named, which is an Elixir.
+            if (effect.manyCards)
+            {
+                ThrowAwayNamed(true);
+                break;
+            }
+
             for (int i = 0; i < effect.value; ++i)
             {
                 std::vector<Card>& hand = m_player.GetHand();
@@ -1873,6 +1950,14 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
             break;
 
         case EffectType::DISCARD_CARDS:
+            // As many as the climber named, which is a Gambler's Brew, or a
+            // fixed number off the hand, which is everything else.
+            if (effect.manyCards)
+            {
+                ThrowAwayNamed(false);
+                break;
+            }
+
             DiscardCards(effect.value, effect.randomPick, choiceIndex);
             break;
 
@@ -1944,7 +2029,10 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
                 m_player.AddCardToPile(std::move(taken), effect.pile, m_rng);
             }
 
-            m_offered.clear();
+            // Not cleared: a Sacred Bark pours the potion twice, and what the
+            // wiki says that gives is two copies of the one card that was
+            // picked rather than two pickings. The handful is thrown away
+            // when the next one is rolled up.
             break;
         }
 
@@ -2978,6 +3066,57 @@ void Battle::DrawCards(int count)
     }
 }
 
+int Battle::ThrowAwayNamed(bool exhaust)
+{
+    std::vector<Card>& hand = m_player.GetHand();
+    std::vector<std::size_t> picked;
+
+    for (const std::size_t at : m_choices)
+    {
+        if (at < hand.size() &&
+            std::find(picked.begin(), picked.end(), at) == picked.end())
+        {
+            picked.emplace_back(at);
+        }
+    }
+
+    if (picked.empty())
+    {
+        return 0;
+    }
+
+    std::vector<Card> going;
+
+    for (const std::size_t at : picked)
+    {
+        going.emplace_back(hand[at]);
+    }
+
+    std::vector<std::size_t> backwards = picked;
+
+    std::sort(backwards.begin(), backwards.end(),
+              std::greater<std::size_t>());
+
+    for (const std::size_t at : backwards)
+    {
+        hand.erase(hand.begin() + static_cast<std::ptrdiff_t>(at));
+    }
+
+    for (auto& card : going)
+    {
+        if (exhaust)
+        {
+            OnCardExhausted(std::move(card));
+        }
+        else
+        {
+            OnCardDiscarded(std::move(card));
+        }
+    }
+
+    return static_cast<int>(going.size());
+}
+
 void Battle::DiscardCards(int count, bool random, std::size_t choiceIndex)
 {
     for (int i = 0; i < count; ++i)
@@ -3230,6 +3369,7 @@ void Battle::FireRelics(RelicHook hook)
 }
 
 void Battle::ResolveEffectsWithoutCard(const std::vector<CardEffect>& effects,
+                                      std::size_t choiceIndex,
                                       CardTarget target, CardColor color,
                                       Monster* aimedAt)
 {
@@ -3240,7 +3380,7 @@ void Battle::ResolveEffectsWithoutCard(const std::vector<CardEffect>& effects,
 
     for (const auto& effect : effects)
     {
-        ResolveEffect(effect, stand, aimedAt, 0, 0);
+        ResolveEffect(effect, stand, aimedAt, choiceIndex, 0);
     }
 }
 
@@ -3248,8 +3388,10 @@ void Battle::ResolveRelicEffects(const std::vector<CardEffect>& effects)
 {
     // A relic aims at the player, and the cards one hands over come from the
     // character's own pool unless the effect says otherwise.
-    ResolveEffectsWithoutCard(effects, CardTarget::SELF, m_player.GetColor(),
-                              FirstLivingMonster());
+    // No answer to pass along: nothing a relic does asks the climber which
+    // card it should work on.
+    ResolveEffectsWithoutCard(effects, 0u, CardTarget::SELF,
+                              m_player.GetColor(), FirstLivingMonster());
 }
 
 CardColor Battle::PoolColor(const CardEffect& effect, const Card& card) const
@@ -3289,7 +3431,23 @@ bool Battle::CanUsePotion(std::size_t index, std::size_t monsterIndex) const
     return true;
 }
 
-bool Battle::UsePotion(std::size_t index, std::size_t monsterIndex)
+bool Battle::UsePotion(std::size_t index, std::size_t monsterIndex,
+                       const std::vector<std::size_t>& choices)
+{
+    // Kept where the one step that works on more than one of them can reach
+    // it, the same way a played card does.
+    m_choices = choices;
+
+    const bool drank = UsePotion(index, monsterIndex,
+                                 choices.empty() ? 0u : choices.front());
+
+    m_choices.clear();
+
+    return drank;
+}
+
+bool Battle::UsePotion(std::size_t index, std::size_t monsterIndex,
+                       std::size_t choiceIndex)
 {
     if (!CanUsePotion(index, monsterIndex))
     {
@@ -3348,8 +3506,9 @@ bool Battle::UsePotion(std::size_t index, std::size_t monsterIndex)
 
     for (int i = 0; i < times; ++i)
     {
-        ResolveEffectsWithoutCard(potion.GetEffects(), potion.GetTarget(),
-                                  m_player.GetColor(), target);
+        ResolveEffectsWithoutCard(potion.GetEffects(), choiceIndex,
+                                  potion.GetTarget(), m_player.GetColor(),
+                                  target);
     }
 
     UpdatePhase();

@@ -209,6 +209,7 @@ class SpireEnv(object):
             "choice_stride",
             "asking",
             "asking_stride",
+            "asking_potion",
         ]
         # The engine says how many it writes, so that this list cannot fall
         # out of step with it without saying so.
@@ -241,6 +242,7 @@ class SpireEnv(object):
             "monsters",
             "deck",
             "asking",
+            "asking_potion",
             "choices",
             "total",
         ]

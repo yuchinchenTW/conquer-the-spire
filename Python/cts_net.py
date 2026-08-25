@@ -116,6 +116,11 @@ def families(layout, ids):
         Family("asking", 1, layout["asking"], layout["asking_stride"],
                layout["asking_stride"], ids=ids["asking"]),
 
+        # And when it is a potion asking rather than a card: named in its own
+        # table, so it is its own token.
+        Family("askingpotion", 1, layout["asking_potion"], 1, 1,
+               ids=ids["asking_potion"]),
+
         # What a played card is asking about: the cards it may pick out,
         # each with what it asks and what it is worth beside its id. The
         # only place a discard pile or an exhaust pile is named at all.
