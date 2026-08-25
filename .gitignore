@@ -36,3 +36,7 @@ runs/
 Python/runs/
 __pycache__/
 *.pyc
+
+# Pictures of the cards, fetched from the wiki for the progress page. The
+# game's own art: on the disk of whoever fetched it, not in here.
+Assets/cards/

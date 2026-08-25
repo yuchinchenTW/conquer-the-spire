@@ -264,7 +264,87 @@ def _curses(picks):
     return rows
 
 
-def _table(rows, title, top=10, count=False):
+# Where a picture of a card is looked for. The page is opened off the disk,
+# so a path relative to the folder it sits in is all it takes: a page in
+# runs/ironclad reaches Assets/cards two folders up.
+ART = os.path.join("Assets", "cards")
+ART_FROM_PAGE = "../../Assets/cards"
+
+# What a kind of card is drawn in when there is no picture of it: the colours
+# the game itself uses for the four corners of a deck.
+KIND_COLOURS = {
+    "attack": "#b4453c",
+    "skill": "#3f6f9c",
+    "power": "#b58a2e",
+    "status": "#7d7d85",
+    "curse": "#4b3a5c",
+    "relic": "#8a6f3c",
+    "potion": "#3f8a6f",
+}
+
+
+def _slug(name):
+    """The file a card would be kept under: lower case, no spaces."""
+    kept = [one.lower() if one.isalnum() else "_" for one in name]
+
+    return "".join(kept).strip("_")
+
+
+# Which of the tables are about a thing there is a picture of, and what that
+# picture is filed under.
+PICTURED = {
+    "card_taken": "", "card_bought": "", "card_removed": "",
+    "card_upgraded": "", "card_transformed": "", "card_played": "",
+    "curse_taken": "",
+    "relic_taken": "relic_", "relic_bought": "relic_",
+    "potion_taken": "potion_", "potion_bought": "potion_",
+    "potion_drunk": "potion_",
+}
+
+
+def _art(row, kind):
+    """A picture of the thing, or one drawn from what it is.
+
+    A folder of pictures is the better answer and needs nothing but the
+    files; without one, the kind and the first letters still tell a Strike
+    from a Bash at a glance down the column. A row about a room or a place on
+    the map is not a thing with a picture, and gets nothing.
+    """
+    if kind not in PICTURED:
+        return ""
+
+    name = row.get("name", "")
+    slug = PICTURED[kind] + _slug(name)
+    picture = os.path.join(ART, slug + ".png")
+
+    if os.path.exists(picture):
+        return ('<img class="art" src="%s/%s.png" alt="" loading="lazy">'
+                % (ART_FROM_PAGE, slug))
+
+    # Nothing on the disk for it: a tile in the colour of what it is.
+    what = row.get("type") or ""
+
+    if not what and kind.startswith(("card", "curse")):
+        try:
+            from cts_log import card_type
+
+            what = card_type(int(row["id"]))
+        except (ImportError, KeyError, TypeError, ValueError, OSError):
+            what = ""
+
+    if kind.startswith("relic"):
+        what = "relic"
+    elif kind.startswith("potion"):
+        what = "potion"
+
+    colour = KIND_COLOURS.get(what, "#6f757c")
+    short = "".join(one[0] for one in name.split()[:2]).upper() or "?"
+
+    return ('<span class="art drawn" style="background:%s" title="%s">%s'
+            "</span>" % (colour, name, short))
+
+
+def _table(rows, title, top=10, count=False, kind=""):
     """One table of choices: a bar for how often it is picked when it turns
     up, and the numbers beside it."""
     if not rows:
@@ -288,11 +368,11 @@ def _table(rows, title, top=10, count=False):
                  else 100.0 * row["pick_rate"])
 
         lines.append(
-            '<tr><td class="name">%s</td>'
+            '<tr><td class="name">%s%s</td>'
             '<td class="bar"><span style="width:%.1f%%"></span></td>'
             '<td class="num">%s</td><td class="num">%d</td>'
             '<td class="num">%.1f</td><td class="num">%.0f%%</td></tr>'
-            % (row["name"][:26], share,
+            % (_art(row, kind), row["name"][:26], share,
                ("%d" % row["picks"]) if count
                else ("%.0f%%" % (100.0 * row["pick_rate"])),
                offered(row), row["avg_floors"],
@@ -319,10 +399,10 @@ def write_html(folder, character, rows, seconds=15, picks=None,
     chosen = "".join(
         _table(_spared((picks or {}).get(kind, []))
                if kind in ("card_taken", "card_bought")
-               else (picks or {}).get(kind, []), title)
+               else (picks or {}).get(kind, []), title, kind=kind)
         for kind, title in PICK_TABLES)
     chosen += _table(curses if curses is not None else _curses(picks),
-                     CURSE_TITLE, count=True)
+                     CURSE_TITLE, count=True, kind="curse_taken")
 
     if chosen:
         over = ("the last %s climbs" % "{:,}".format(int(climbs))
@@ -363,7 +443,13 @@ table.picks th { color: #6f757c; font-weight: 400; text-align: right;
                  padding: 0 0 4px 8px; font-size: 11px; }
 table.picks th:first-child, table.picks td.name { text-align: left; }
 table.picks td { padding: 1px 0 1px 8px; }
-table.picks td.name { color: #e8e8e8; padding-left: 0; }
+table.picks td.name { color: #e8e8e8; padding-left: 0;
+                     white-space: nowrap; }
+.art { display: inline-block; width: 22px; height: 30px; margin-right: 7px;
+       vertical-align: -9px; border-radius: 2px; object-fit: cover;
+       background: #2a2d33; }
+.art.drawn { font: 600 9px/30px "IBM Plex Mono", monospace; color: #fff;
+             text-align: center; letter-spacing: 0.02em; }
 table.picks td.num { text-align: right; color: #9aa0a6;
                      font-variant-numeric: tabular-nums; }
 table.picks td.bar { width: 96px; }

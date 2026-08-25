@@ -165,6 +165,10 @@ CTS_API size_t cts_log_entry_name(int entry, char* out, size_t size);
  * CardRarity are. This is what tells a curse from an attack on the other side
  * of the wall. */
 CTS_API int cts_card_type(int id);
+
+/* Which colour a card belongs to, numbered as CardColor is: which of the
+ * four decks it comes out of, or whether it is a status or a curse. */
+CTS_API int cts_card_color(int id);
 CTS_API int cts_card_rarity(int id);
 
 /* What an option of a room is called: the \p option th of the \p stage th

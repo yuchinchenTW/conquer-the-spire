@@ -514,6 +514,14 @@ int cts_card_type(int id)
             .GetCardType());
 }
 
+int cts_card_color(int id)
+{
+    return static_cast<int>(
+        ConquerTheSpire::CardRegistry::Get(
+            static_cast<ConquerTheSpire::CardId>(id))
+            .GetColor());
+}
+
 int cts_card_rarity(int id)
 {
     return static_cast<int>(
