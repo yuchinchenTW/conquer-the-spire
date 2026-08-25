@@ -358,6 +358,22 @@ def _table(rows, title, top=10, count=False, kind=""):
         return ""
 
     top = len(rows) if top <= 0 else top
+
+    # Sorted by the column the table is about: how often it was picked when
+    # it turned up. What the engine hands over is ordered by how often a
+    # thing was seen, which buries a card taken every time it appeared under
+    # the Strikes it was offered beside. A count of curses has no rate to
+    # sort by, so those go by how many were taken.
+    def order(row):
+        seen = int(row.get("offered", row.get("seen", 0)))
+
+        if count:
+            return (-int(row["picks"]), -seen, row.get("name", ""))
+
+        return (-float(row.get("pick_rate", 0.0)), -seen,
+                row.get("name", ""))
+
+    rows = sorted(rows, key=order)
     lines = []
 
     # Counted rather than shared: the bar is how many were taken against the
