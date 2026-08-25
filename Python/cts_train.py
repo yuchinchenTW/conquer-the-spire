@@ -708,7 +708,16 @@ class Trainer(object):
                     for name in ("cards_taken", "cards_removed",
                                  "cards_upgraded", "cards_transformed",
                                  "rests", "curses_chosen",
-                                 "curses_refused")}
+                                 "curses_refused", "deepest_act")}
+
+            # How far up the spire it is getting. Neither of the numbers
+            # above can say it once an act limit is in play: half the climbs
+            # put the first boss down, so boss_rate sits at a half and stops
+            # moving, and the floors stop at the boss too. What is actually
+            # changing after that is the act, and how often more than one
+            # boss goes down in the same climb.
+            deepest = float(deck["deepest_act"].mean())
+            through = float((bosses > 1).mean())
 
             # Of the times a room put a curse on the table, how often it
             # walked away. This is the one number that says whether the
@@ -720,9 +729,11 @@ class Trainer(object):
                        if offers.sum() > 0 else 0.0)
 
             line = ("return %7.1f  floors %5.2f  fights %5.2f  boss %5.1f%%"
-                    "  win %5.1f%%  sharp %4.2f  torn %4.2f  nocurse %4.0f%%"
+                    "  win %5.1f%%  act %4.2f  through %4.1f%%"
+                    "  sharp %4.2f  torn %4.2f  nocurse %4.0f%%"
                     % (returns.mean(), floors.mean(), fights.mean(),
                        100.0 * (bosses > 0).mean(), 100.0 * wins.mean(),
+                       deepest, 100.0 * through,
                        deck["cards_upgraded"].mean(),
                        deck["cards_removed"].mean(), 100.0 * refusal))
             row = [self.updates, self.steps, self.episodes,
@@ -736,7 +747,7 @@ class Trainer(object):
                    float(deck["rests"].mean()),
                    float(deck["curses_chosen"].mean()),
                    float(deck["curses_refused"].mean()),
-                   refusal]
+                   refusal, deepest, through]
         else:
             line = "no climb has ended yet"
             row = [self.updates, self.steps, self.episodes, 0, 0, 0, 0, 0,

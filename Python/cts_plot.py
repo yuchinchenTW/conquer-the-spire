@@ -23,7 +23,8 @@ COLUMNS = ["updates", "steps", "episodes", "return", "floors", "fights",
            "boss_rate", "win_rate", "loss",
            "cards_taken", "cards_removed", "cards_upgraded",
            "cards_transformed", "rests",
-           "curses_chosen", "curses_refused", "curse_refusal"]
+           "curses_chosen", "curses_refused", "curse_refusal",
+           "deepest_act", "through"]
 
 # How wide a row was before the deck counts were added to the end of it. A
 # curve written by the older trainer is still worth drawing, so a row of that
@@ -41,6 +42,8 @@ PANELS = [
     ("loss", "loss", "#8a8a8a"),
     ("cards_upgraded", "cards upgraded a climb", "#c9a227"),
     ("cards_removed", "cards removed a climb", "#4a9a9a"),
+    ("deepest_act", "deepest act reached", "#7a5ac9"),
+    ("through", "climbs that put two bosses down", "#c94a6f"),
 ]
 
 
