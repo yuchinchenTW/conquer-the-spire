@@ -123,11 +123,11 @@ constexpr std::size_t CARD_KINDS = 5;
 //! whether sharpening it again would change anything, how many of that same
 //! card the deck holds, what it is worth now - cost, damage, block, power -
 //! and what sharpening it would add to each of those.
-constexpr std::size_t DECK_CARD_SLOTS = 16 + CARD_KINDS;
+constexpr std::size_t DECK_CARD_SLOTS = 20 + CARD_KINDS;
 
 //! What a card in hand is worth, beside what it costs and whether it can be
 //! played: damage, block and power.
-constexpr std::size_t HAND_WORTH_SLOTS = 5;
+constexpr std::size_t HAND_WORTH_SLOTS = 7;
 
 //! What can stand on a place on the map, counting everything but the empty
 //! places: a fight, an elite, a question mark, a fire, a shop, a chest and a
@@ -408,6 +408,13 @@ void PushWorth(std::vector<float>& out, const CardWorth& worth)
     out.emplace_back(Scaled(worth.draw, 5));
     out.emplace_back(Scaled(worth.energy, 3));
     out.emplace_back(Scaled(worth.power, 10));
+
+    // What it keeps handing over for the rest of the fight, which is not the
+    // same size of thing as handing it over once.
+    out.emplace_back(Scaled(worth.lasting, 5));
+
+    // And what it charges in health, which is not what it charges in energy.
+    out.emplace_back(Scaled(worth.health, 10));
 }
 
 void PushRow(std::vector<float>& out, const Map& map, int row,
@@ -1974,6 +1981,9 @@ std::vector<float> SpireEnv::Observe() const
         out.emplace_back(again ? Scaled(next.draw - now.draw, 3) : 0.0f);
         out.emplace_back(again ? Scaled(next.energy - now.energy, 2) : 0.0f);
         out.emplace_back(again ? Scaled(next.power - now.power, 5) : 0.0f);
+        out.emplace_back(again ? Scaled(next.lasting - now.lasting, 3)
+                               : 0.0f);
+        out.emplace_back(again ? Scaled(now.health - next.health, 5) : 0.0f);
     }
 
     return out;

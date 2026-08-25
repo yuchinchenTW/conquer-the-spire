@@ -826,3 +826,52 @@ TEST_CASE("The Ironclad starts a run with the deck it should")
     CHECK(defends == 4);
     CHECK(bashes == 1);
 }
+
+TEST_CASE("What a card keeps giving is told apart from what it gives once")
+{
+    // Inflame hands two Strength over and is done; Demon Form hands two over
+    // every turn for the rest of the fight. Both used to come out at power
+    // two, which is the same three numbers for a common card and a rare one.
+    const CardWorth& inflame = CardRegistry::Worth(CardId::INFLAME, 0);
+    const CardWorth& demon = CardRegistry::Worth(CardId::DEMON_FORM, 0);
+
+    CHECK(inflame.power == 2);
+    CHECK(inflame.lasting == 0);
+    CHECK(demon.power == 0);
+    CHECK(demon.lasting == 2);
+
+    // Metallicize blocks three every turn, Corruption changes what the cards
+    // themselves cost - neither is a one-off.
+    CHECK(CardRegistry::Worth(CardId::METALLICIZE, 0).lasting == 3);
+    CHECK(CardRegistry::Worth(CardId::CORRUPTION, 0).lasting > 1);
+    CHECK(CardRegistry::Worth(CardId::CORRUPTION, 0).power == 0);
+
+    // Flex hands two Strength over and takes them back at the end of the
+    // turn. Counting the taking back as more giving made it the strongest
+    // card on the table for a card that does nothing.
+    const CardWorth& flex = CardRegistry::Worth(CardId::FLEX, 0);
+
+    CHECK(flex.power == 2);
+    CHECK(flex.cost == 2);
+    CHECK(flex.lasting == 0);
+
+    // A debuff put on somebody else is still worth having.
+    const CardWorth& clothesline = CardRegistry::Worth(CardId::CLOTHESLINE, 0);
+
+    CHECK(clothesline.power > 0);
+    CHECK(clothesline.cost == 2);
+
+    // What a card charges in health is not what it charges in energy: both
+    // of these are nought energy cards.
+    const CardWorth& bleed = CardRegistry::Worth(CardId::BLOODLETTING, 0);
+    const CardWorth& offering = CardRegistry::Worth(CardId::OFFERING, 0);
+
+    CHECK(bleed.cost == 0);
+    CHECK(bleed.health == 3);
+    CHECK(bleed.energy == 2);
+
+    CHECK(offering.cost == 0);
+    CHECK(offering.health == 6);
+    CHECK(offering.energy == 2);
+    CHECK(offering.draw == 3);
+}

@@ -67,16 +67,119 @@ namespace
 //! The ones that multiply what is already there cannot be given a number
 //! that is true in every state; they are counted as a modest something,
 //! which is nearer than nothing.
+//! What holding a power does for whoever holds it.
+enum class PowerWorth
+{
+    //! Handed over once and done with: Strength, Dexterity, a heal.
+    ONCE,
+
+    //! Handed over again every turn, or on every trigger, until the fight
+    //! ends.
+    LASTING,
+
+    //! Changes what the cards themselves do or cost, which is not a number
+    //! at all.
+    RULE,
+
+    //! Bad to hold. Good to put on somebody else, and a price to put on
+    //! yourself.
+    HARM
+};
+
+//! What kind of thing \p power is to hold.
+PowerWorth WorthOfPower(PowerType power)
+{
+    switch (power)
+    {
+        // Every turn, or on every trigger, for the rest of the fight.
+        case PowerType::DEMON_FORM:
+        case PowerType::METALLICIZE:
+        case PowerType::PLATED_ARMOR:
+        case PowerType::COMBUST:
+        case PowerType::BRUTALITY:
+        case PowerType::RITUAL:
+        case PowerType::REGENERATION:
+        case PowerType::THORNS:
+        case PowerType::JUGGERNAUT:
+        case PowerType::DARK_EMBRACE:
+        case PowerType::FEEL_NO_PAIN:
+        case PowerType::EVOLVE:
+        case PowerType::FIRE_BREATHING:
+        case PowerType::RUPTURE:
+        case PowerType::NOXIOUS_FUMES:
+        case PowerType::BERSERK:
+        case PowerType::ENVENOM:
+        case PowerType::THOUSAND_CUTS:
+        case PowerType::INFINITE_BLADES:
+        case PowerType::AFTER_IMAGE:
+        case PowerType::ECHO_FORM:
+        case PowerType::STORM:
+        case PowerType::CREATIVE_AI:
+        case PowerType::MACHINE_LEARNING:
+        case PowerType::SELF_REPAIR:
+        case PowerType::STATIC_DISCHARGE:
+        case PowerType::HEATSINKS:
+        case PowerType::LOOP:
+        case PowerType::MAGNETISM:
+        case PowerType::PANACHE:
+        case PowerType::SADISTIC:
+        case PowerType::TOOLS_OF_THE_TRADE:
+        case PowerType::ACCURACY:
+            return PowerWorth::LASTING;
+
+        // The rules of the fight, not a number.
+        case PowerType::CORRUPTION:
+        case PowerType::BARRICADE:
+        case PowerType::WRAITH_FORM:
+        case PowerType::MAYHEM:
+        case PowerType::RETAIN_HAND:
+        case PowerType::WELL_LAID_PLANS:
+        case PowerType::FREE_CARDS:
+        case PowerType::DOUBLE_TAP:
+        case PowerType::BURST:
+        case PowerType::PHANTASMAL:
+        case PowerType::BIASED_COGNITION:
+        case PowerType::HELLO_WORLD:
+        case PowerType::DUPLICATION:
+            return PowerWorth::RULE;
+
+        // Bad to hold, whoever ends up holding it.
+        case PowerType::VULNERABLE:
+        case PowerType::WEAK:
+        case PowerType::FRAIL:
+        case PowerType::POISON:
+        case PowerType::STRENGTH_DOWN:
+        case PowerType::DEXTERITY_DOWN:
+        case PowerType::NO_DRAW:
+        case PowerType::NO_BLOCK:
+        case PowerType::CONFUSED:
+        case PowerType::ENTANGLED:
+        case PowerType::CHOKED:
+        case PowerType::CONSTRICTED:
+        case PowerType::HEX:
+        case PowerType::SLOW:
+        case PowerType::LOCK_ON:
+        case PowerType::DRAW_REDUCTION:
+        case PowerType::THE_BOMB:
+            return PowerWorth::HARM;
+
+        default:
+            return PowerWorth::ONCE;
+    }
+}
+
 CardWorth WorthOf(const Card& card)
 {
     // What a card that doubles or multiplies is called worth. Better than
     // zero and honest about being a stand-in.
     constexpr int MULTIPLIER = 5;
 
-    // How much health reads as one point of cost. Three keeps the cost of
-    // the health-for-energy cards inside the nought-to-three range the state
-    // scales cost against: Bloodletting asks one, Offering two.
-    constexpr int HEALTH_A_COST = 3;
+
+    // What a power that changes the rules is called worth. Corruption makes
+    // every skill free for the rest of the fight; there is no honest number
+    // for that, and one - which is what counting its single stack gave -
+    // is the most dishonest one available.
+    constexpr int RULE_WORTH = 3;
 
     CardWorth worth;
 
@@ -140,6 +243,46 @@ CardWorth WorthOf(const Card& card)
                 break;
 
             case EffectType::APPLY_POWER:
+            {
+                // Who ends up holding it, and what holding it is worth.
+                const bool onSelf =
+                    effect.target == EffectTarget::SELF ||
+                    (effect.target == EffectTarget::DEFAULT &&
+                     card.GetTarget() == CardTarget::SELF);
+                const PowerWorth holding = WorthOfPower(effect.power);
+
+                if (holding == PowerWorth::HARM)
+                {
+                    // On somebody else it is worth having; on yourself it is
+                    // what the card charges. Flex hands over two Strength
+                    // and takes two back at the end of the turn, and both
+                    // went to the power: it came out worth four, the biggest
+                    // number on the table for a card that does nothing.
+                    if (onSelf)
+                    {
+                        worth.cost += value;
+                    }
+                    else
+                    {
+                        worth.power += value;
+                    }
+                }
+                else if (holding == PowerWorth::LASTING)
+                {
+                    worth.lasting += value;
+                }
+                else if (holding == PowerWorth::RULE)
+                {
+                    worth.lasting += RULE_WORTH;
+                }
+                else
+                {
+                    worth.power += value;
+                }
+
+                break;
+            }
+
             case EffectType::HEAL:
             case EffectType::INCREASE_MAX_HEALTH:
             case EffectType::HEAL_PERCENT:
@@ -174,18 +317,13 @@ CardWorth WorthOf(const Card& card)
                 worth.power += value;
                 break;
 
-            // What a card charges for itself goes to the cost, not against
-            // the power, because netting the two hides the card.
-            //
-            // Bloodletting is two energy for three health and Offering is
-            // two energy and three cards for six: taken off the power both
-            // came out at exactly -1, the same three numbers, and the policy
-            // took Offering from a reward pile 28% of the time and
-            // Bloodletting 0% of 2629 - it could only be telling them apart
-            // by name. Now the power is what a card hands over and the cost
-            // is what it asks, and they read as different cards.
+            // What a card charges in health is its own number. Taken off
+            // the power it hid the card - Bloodletting and Offering both
+            // came out at exactly -1 - and rolled into the cost it hid the
+            // one thing a fight has to know, which is what the card asks in
+            // energy. Bloodletting and Offering are nought energy cards.
             case EffectType::LOSE_HEALTH:
-                worth.cost += (value + HEALTH_A_COST - 1) / HEALTH_A_COST;
+                worth.health += value;
                 break;
 
             case EffectType::ADD_CARD:

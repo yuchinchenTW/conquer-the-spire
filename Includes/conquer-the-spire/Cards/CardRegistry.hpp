@@ -32,7 +32,14 @@ namespace ConquerTheSpire
 //!
 struct CardWorth
 {
+    //! What it asks in energy, and nothing else. Bloodletting and Offering
+    //! are nought energy cards that charge in health, and rolling the health
+    //! into this made them read as costing one and two: the number a fight
+    //! needs - can this be afforded right now - stopped being in here at all.
     int cost = 0;
+
+    //! What it charges in health.
+    int health = 0;
     int damage = 0;
     int block = 0;
 
@@ -45,9 +52,22 @@ struct CardWorth
     int draw = 0;
     int energy = 0;
 
-    //! Everything else it hands over: a power put on, a heal, a card
+    //! Everything else it hands over once: a buff put on, a heal, a card
     //! upgraded, an orb channelled.
     int power = 0;
+
+    //! What it hands over again every turn, or on every trigger, for the
+    //! rest of the fight. Apart from the power because the two are not the
+    //! same size at all: Inflame gives two Strength once and Demon Form
+    //! gives two every turn, and both came out at power two - the same three
+    //! numbers for a common card and a rare one, and the policy took Demon
+    //! Form from a pile six times in a hundred.
+    //!
+    //! A power that changes the rules rather than handing something over -
+    //! Corruption making every skill free, Barricade keeping the block -
+    //! counts here too, at a stand-in worth, because the alternative is
+    //! calling it one.
+    int lasting = 0;
 };
 
 class CardRegistry
