@@ -130,6 +130,15 @@ void Battle::Start()
         relic.ResetCounter();
     }
 
+    // A snecko eye draws two more every turn and confuses every card drawn
+    // for them - the price of the two, and the whole of what makes it a boss
+    // relic rather than a gift. The drawing was here already; the confusion
+    // was not, so the relic was worth taking every time.
+    if (m_player.HasRelic(RelicId::SNECKO_EYE))
+    {
+        m_player.AddPower(PowerType::CONFUSED, 1);
+    }
+
     // What lifting at rest sites has put on is there from the start.
     if (const int lifted = m_player.GetLiftedStrength(); lifted > 0)
     {
@@ -2379,6 +2388,24 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
 
                 m_player.AddCardToPile(std::move(made), effect.pile, m_rng);
             }
+            break;
+        }
+
+        case EffectType::RANDOMISE_HAND_COST:
+        {
+            // Nought to three, the same roll a confused climber gets on every
+            // card drawn. A card that cannot be played at all keeps its
+            // sentinel: there is no price to roll for it.
+            std::uniform_int_distribution<int> roll(0, 3);
+
+            for (auto& held : m_player.GetHand())
+            {
+                if (held.GetCost() >= 0)
+                {
+                    held.SetCostThisTurn(roll(m_rng));
+                }
+            }
+
             break;
         }
 

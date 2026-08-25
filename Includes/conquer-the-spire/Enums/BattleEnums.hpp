@@ -312,6 +312,7 @@ enum class EffectType
     REDUCE_SELF_COST,      //!< Streamline.
     ADD_RANDOM_CARD,       //!< Jack of All Trades, Transmutation.
     OFFER_CARDS,           //!< Discovery: three held out, one picked.
+    RANDOMISE_HAND_COST,   //!< Snecko Oil.
     SET_HAND_COST,         //!< Enlightenment, Madness.
     TAKE_FROM_DRAW_BY_TYPE,  //!< Secret Technique, Secret Weapon, Violence.
     HEAL_PERCENT,            //!< Blood Potion.

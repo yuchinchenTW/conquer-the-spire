@@ -237,6 +237,10 @@ struct CardEffect
     static CardEffect OfferRandomCards(int count,
                                        CardFilter only = CardFilter::ANY);
 
+    //! Rolls what every card in hand costs, nought to three, which is what a
+    //! Snecko Oil does and what a Snecko Eye does to every card drawn.
+    static CardEffect RandomiseHandCost();
+
     //! Forces the cards in hand to cost \p cost. Only one card is touched,
     //! picked at random, when \p onlyOne is true. The cost goes back at the
     //! end of the turn unless \p wholeBattle, which holds it down for the

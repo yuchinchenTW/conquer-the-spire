@@ -529,6 +529,14 @@ CardEffect CardEffect::OfferRandomCards(int count, CardFilter only)
     return effect;
 }
 
+CardEffect CardEffect::RandomiseHandCost()
+{
+    CardEffect effect;
+    effect.type = EffectType::RANDOMISE_HAND_COST;
+
+    return effect;
+}
+
 CardEffect CardEffect::SetHandCost(int cost, bool onlyOne, bool wholeBattle)
 {
     CardEffect effect;

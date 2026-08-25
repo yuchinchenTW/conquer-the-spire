@@ -407,6 +407,13 @@ CardWorth WorthOf(const Card& card)
                 ++worth.power;
                 break;
 
+            // What rolling every price in hand is worth is not a number: it
+            // is a hand that might be free and might be unplayable. Called a
+            // rate rather than an amount, so that nothing reads it as a gift.
+            case EffectType::RANDOMISE_HAND_COST:
+                ++worth.scales;
+                break;
+
             case EffectType::OBTAIN_POTION:
             case EffectType::SETUP_CARD:
             case EffectType::REMEMBER_CARD:

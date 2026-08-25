@@ -256,9 +256,10 @@ Potion PotionRegistry::Get(PotionId id)
             return Special(id, "Smoke Bomb", PotionRarity::RARE);
 
         case PotionId::SNECKO_OIL:
-            // The random costs are not modelled; the draw is.
+            // The draw first, then the roll, so that the cards it just drew
+            // are among the ones whose price is rolled.
             return Drink(id, "Snecko Oil", PotionRarity::RARE,
-                         { CE::Draw(5) });
+                         { CE::Draw(5), CE::RandomiseHandCost() });
 
         case PotionId::INVALID:
             break;

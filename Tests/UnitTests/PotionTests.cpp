@@ -440,6 +440,103 @@ TEST_CASE("Sacred Bark leaves the listed exceptions alone")
     CHECK(spared.GetPlayer().GetExhaustPile().size() == 1u);
 }
 
+TEST_CASE("Snecko Oil rolls what the hand costs")
+{
+    // Five drawn and then every price in hand rolled, nought to three. The
+    // draw comes first, so the cards it just drew are among the rolled.
+    Battle battle = BattleWith({ CardId::BLUDGEON, CardId::IMMOLATE,
+                                CardId::DEMON_FORM, CardId::CLASH,
+                                CardId::WHIRLWIND, CardId::CLEAVE,
+                                CardId::ANGER, CardId::CARNAGE },
+                               { PotionId::SNECKO_OIL }, { Dummy(200) });
+
+    const std::size_t before = battle.GetPlayer().GetHand().size();
+
+    REQUIRE(battle.UsePotion(0) == true);
+
+    const std::vector<Card>& hand = battle.GetPlayer().GetHand();
+
+    // It drew, and every card of the hand now carries a rolled price.
+    CHECK(hand.size() > before);
+
+    int rolled = 0;
+    int moved = 0;
+    int spared = 0;
+
+    for (const Card& held : hand)
+    {
+        // The wiki: an X-cost card and an unplayable one are unaffected. An X
+        // spends whatever is left whatever it says, so there is no price to
+        // roll for it.
+        if (held.GetCost() < 0)
+        {
+            ++spared;
+            CHECK(held.HasCostThisTurn() == false);
+            continue;
+        }
+
+        REQUIRE(held.HasCostThisTurn() == true);
+        ++rolled;
+
+        const int price = battle.GetEffectiveCost(held);
+
+        CHECK(price >= 0);
+        CHECK(price <= 3);
+
+        moved += price != held.GetCost() ? 1 : 0;
+    }
+
+    // A whirlwind was in that deck, so the sparing is being tested and not
+    // merely allowed for.
+    CHECK(spared > 0);
+    CHECK(rolled == static_cast<int>(hand.size()) - spared);
+
+    // With that many cards of that many prices, some of them have to have
+    // moved: a roll that never changes anything is not a roll.
+    CHECK(moved > 0);
+}
+
+TEST_CASE("A Snecko Eye confuses what it draws")
+{
+    // The relic draws two more every turn, and the price of the two is that
+    // every card drawn costs whatever it happens to cost. Only the drawing
+    // was here, which made a boss relic into a gift.
+    Battle plain = BattleWith({ CardId::BLUDGEON }, {}, { Dummy(200) });
+
+    CHECK(plain.GetPlayer().GetPower(PowerType::CONFUSED) == 0);
+
+    Battle eyed = BattleWith({ CardId::BLUDGEON, CardId::IMMOLATE,
+                              CardId::DEMON_FORM, CardId::CLASH,
+                              CardId::WHIRLWIND, CardId::CLEAVE,
+                              CardId::ANGER },
+                             {}, { Dummy(200) }, { RelicId::SNECKO_EYE });
+
+    CHECK(eyed.GetPlayer().GetPower(PowerType::CONFUSED) > 0);
+
+    // Two more in the opening hand than five, and every one of them priced by
+    // the roll rather than by the card.
+    CHECK(eyed.GetPlayer().GetHand().size() == 7u);
+
+    int spared = 0;
+
+    for (const Card& held : eyed.GetPlayer().GetHand())
+    {
+        if (held.GetCost() < 0)
+        {
+            ++spared;
+            CHECK(held.HasCostThisTurn() == false);
+            continue;
+        }
+
+        REQUIRE(held.HasCostThisTurn() == true);
+        CHECK(eyed.GetEffectiveCost(held) >= 0);
+        CHECK(eyed.GetEffectiveCost(held) <= 3);
+    }
+
+    // The whirlwind of that deck, left at X.
+    CHECK(spared == 1);
+}
+
 TEST_CASE("The belt holds three, and five with the Potion Belt")
 {
     Player player("Ironclad", 80);
