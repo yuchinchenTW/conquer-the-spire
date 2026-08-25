@@ -26,6 +26,30 @@ const PowerType WATCHED_POWERS[] = {
     PowerType::DEMON_FORM,  PowerType::CONFUSED,   PowerType::HEX,
     PowerType::NO_DRAW,     PowerType::ENERGIZED,
 
+    // The engines the climber builds for itself, and what each of them turns
+    // on its head. Corruption was the one that was noticed - a policy cannot
+    // hang the worth of a three-cost power on guessing at it from the prices
+    // in hand - and the same is true of every one of these: they are the
+    // whole reason a deck does something other than hit things.
+    //
+    // Whether throwing a card away is a gift or a loss:
+    PowerType::FEEL_NO_PAIN, PowerType::DARK_EMBRACE,
+    // whether drawing rubbish is a gift or a loss:
+    PowerType::EVOLVE,      PowerType::FIRE_BREATHING,
+    // whether spending health is an investment or the end:
+    PowerType::RUPTURE,     PowerType::BRUTALITY,  PowerType::COMBUST,
+    // whether blocking also hits back:
+    PowerType::JUGGERNAUT,  PowerType::FLAME_BARRIER,
+    // and what this turn is worth against the next one:
+    PowerType::BERSERK,     PowerType::RAGE,       PowerType::DOUBLE_TAP,
+    PowerType::STRENGTH_DOWN,
+
+    // And the ones a colourless card brings, which any climber can be
+    // holding: a shelf sells them, a Sensory Stone hands them out, a
+    // Prismatic Shard puts them on the reward piles.
+    PowerType::MAGNETISM,   PowerType::MAYHEM,     PowerType::PANACHE,
+    PowerType::SADISTIC,    PowerType::NO_BLOCK,   PowerType::THE_BOMB,
+
     // And what the monsters bring of their own. Every one of these decides
     // how a fight has to be played - a guardian shifting mode, a nob raging
     // at skills, a louse curled up against the first hit - and none of them
@@ -1595,6 +1619,27 @@ StepResult SpireEnv::Step(const Action& action)
     }
 
     return result;
+}
+
+const std::vector<PowerType>& SpireEnv::WatchedPowers()
+{
+    static const std::vector<PowerType> watched(
+        WATCHED_POWERS, WATCHED_POWERS + WATCHED_COUNT);
+
+    return watched;
+}
+
+std::size_t SpireEnv::PowerSlot(PowerType power)
+{
+    for (std::size_t at = 0; at < WATCHED_COUNT; ++at)
+    {
+        if (WATCHED_POWERS[at] == power)
+        {
+            return at;
+        }
+    }
+
+    return WATCHED_COUNT;
 }
 
 SpireEnv::Layout SpireEnv::GetLayout()

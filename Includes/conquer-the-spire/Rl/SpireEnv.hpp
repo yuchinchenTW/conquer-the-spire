@@ -394,6 +394,17 @@ class SpireEnv
     static constexpr int ITEM_RELIC = 2;
     static constexpr int ITEM_POTION = 3;
 
+    //! Returns the powers the state writes out, in the order it writes them.
+    //!
+    //! Asked of the engine rather than counted off by hand: a slot found by
+    //! counting down a list is right until the list changes, and the list
+    //! changes every time a power turns out to have been missing from it.
+    static const std::vector<PowerType>& WatchedPowers();
+
+    //! Returns where \p power sits among them, or as many as there are when
+    //! the state does not write it out at all.
+    static std::size_t PowerSlot(PowerType power);
+
     static Layout GetLayout();
     static IdLayout GetIdLayout();
 

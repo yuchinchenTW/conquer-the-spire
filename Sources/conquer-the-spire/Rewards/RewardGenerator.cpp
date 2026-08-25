@@ -585,7 +585,8 @@ PotionId RewardGenerator::RollPotion(std::mt19937& rng) const
         rarity = PotionRarity::UNCOMMON;
     }
 
-    const std::vector<PotionId> pool = PotionRegistry::GetPool(rarity);
+    const std::vector<PotionId> pool =
+        PotionRegistry::GetPool(rarity, m_character);
 
     if (pool.empty())
     {

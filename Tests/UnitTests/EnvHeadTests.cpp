@@ -339,11 +339,76 @@ TEST_CASE("The state says when Corruption is active")
 
     const SpireEnv::Layout layout = SpireEnv::GetLayout();
     const std::vector<float> state = env.Observe();
-
-    constexpr std::size_t CORRUPTION_SLOT = 11;
+    const std::size_t slot = SpireEnv::PowerSlot(PowerType::CORRUPTION);
 
     REQUIRE(state.size() == layout.total);
-    CHECK(state[layout.powers + CORRUPTION_SLOT] == doctest::Approx(0.1f));
+    REQUIRE(slot < SpireEnv::WatchedPowers().size());
+    CHECK(state[layout.powers + slot] == doctest::Approx(0.1f));
+}
+
+TEST_CASE("Every engine a card can build is one the state says is running")
+{
+    // The list of powers the state writes out is a list, and a list of the
+    // ones that matter is a judgement made once and then left behind. This
+    // asks the cards instead: a power any card can put on the climber is a
+    // rule the climber is then playing under, and a rule nothing can see is
+    // one nothing can be learnt about. Corruption was missing, and so were
+    // twelve others alongside it.
+    // The decks a climb can actually be played with today: the Ironclad,
+    // and the colourless cards any climber can end up holding. The Silent and
+    // the Defect have fifteen and fourteen of their own that the state does
+    // not write out, and asking for them here would fail for decks nothing
+    // is trained on - but the same hole is there, and this is the test that
+    // will say so the day one of them is trained.
+    const CardColor colours[] = { CardColor::RED, CardColor::COLORLESS };
+    std::vector<PowerType> missing;
+
+    for (const CardColor colour : colours)
+    {
+        for (const CardId id : CardRegistry::GetPool(colour))
+        {
+            for (int sharpenings = 0; sharpenings < 2; ++sharpenings)
+            {
+                const Card card = CardRegistry::Get(id, sharpenings);
+
+                for (const auto& effect : card.GetEffects())
+                {
+                    // A power put on the climber rather than on whatever it
+                    // is pointed at: the target is what says which.
+                    if (effect.type != EffectType::APPLY_POWER ||
+                        effect.target != EffectTarget::SELF ||
+                        effect.power == PowerType::INVALID)
+                    {
+                        continue;
+                    }
+
+                    if (SpireEnv::PowerSlot(effect.power) <
+                        SpireEnv::WatchedPowers().size())
+                    {
+                        continue;
+                    }
+
+                    if (std::find(missing.begin(), missing.end(),
+                                  effect.power) == missing.end())
+                    {
+                        missing.emplace_back(effect.power);
+                    }
+                }
+            }
+        }
+    }
+
+    // Named in the message when there is one, because the point of failing is
+    // knowing which power to go and add.
+    for (const PowerType power : missing)
+    {
+        CHECK_MESSAGE(false, "a card can put power "
+                                 << static_cast<int>(power)
+                                 << " on the climber and the state never "
+                                    "says so");
+    }
+
+    CHECK(missing.empty() == true);
 }
 
 TEST_CASE("Every card of every pool fits in the state")

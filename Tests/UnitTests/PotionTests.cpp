@@ -471,6 +471,40 @@ TEST_CASE("The registry builds every potion it lists")
     CHECK(PotionRegistry::GetPool(PotionRarity::RARE).size() == 9u);
 }
 
+TEST_CASE("Potion pools only include the character's own potions")
+{
+    struct Case
+    {
+        CardColor character;
+        PotionId kept;
+        PotionId foreign;
+    };
+
+    const Case cases[] = {
+        { CardColor::RED, PotionId::BLOOD_POTION, PotionId::POISON_POTION },
+        { CardColor::GREEN, PotionId::POISON_POTION, PotionId::FOCUS_POTION },
+        { CardColor::BLUE, PotionId::FOCUS_POTION, PotionId::BLOOD_POTION },
+    };
+
+    for (const Case& one : cases)
+    {
+        bool sawOwn = false;
+        bool sawForeign = false;
+        bool sawMiracle = false;
+
+        for (const PotionId id : PotionRegistry::GetAll(one.character))
+        {
+            sawOwn = sawOwn || id == one.kept;
+            sawForeign = sawForeign || id == one.foreign;
+            sawMiracle = sawMiracle || id == PotionId::BOTTLED_MIRACLE;
+        }
+
+        CHECK(sawOwn == true);
+        CHECK(sawForeign == false);
+        CHECK(sawMiracle == false);
+    }
+}
+
 TEST_CASE("Three potions are as good on the map as in a fight")
 {
     Run run(CardColor::RED, 5);

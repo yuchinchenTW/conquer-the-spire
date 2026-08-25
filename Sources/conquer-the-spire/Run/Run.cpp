@@ -2729,7 +2729,8 @@ bool Run::DrinkPotion(std::size_t index)
         // A brew fills the belt; on the map it will pour anything at all.
         if (potion.GetId() == PotionId::ENTROPIC_BREW)
         {
-            const std::vector<PotionId>& pool = PotionRegistry::GetAll();
+            const std::vector<PotionId> pool =
+                PotionRegistry::GetAll(m_player.GetColor());
 
             while (static_cast<int>(m_player.GetPotions().size()) <
                        m_player.GetPotionSlots() &&

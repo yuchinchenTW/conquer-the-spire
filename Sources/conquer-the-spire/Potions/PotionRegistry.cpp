@@ -42,6 +42,33 @@ Potion Special(PotionId id, const char* name, PotionRarity rarity)
     return Potion(id, name, rarity, CardTarget::SELF, {});
 }
 
+bool AvailableTo(PotionId id, CardColor character)
+{
+    switch (id)
+    {
+        case PotionId::BLOOD_POTION:
+        case PotionId::ELIXIR:
+        case PotionId::HEART_OF_IRON:
+            return character == CardColor::RED;
+
+        case PotionId::CUNNING_POTION:
+        case PotionId::GHOST_IN_A_JAR:
+        case PotionId::POISON_POTION:
+            return character == CardColor::GREEN;
+
+        case PotionId::ESSENCE_OF_DARKNESS:
+        case PotionId::FOCUS_POTION:
+        case PotionId::POTION_OF_CAPACITY:
+            return character == CardColor::BLUE;
+
+        case PotionId::BOTTLED_MIRACLE:
+            return false;
+
+        default:
+            return true;
+    }
+}
+
 constexpr PotionId LAST_POTION_ID = PotionId::SNECKO_OIL;
 }  // namespace
 
@@ -259,6 +286,21 @@ const std::vector<PotionId>& PotionRegistry::GetAll()
     return all;
 }
 
+std::vector<PotionId> PotionRegistry::GetAll(CardColor character)
+{
+    std::vector<PotionId> matching;
+
+    for (const PotionId id : GetAll())
+    {
+        if (AvailableTo(id, character))
+        {
+            matching.emplace_back(id);
+        }
+    }
+
+    return matching;
+}
+
 std::vector<PotionId> PotionRegistry::GetPool(PotionRarity rarity)
 {
     std::vector<PotionId> matching;
@@ -266,6 +308,22 @@ std::vector<PotionId> PotionRegistry::GetPool(PotionRarity rarity)
     for (const PotionId id : GetAll())
     {
         if (Get(id).GetRarity() == rarity)
+        {
+            matching.emplace_back(id);
+        }
+    }
+
+    return matching;
+}
+
+std::vector<PotionId> PotionRegistry::GetPool(PotionRarity rarity,
+                                              CardColor character)
+{
+    std::vector<PotionId> matching;
+
+    for (const PotionId id : GetPool(rarity))
+    {
+        if (AvailableTo(id, character))
         {
             matching.emplace_back(id);
         }

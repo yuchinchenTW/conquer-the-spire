@@ -401,7 +401,8 @@ void Battle::FillPotionBelt(bool includeJuice)
 
     for (int guard = 0; held.size() < slots && guard < 40; ++guard)
     {
-        const std::vector<PotionId>& pool = PotionRegistry::GetAll();
+        const std::vector<PotionId> pool =
+            PotionRegistry::GetAll(m_player.GetColor());
 
         if (pool.empty())
         {
@@ -2058,7 +2059,8 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
 
         case EffectType::OBTAIN_POTION:
         {
-            const std::vector<PotionId>& pool = PotionRegistry::GetAll();
+            const std::vector<PotionId> pool =
+                PotionRegistry::GetAll(m_player.GetColor());
 
             if (pool.empty())
             {

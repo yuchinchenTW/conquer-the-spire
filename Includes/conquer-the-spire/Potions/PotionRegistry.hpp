@@ -29,8 +29,15 @@ class PotionRegistry
     //! Returns every id the registry knows.
     static const std::vector<PotionId>& GetAll();
 
+    //! Returns every id the character can find.
+    static std::vector<PotionId> GetAll(CardColor character);
+
     //! Returns every id of \p rarity.
     static std::vector<PotionId> GetPool(PotionRarity rarity);
+
+    //! Returns every id of \p rarity the character can find.
+    static std::vector<PotionId> GetPool(PotionRarity rarity,
+                                         CardColor character);
 };
 }  // namespace ConquerTheSpire
 
