@@ -249,6 +249,7 @@ class CardPolicy(nn.Module):
         hasId = []
         hasKind = []
         hasShared = []
+        hasPlace = []
 
         for one in self.families:
             for slot in range(one.count):
@@ -258,6 +259,7 @@ class CardPolicy(nn.Module):
                 hasId.append(1.0 if one.ids is not None else 0.0)
                 hasKind.append(1.0 if one.kinds is not None else 0.0)
                 hasShared.append(1.0 if one.shared is not None else 0.0)
+                hasPlace.append(0.0 if one.name == "deck" else 1.0)
 
                 start = one.at + slot * one.stride
 
@@ -270,6 +272,8 @@ class CardPolicy(nn.Module):
         self.register_buffer("featAt", torch.tensor(featAt, dtype=torch.long))
         self.register_buffer("featOn", torch.tensor(featOn))
         self.register_buffer("hasId", torch.tensor(hasId).unsqueeze(1))
+        self.register_buffer("hasPlace", torch.tensor(hasPlace).unsqueeze(1),
+                             persistent=False)
 
         # The few tokens that carry a kind, or an id belonging to all of
         # them at once. Adding those to every row instead would be another
@@ -355,7 +359,7 @@ class CardPolicy(nn.Module):
 
     def tokens(self, obs, ids):
         """Every token there is, as ``[batch, tokens, width]``."""
-        named = self.place + self.embed(
+        named = self.place * self.hasPlace + self.embed(
             ids[:, self.idAt].clamp(0, ID_VOCAB - 1)) * self.hasId
 
         if self.kinded.numel() > 0:
@@ -517,6 +521,35 @@ def _check():
 
     assert abs(float(before[0, claim]) - float(after[0, claim])) > 1e-6, \
         "which card is on the pile made no odds to taking it"
+
+    # A deck slot is not a place in the game. Starter cards live at the front
+    # of the deck list, so letting the slot itself speak teaches the smith to
+    # sharpen where a card was born rather than what the card is.
+    deck = plan.id_layout["deck"]
+    deckAt = plan.layout["deck_cards"]
+    deckStride = plan.layout["deck_stride"]
+
+    low, high = dict((one.name, span)
+                     for one, span in zip(net.families, net.spans))["deck"]
+
+    with torch.no_grad():
+        net.place[low:high].normal_()
+
+    ids[0, deck + 0] = 20
+    ids[0, deck + 5] = 20
+
+    for slot in (0, 5):
+        for i in range(deckStride):
+            obs[0, deckAt + slot * deckStride + i] = obs[0, deckAt + i]
+
+    smith = find("smith", 0, 0)
+    smithOther = find("smith", 5, 0)
+
+    with torch.no_grad():
+        decked, _, _ = net(obs, ids)
+
+    assert abs(float(decked[0, smith]) - float(decked[0, smithOther])) < 1e-5, \
+        "the same deck card scored differently by slot"
 
     # Every move of the head is either scored from a token or has a weight of
     # its own, and none is both.
