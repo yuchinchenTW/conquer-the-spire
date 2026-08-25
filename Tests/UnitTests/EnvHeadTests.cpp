@@ -1192,6 +1192,81 @@ TEST_CASE("An attack potion holds three attacks out to the climber")
     CHECK(battle->GetEffectiveCost(arrived) == 0);
 }
 
+TEST_CASE("A potion far along the belt is answerable over a small hand")
+{
+    // What the slot counts along is the belt when a potion asked and the hand
+    // when a card did. Bounding a belt slot against the hand made every
+    // question a potion asked over a short hand into a move the mask offered
+    // and the step refused - a climb pressing it until the move limit called
+    // the whole thing off. Three quarters of every move in a climb was this.
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    REQUIRE(env.Step(env.LegalActions().front()).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::BATTLE);
+
+    Battle* battle = const_cast<Battle*>(env.GetBattle());
+
+    // The last slot of a full belt, and a hand shorter than that slot.
+    battle->GetPlayer().GetPotions().clear();
+    battle->GetPlayer().GetPotions().emplace_back(
+        PotionRegistry::Get(PotionId::BLOCK_POTION));
+    battle->GetPlayer().GetPotions().emplace_back(
+        PotionRegistry::Get(PotionId::BLOCK_POTION));
+    battle->GetPlayer().GetPotions().emplace_back(
+        PotionRegistry::Get(PotionId::ATTACK_POTION));
+
+    battle->GetPlayer().GetHand().resize(1);
+
+    REQUIRE(battle->GetPlayer().GetHand().size() < 2u);
+    REQUIRE(env.Step(Action(ActionKind::USE_POTION, 2, 0)).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::CHOOSING);
+
+    // Every move the mask holds out here has to be one the step will take.
+    const std::vector<Action> answers = env.LegalActions();
+
+    REQUIRE(answers.empty() == false);
+
+    bool any = false;
+
+    for (const Action& answer : answers)
+    {
+        if (answer.kind != ActionKind::CHOOSE_CARD)
+        {
+            continue;
+        }
+
+        SpireEnv again;
+
+        again.Reset(CardColor::RED, 8);
+
+        REQUIRE(again.Step(again.LegalActions().front()).taken == true);
+
+        Battle* twice = const_cast<Battle*>(again.GetBattle());
+
+        twice->GetPlayer().GetPotions().clear();
+        twice->GetPlayer().GetPotions().emplace_back(
+            PotionRegistry::Get(PotionId::BLOCK_POTION));
+        twice->GetPlayer().GetPotions().emplace_back(
+            PotionRegistry::Get(PotionId::BLOCK_POTION));
+        twice->GetPlayer().GetPotions().emplace_back(
+            PotionRegistry::Get(PotionId::ATTACK_POTION));
+        twice->GetPlayer().GetHand().resize(1);
+
+        REQUIRE(again.Step(Action(ActionKind::USE_POTION, 2, 0)).taken ==
+                true);
+        REQUIRE(again.GetPhase() == EnvPhase::CHOOSING);
+
+        CHECK(again.Step(answer).taken == true);
+        CHECK(again.GetPhase() == EnvPhase::BATTLE);
+
+        any = true;
+    }
+
+    CHECK(any == true);
+}
+
 TEST_CASE("Nothing the mask offers is ever turned down")
 {
     // The point of this one is the count: a mask that offers a move the run

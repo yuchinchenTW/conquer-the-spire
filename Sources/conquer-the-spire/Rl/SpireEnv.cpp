@@ -1195,9 +1195,21 @@ StepResult SpireEnv::Step(const Action& action)
 
         case ActionKind::CHOOSE_CARD:
         {
+            // What m_chosen counts along is the belt when a potion asked
+            // and the hand when a card did. Bounding a belt slot against the
+            // hand turned every question a potion asked over a hand of one
+            // card into a move the mask offered and this refused, which is a
+            // climb pressing it until the move limit calls the whole thing
+            // off.
+            const std::vector<Potion>& belt =
+                m_battle == nullptr ? m_run.GetPlayer().GetPotions()
+                                    : m_battle->GetPlayer().GetPotions();
+
             if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
-                m_chosen >= m_battle->GetPlayer().GetHand().size() ||
-                action.a < 0)
+                action.a < 0 ||
+                m_chosen >= (m_askedByPotion
+                                 ? belt.size()
+                                 : m_battle->GetPlayer().GetHand().size()))
             {
                 return result;
             }
