@@ -16,10 +16,12 @@ fraction of what the full art weighs.
 
 import argparse
 import ctypes
+import json
 import os
 import re
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,9 +51,44 @@ PREFIXES = {
 }
 
 
+# What the game calls a thing and what the wiki files it under are not
+# always the same word: the wiki keeps the name the asset was built with.
+# Everything else is worked out; these are the ones that cannot be.
+ALIASES = {
+    "the boot": "Boot",
+    "wing boots": "WingedGreaves",
+    "sling of courage": "Sling",
+    "neow's lament": "NeowsBlessing",
+    "cultist headpiece": "CultistMask",
+    "gremlin visage": "GremlinMask",
+    "n'loth's hungry face": "NlothsMask",
+}
+
+
 def bare(name):
     """The wiki files a card under its name with the spaces taken out."""
     return re.sub(r"[^A-Za-z0-9]", "", name)
+
+
+def names(name):
+    """Every file name worth trying for one thing, best first.
+
+    The spaces come out and the case is the name's own, which covers most of
+    them. Three of the eggs carry a two on the end, a hyphen survives in a
+    Du-Vu Doll, and a handful were built under another name altogether.
+    """
+    plain = bare(name)
+
+    # A hyphen survives in a Du-Vu Doll and the dots survive in a J.A.X., so
+    # the punctuation is dropped a step at a time rather than all at once.
+    kept = re.sub(r"[^A-Za-z0-9-]", "", name)
+    dotted = re.sub(r"[^A-Za-z0-9.-]", "", name)
+    out = [plain, plain + "2", kept, dotted]
+
+    if name.lower() in ALIASES:
+        out.insert(0, ALIASES[name.lower()])
+
+    return out
 
 
 def slug(name):
@@ -135,6 +172,31 @@ def others():
 EVERY = ("Red", "Colorless", "Curse", "Status", "Green", "Blue")
 
 
+def asked(name):
+    """The picture of one file, asked of the wiki by name.
+
+    The list pages name most of what there is, but not all of it: five of the
+    potions are filed but not listed. Asking for a file by name reaches
+    anything the wiki holds, and asks for it at the width the page draws.
+    """
+    where = ("https://slaythespire.wiki.gg/api.php?action=query&format=json"
+             "&prop=imageinfo&iiprop=url&iiurlwidth=%d&titles=File:%s"
+             % (WIDE, urllib.parse.quote(name + ".png")))
+    ask = urllib.request.Request(where, headers={"User-Agent": AGENT})
+
+    try:
+        with urllib.request.urlopen(ask, timeout=30) as answer:
+            data = json.loads(answer.read().decode("utf-8", "replace"))
+    except (OSError, ValueError):
+        return ""
+
+    for page in data.get("query", {}).get("pages", {}).values():
+        for one in page.get("imageinfo", []):
+            return one.get("thumburl") or one.get("url", "")
+
+    return ""
+
+
 def smaller(url):
     """The same picture, asked for at the width the page draws it."""
     if "/thumb/" in url:
@@ -145,15 +207,18 @@ def smaller(url):
 
 def wanted(name, colour, have):
     """The picture for one card, at the width the page wants."""
+    # Matched without regard to case: a Face of Cleric is filed under
+    # FaceOfCleric, and the difference is one letter nobody meant.
+    folded = {one.lower(): one for one in have}
+
     for prefix in PREFIXES.get(colour, EVERY):
-        key = "%s-%s.png" % (prefix, bare(name))
+        for maybe in names(name):
+            key = ("%s-%s.png" % (prefix, maybe)).lower()
 
-        if key not in have:
-            continue
-
-        # A thumbnail url carries its width; asking for another is a matter
-        # of writing it in. A file with no thumbnail is taken whole.
-        return smaller(have[key])
+            if key in folded:
+                # A thumbnail url carries its width; asking for another is a
+                # matter of writing it in.
+                return smaller(have[folded[key]])
 
     return ""
 
@@ -195,9 +260,30 @@ def main(argv=None):
 
         if kind == "card":
             url = wanted(name, colour, named["card"])
+
+            for prefix in PREFIXES.get(colour, EVERY):
+                for maybe in names(name):
+                    if url:
+                        break
+
+                    url = asked("%s-%s" % (prefix, maybe))
         else:
-            key = bare(name) + ".png"
-            url = smaller(named[kind][key]) if key in named[kind] else ""
+            folded = {one.lower(): one for one in named[kind]}
+            url = ""
+
+            for maybe in names(name):
+                key = (maybe + ".png").lower()
+
+                if key in folded:
+                    url = smaller(named[kind][folded[key]])
+                    break
+
+            # Not named on the page: ask the wiki for the file itself.
+            for maybe in names(name):
+                if url:
+                    break
+
+                url = asked(maybe)
 
         if not url:
             lost.append(name)

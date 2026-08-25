@@ -195,21 +195,24 @@ def _svg(rows, key, title, colour, width=560, height=180):
 
 
 # The tables of choices the page shows, and what to call them.
+# The tables the page shows, what to call them, and how many rows of each
+# to draw. Nought means every one there is: which card it drafts and which it
+# leaves is the whole question, and the answer is not in the top ten.
 PICK_TABLES = [
-    ("card_taken", "cards taken"),
-    ("card_removed", "cards removed"),
-    ("card_upgraded", "cards upgraded"),
-    ("relic_taken", "relics taken"),
-    ("potion_taken", "potions taken"),
-    ("room_answered", "rooms answered"),
-    ("node_walked", "paths taken"),
-    ("curse_option", "rooms that offered a curse"),
+    ("card_taken", "cards taken", 0),
+    ("card_removed", "cards removed", 0),
+    ("card_upgraded", "cards upgraded", 0),
+    ("relic_taken", "relics taken", 0),
+    ("potion_taken", "potions taken", 0),
+    ("room_answered", "rooms answered", 0),
+    ("node_walked", "paths taken", 0),
+    ("curse_option", "rooms that offered a curse", 0),
 
     # For a fight the share is the share of them it won, not the share of
     # offers it took, so these read as win rates.
-    ("boss_fought", "bosses, and how often it won"),
-    ("elite_fought", "elites, and how often it won"),
-    ("fight_fought", "fights, and how often it won"),
+    ("boss_fought", "bosses, and how often it won", 0),
+    ("elite_fought", "elites, and how often it won", 0),
+    ("fight_fought", "fights, and how often it won", 0),
 ]
 
 # Curses get a panel of their own: they are never offered beside a real card,
@@ -345,11 +348,13 @@ def _art(row, kind):
 
 
 def _table(rows, title, top=10, count=False, kind=""):
+    """One table of choices. ``top`` of nought draws every row there is."""
     """One table of choices: a bar for how often it is picked when it turns
     up, and the numbers beside it."""
     if not rows:
         return ""
 
+    top = len(rows) if top <= 0 else top
     lines = []
 
     # Counted rather than shared: the bar is how many were taken against the
@@ -380,9 +385,10 @@ def _table(rows, title, top=10, count=False, kind=""):
 
     return (
         '<section><h2>%s <span class="count">%d different</span></h2>'
-        '<table class="picks"><thead><tr><th></th><th>picked</th>'
+        '<div class="rows"><table class="picks"><thead><tr><th></th>'
+        '<th>picked</th>'
         '<th>%%</th><th>seen</th><th>floors</th><th>win</th></tr></thead>'
-        '<tbody>%s</tbody></table></section>'
+        '<tbody>%s</tbody></table></div></section>'
         % (title, len(rows), "".join(lines)))
 
 
@@ -399,8 +405,8 @@ def write_html(folder, character, rows, seconds=15, picks=None,
     chosen = "".join(
         _table(_spared((picks or {}).get(kind, []))
                if kind in ("card_taken", "card_bought")
-               else (picks or {}).get(kind, []), title, kind=kind)
-        for kind, title in PICK_TABLES)
+               else (picks or {}).get(kind, []), title, top=top, kind=kind)
+        for kind, title, top in PICK_TABLES)
     chosen += _table(curses if curses is not None else _curses(picks),
                      CURSE_TITLE, count=True, kind="curse_taken")
 
@@ -438,7 +444,10 @@ h1.second { font-size: 16px; margin: 34px 0 4px; }
 section { background: #1c1f24; border-radius: 8px; padding: 10px 12px; }
 section h2 { font-size: 13px; margin: 0 0 6px; font-weight: 600; }
 section h2 .count { color: #6f757c; font-weight: 400; }
+.rows { max-height: 430px; overflow-y: auto; }
 table.picks { margin: 0; width: 100%%; font-size: 12px; }
+table.picks thead th { position: sticky; top: 0; background: #1c1f24;
+                       z-index: 1; }
 table.picks th { color: #6f757c; font-weight: 400; text-align: right;
                  padding: 0 0 4px 8px; font-size: 11px; }
 table.picks th:first-child, table.picks td.name { text-align: left; }
