@@ -331,4 +331,20 @@ std::vector<PotionId> PotionRegistry::GetPool(PotionRarity rarity,
 
     return matching;
 }
+
+bool PotionRegistry::IsDoubledBySacredBark(PotionId id)
+{
+    switch (id)
+    {
+        case PotionId::BLESSING_OF_THE_FORGE:
+        case PotionId::ELIXIR:
+        case PotionId::ENTROPIC_BREW:
+        case PotionId::GAMBLERS_BREW:
+        case PotionId::SMOKE_BOMB:
+            return false;
+
+        default:
+            return true;
+    }
+}
 }  // namespace ConquerTheSpire

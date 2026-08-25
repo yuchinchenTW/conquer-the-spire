@@ -3341,7 +3341,10 @@ bool Battle::UsePotion(std::size_t index, std::size_t monsterIndex)
     }
 
     // Sacred Bark pours a double.
-    const int times = m_player.HasRelic(RelicId::SACRED_BARK) ? 2 : 1;
+    const int times = m_player.HasRelic(RelicId::SACRED_BARK) &&
+                              PotionRegistry::IsDoubledBySacredBark(drunk)
+                          ? 2
+                          : 1;
 
     for (int i = 0; i < times; ++i)
     {

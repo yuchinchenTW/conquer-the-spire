@@ -2722,7 +2722,11 @@ bool Run::DrinkPotion(std::size_t index)
         Heal(5);
     }
 
-    const int times = m_player.HasRelic(RelicId::SACRED_BARK) ? 2 : 1;
+    const int times =
+        m_player.HasRelic(RelicId::SACRED_BARK) &&
+                PotionRegistry::IsDoubledBySacredBark(potion.GetId())
+            ? 2
+            : 1;
 
     for (int i = 0; i < times; ++i)
     {

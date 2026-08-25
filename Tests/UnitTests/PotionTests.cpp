@@ -366,6 +366,18 @@ TEST_CASE("Sacred Bark pours a double")
     CHECK(battle.GetPlayer().GetBlock() == 24);
 }
 
+TEST_CASE("Sacred Bark leaves the listed exceptions alone")
+{
+    Battle battle = BattleWith({ CardId::STRIKE_RED, CardId::DEFEND_RED,
+                                CardId::BASH, CardId::ANGER,
+                                CardId::SHRUG_IT_OFF },
+                               { PotionId::ELIXIR }, { Dummy(50) },
+                               { RelicId::SACRED_BARK });
+
+    REQUIRE(battle.UsePotion(0) == true);
+    CHECK(battle.GetPlayer().GetExhaustPile().size() == 3u);
+}
+
 TEST_CASE("The belt holds three, and five with the Potion Belt")
 {
     Player player("Ironclad", 80);

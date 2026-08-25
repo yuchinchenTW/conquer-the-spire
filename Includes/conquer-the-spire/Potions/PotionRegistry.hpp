@@ -38,6 +38,9 @@ class PotionRegistry
     //! Returns every id of \p rarity the character can find.
     static std::vector<PotionId> GetPool(PotionRarity rarity,
                                          CardColor character);
+
+    //! Returns whether Sacred Bark doubles this potion's effect.
+    static bool IsDoubledBySacredBark(PotionId id);
 };
 }  // namespace ConquerTheSpire
 
