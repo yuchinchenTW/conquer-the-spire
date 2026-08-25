@@ -66,6 +66,15 @@ def load(folder, device):
                          % kept.get("kind"))
 
     plan = SpireEnv()
+
+    for name, mine in [("floats", plan.observation_size),
+                       ("ids", plan.id_count),
+                       ("actions", plan.action_count)]:
+        if kept.get(name) != mine:
+            raise SystemExit(
+                "the checkpoint was made for %s=%s and this engine is %s" %
+                (name, kept.get(name), mine))
+
     net = CardPolicy(plan.layout, plan.id_layout, action_table(),
                      width=kept["width"]).to(device)
     net.load_state_dict(kept["net"])
