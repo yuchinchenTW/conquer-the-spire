@@ -527,6 +527,11 @@ void SpireEnv::Reset(CardColor character, unsigned int seed)
     m_run = Run(character, seed);
     m_battle.reset();
     m_phase = EnvPhase::MAP;
+
+    // A question nobody answered does not carry into the next climb.
+    m_chosen = 0;
+    m_chosenTarget = 0;
+    m_answers.clear();
     m_totalFloors = 0;
     m_bossFight = false;
     m_counted = false;
@@ -718,11 +723,28 @@ std::vector<Action> SpireEnv::LegalActions() const
             }
 
             const std::size_t much = ChoosableCards().size();
+            const bool many = Battle::ChoiceTakesMany(
+                m_battle->GetPlayer().GetHand()[m_chosen]);
 
             for (std::size_t i = 0; i < much && i < CHOICE_SLOTS; ++i)
             {
+                // A card already named is not on offer a second time.
+                if (std::find(m_answers.begin(), m_answers.end(), i) !=
+                    m_answers.end())
+                {
+                    continue;
+                }
+
                 moves.emplace_back(
                     Action(ActionKind::CHOOSE_CARD, static_cast<int>(i)));
+            }
+
+            // A card that takes as many as are named can always be told that
+            // is all of them, which is also the only thing left to say once
+            // every card has been named.
+            if (many)
+            {
+                moves.emplace_back(Action(ActionKind::CHOOSE_DONE));
             }
 
             break;
@@ -1126,18 +1148,69 @@ StepResult SpireEnv::Step(const Action& action)
 
         case ActionKind::CHOOSE_CARD:
         {
-            if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr)
+            if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
+                m_chosen >= m_battle->GetPlayer().GetHand().size() ||
+                action.a < 0)
             {
                 return result;
+            }
+
+            const std::size_t named = static_cast<std::size_t>(action.a);
+            const std::size_t much = ChoosableCards().size();
+
+            if (named >= much || named >= CHOICE_SLOTS)
+            {
+                return result;
+            }
+
+            // A card that takes as many as are named keeps being asked until
+            // the climber says that is all of them.
+            if (Battle::ChoiceTakesMany(
+                    m_battle->GetPlayer().GetHand()[m_chosen]))
+            {
+                if (std::find(m_answers.begin(), m_answers.end(), named) ==
+                    m_answers.end())
+                {
+                    m_answers.emplace_back(named);
+                }
+
+                result.taken = true;
+                break;
             }
 
             // Back to the fight whatever comes of it: the card was already
             // chosen to be played, and a play that will not go through must
             // not leave the climber standing there being asked for ever.
             m_phase = EnvPhase::BATTLE;
+            m_answers.clear();
 
             if (!m_battle->PlayCard(m_chosen, TargetOf(m_chosenTarget),
-                                    static_cast<std::size_t>(action.a)))
+                                    named))
+            {
+                return result;
+            }
+
+            result.taken = true;
+            break;
+        }
+
+        case ActionKind::CHOOSE_DONE:
+        {
+            if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
+                m_chosen >= m_battle->GetPlayer().GetHand().size() ||
+                !Battle::ChoiceTakesMany(
+                    m_battle->GetPlayer().GetHand()[m_chosen]))
+            {
+                return result;
+            }
+
+            const std::vector<std::size_t> named = m_answers;
+
+            m_phase = EnvPhase::BATTLE;
+            m_answers.clear();
+
+            if (!m_battle->PlayCard(m_chosen, TargetOf(m_chosenTarget),
+                                    named))
             {
                 return result;
             }
@@ -1556,7 +1629,8 @@ SpireEnv::Layout SpireEnv::GetLayout()
     layout.deckStride = DECK_CARD_SLOTS;
 
     layout.choices = layout.deckCards + DECK_SLOTS * layout.deckStride;
-    layout.choiceStride = OFFER_SLOTS;
+    // What the card is, and whether it has been named already.
+    layout.choiceStride = OFFER_SLOTS + 1;
     layout.total = layout.choices + CHOICE_SLOTS * layout.choiceStride;
 
     return layout;
@@ -2262,6 +2336,11 @@ std::vector<float> SpireEnv::Observe() const
     for (std::size_t i = 0; i < CHOICE_SLOTS; ++i)
     {
         PushOffer(out, i < asking.size() ? asking[i] : CardId::INVALID);
+
+        out.emplace_back(std::find(m_answers.begin(), m_answers.end(), i) !=
+                                 m_answers.end()
+                             ? 1.0f
+                             : 0.0f);
     }
 
     return out;
@@ -2276,7 +2355,8 @@ const char* NameOfActionKind(ActionKind kind)
         "leave_rewards", "choose_option", "buy_card",  "buy_relic",
         "buy_potion",  "buy_removal", "leave_shop",  "rest",
         "smith",       "toke",        "dig",         "lift",
-        "leave_rest",  "fight_boss",  "next_act",    "choose_card"};
+        "leave_rest",  "fight_boss",  "next_act",    "choose_card",
+        "choose_done"};
 
     static_assert(sizeof(names) / sizeof(names[0]) ==
                       static_cast<std::size_t>(ActionKind::COUNT),
@@ -2308,7 +2388,8 @@ std::size_t SpireEnv::ActionCount()
            + 1u + 1u + 1u                              // dig, lift, leave
            + 1u                                        // the boss
            + 1u                                        // the next act
-           + CHOICE_SLOTS;                             // pick a card out
+           + CHOICE_SLOTS                              // pick a card out
+           + 1u;                                       // and that is all
 }
 
 Action SpireEnv::ActionFromIndex(std::size_t index)
@@ -2493,6 +2574,13 @@ Action SpireEnv::ActionFromIndex(std::size_t index)
     {
         return Action(ActionKind::CHOOSE_CARD,
                       static_cast<int>(index - at));
+    }
+
+    at += CHOICE_SLOTS;
+
+    if (index == at)
+    {
+        return Action(ActionKind::CHOOSE_DONE);
     }
 
     return Action();

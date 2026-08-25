@@ -38,6 +38,19 @@ Monster Dummy(int health)
     return Monsters::TrainingDummy(health);
 }
 
+//! Returns how many copies of \p id sit in \p pile.
+int Count(const std::vector<Card>& pile, CardId id)
+{
+    int found = 0;
+
+    for (const Card& card : pile)
+    {
+        found += card.GetId() == id ? 1 : 0;
+    }
+
+    return found;
+}
+
 //! Returns the hand index of \p name, or the hand size when it is not there.
 std::size_t Idx(const Battle& battle, const std::string& name)
 {
@@ -1050,45 +1063,61 @@ TEST_CASE("A curse says what holding it costs")
     CHECK(CardRegistry::Worth(CardId::INFLAME, 0).rarity == 2);
 }
 
-TEST_CASE("A Pride leaves its copy behind at the end of the turn")
+TEST_CASE("A Pride copies itself for being held, and playing it is the way "
+          "out")
 {
-    // Playing it puts a copy on top of the draw pile - but not until the
-    // turn is over, so drawing after playing one cannot turn it up again in
-    // the same turn.
-    Battle battle = BattleWith({ CardId::PRIDE, CardId::OFFERING },
-                               { Dummy(60) });
+    // What a Pride costs is a copy for every turn it is still in hand when
+    // the turn ends. Playing it exhausts it, so playing it is how a climber
+    // is rid of one - the wiki is plain about this, and the copy used to be
+    // owed for playing it, which had the deal exactly backwards.
+    //
+    // Counted across every pile, because a hand discarded at the end of a
+    // turn is shuffled straight back in: asking whether a Pride is in the
+    // hand afterwards answers yes either way, and says nothing.
+    const auto everywhere = [](const Battle& battle) {
+        const Player& player = battle.GetPlayer();
 
-    const std::size_t before = battle.GetPlayer().GetDrawPile().size();
+        return Count(player.GetHand(), CardId::PRIDE) +
+               Count(player.GetDrawPile(), CardId::PRIDE) +
+               Count(player.GetDiscardPile(), CardId::PRIDE) +
+               Count(player.GetExhaustPile(), CardId::PRIDE);
+    };
 
-    REQUIRE(battle.PlayCard(Idx(battle, "Pride")) == true);
-
-    // Gone from the hand, and nothing added to the pile yet.
-    CHECK(battle.GetPlayer().GetExhaustPile().size() == 1u);
-    CHECK(battle.GetPlayer().GetDrawPile().size() == before);
-
-    // Drawing three cards this turn cannot turn up the copy.
-    REQUIRE(battle.PlayCard(Idx(battle, "Offering")) == true);
-
-    for (const auto& card : battle.GetPlayer().GetHand())
     {
-        CHECK(card.GetId() != CardId::PRIDE);
+        Battle held = BattleWith({ CardId::PRIDE, CardId::OFFERING },
+                                 { Dummy(60) });
+
+        REQUIRE(everywhere(held) == 1);
+        REQUIRE(Count(held.GetPlayer().GetHand(), CardId::PRIDE) == 1);
+
+        // Not while the turn is still going.
+        REQUIRE(held.GetPlayer().GetDrawPile().empty() == true);
+        REQUIRE(held.EndTurn() == true);
+
+        // One held becomes two.
+        CHECK(everywhere(held) == 2);
+
+        // And holding both costs two more.
+        REQUIRE(held.EndTurn() == true);
+
+        CHECK(everywhere(held) == 4);
     }
 
-    REQUIRE(battle.EndTurn() == true);
-
-    // Now it is back: put on top as the turn ended, and drawn again with the
-    // next hand, which is where a card on top of the pile goes.
-    bool found = false;
-
-    for (const auto& card : battle.GetPlayer().GetDrawPile())
     {
-        found = found || card.GetId() == CardId::PRIDE;
-    }
+        Battle gone = BattleWith({ CardId::PRIDE, CardId::OFFERING },
+                                 { Dummy(60) });
 
-    for (const auto& card : battle.GetPlayer().GetHand())
-    {
-        found = found || card.GetId() == CardId::PRIDE;
-    }
+        REQUIRE(gone.PlayCard(Idx(gone, "Pride")) == true);
 
-    CHECK(found == true);
+        // Exhausted, and out of the hand, so there is nothing to owe for.
+        CHECK(gone.GetPlayer().GetExhaustPile().size() == 1u);
+
+        REQUIRE(gone.EndTurn() == true);
+
+        // The one that was exhausted, and no copy of it.
+        CHECK(everywhere(gone) == 1);
+        CHECK(Count(gone.GetPlayer().GetExhaustPile(), CardId::PRIDE) == 1);
+        CHECK(Count(gone.GetPlayer().GetHand(), CardId::PRIDE) == 0);
+        CHECK(Count(gone.GetPlayer().GetDrawPile(), CardId::PRIDE) == 0);
+    }
 }

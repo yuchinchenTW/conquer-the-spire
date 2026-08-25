@@ -567,6 +567,111 @@ TEST_CASE("A hand of greed pays for the killing, not for the fight")
     REQUIRE(sharp.PlayCard(Idx(sharp, "Hand of Greed+"), 0) == true);
 
     CHECK(sharp.GetGoldFound() == 25);
+
+    Battle minion = BattleWith({ CardId::HAND_OF_GREED }, { Dummy(4) });
+    minion.GetMonsters()[0].AddPower(PowerType::MINION, 1);
+
+    REQUIRE(minion.PlayCard(Idx(minion, "Hand of Greed"), 0) == true);
+
+    CHECK(minion.GetMonsters().front().IsDead() == true);
+    CHECK(minion.GetGoldFound() == 0);
+}
+
+TEST_CASE("A forethought places one, and a sharpened one places as many as "
+          "are named")
+{
+    CHECK(Battle::ChoiceTakesMany(
+              CardRegistry::Get(CardId::FORETHOUGHT)) == false);
+    CHECK(Battle::ChoiceTakesMany(
+              CardRegistry::Get(CardId::FORETHOUGHT, 1)) == true);
+
+    // Unsharpened: one card, and it costs nothing until it is played.
+    {
+        Battle battle = BattleWith({ CardId::FORETHOUGHT, CardId::STRIKE_RED,
+                                     CardId::BASH, CardId::DEFEND_RED },
+                                   { Dummy(200) });
+
+        REQUIRE(battle.GetPlayer().GetHand().size() == 4u);
+        REQUIRE(battle.PlayCard(Idx(battle, "Forethought"), 0, 0u) == true);
+
+        CHECK(battle.GetPlayer().GetHand().size() == 2u);
+        REQUIRE(battle.GetPlayer().GetDrawPile().empty() == false);
+        CHECK(battle.GetPlayer().GetDrawPile().back().GetCostThisTurn() == 0);
+    }
+
+    // Sharpened: as many as are named, in the order they were named, at the
+    // bottom of the draw pile.
+    {
+        Player player("Ironclad", 80);
+
+        player.AddCardToDeck(CardRegistry::Get(CardId::FORETHOUGHT, 1));
+        player.AddCardToDeck(CardRegistry::Get(CardId::STRIKE_RED));
+        player.AddCardToDeck(CardRegistry::Get(CardId::BASH));
+        player.AddCardToDeck(CardRegistry::Get(CardId::DEFEND_RED));
+
+        Battle battle(std::move(player), { Dummy(200) }, 5);
+
+        battle.Start();
+
+        const std::size_t at = Idx(battle, "Forethought+");
+
+        REQUIRE(at < battle.GetPlayer().GetHand().size());
+        REQUIRE(battle.GetPlayer().GetHand().size() == 4u);
+        REQUIRE(battle.GetPlayer().GetDrawPile().empty() == true);
+
+        // What the three cards left will be, once the forethought is gone.
+        std::vector<CardId> left;
+
+        for (std::size_t i = 0; i < 4u; ++i)
+        {
+            if (i != at)
+            {
+                left.emplace_back(
+                    battle.GetPlayer().GetHand()[i].GetId());
+            }
+        }
+
+        REQUIRE(left.size() == 3u);
+
+        // The last of them and then the first of them: the far one is named
+        // before the near one, which is exactly the order that would go wrong
+        // if taking one out moved the other along.
+        REQUIRE(battle.PlayCard(at, 0, { 2u, 0u }) == true);
+
+        const std::vector<Card>& hand = battle.GetPlayer().GetHand();
+        const std::vector<Card>& draw = battle.GetPlayer().GetDrawPile();
+
+        // Two went, one stayed, and the one that stayed is the middle one.
+        REQUIRE(hand.size() == 1u);
+        CHECK(hand.front().GetId() == left[1]);
+
+        // The bottom of the draw pile is the front of it - the pile is drawn
+        // from the back - so each card named goes in front of the last, and
+        // the one named first ends up nearest the top.
+        REQUIRE(draw.size() == 2u);
+        CHECK(draw[0].GetId() == left[0]);
+        CHECK(draw[1].GetId() == left[2]);
+        CHECK(draw[0].GetCostThisTurn() == 0);
+        CHECK(draw[1].GetCostThisTurn() == 0);
+    }
+
+    // And naming none of them places none of them.
+    {
+        Player player("Ironclad", 80);
+
+        player.AddCardToDeck(CardRegistry::Get(CardId::FORETHOUGHT, 1));
+        player.AddCardToDeck(CardRegistry::Get(CardId::STRIKE_RED));
+
+        Battle battle(std::move(player), { Dummy(200) }, 5);
+
+        battle.Start();
+
+        REQUIRE(battle.PlayCard(Idx(battle, "Forethought+"), 0,
+                                std::vector<std::size_t>{}) == true);
+
+        CHECK(battle.GetPlayer().GetHand().size() == 1u);
+        CHECK(battle.GetPlayer().GetDrawPile().empty() == true);
+    }
 }
 
 TEST_CASE("Every card in the registry builds and reports itself")

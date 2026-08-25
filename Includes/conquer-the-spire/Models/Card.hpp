@@ -140,8 +140,11 @@ struct CardEffect
                                      CardPile pile = CardPile::HAND);
 
     //! Puts a chosen card from the hand into \p pile, costing no energy this
-    //! turn.
-    static CardEffect SetupCard(CardPile pile = CardPile::DRAW_TOP);
+    //! turn. With \p manyCards it takes as many as are chosen rather than one,
+    //! which is the difference a sharpened Forethought buys - a wider choice
+    //! rather than a bigger number.
+    static CardEffect SetupCard(CardPile pile = CardPile::DRAW_TOP,
+                                bool manyCards = false);
 
     //! Draws until the hand holds \p size cards.
     static CardEffect DrawUntil(int size);
@@ -289,6 +292,10 @@ struct CardEffect
     //! Gold handed over when this damage is what kills the target, which is
     //! what a Hand of Greed is for.
     int goldIfFatal = 0;
+
+    //! Whether this works on as many of the climber's own cards as are
+    //! chosen, rather than on one.
+    bool manyCards = false;
 };
 
 //!

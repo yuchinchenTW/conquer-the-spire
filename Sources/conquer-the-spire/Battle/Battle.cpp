@@ -171,6 +171,35 @@ void Battle::Start()
     BeginPlayerTurn();
 }
 
+bool Battle::ChoiceTakesMany(const Card& card)
+{
+    for (const auto& effect : card.GetEffects())
+    {
+        if (effect.manyCards)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Battle::PlayCard(std::size_t handIndex, std::size_t monsterIndex,
+                      const std::vector<std::size_t>& choices)
+{
+    // The list is kept here rather than threaded through every step of the
+    // resolving, because one step in all of it wants more than the first of
+    // them.
+    m_choices = choices;
+
+    const bool played = PlayCard(handIndex, monsterIndex,
+                                choices.empty() ? 0u : choices.front());
+
+    m_choices.clear();
+
+    return played;
+}
+
 bool Battle::PlayCard(std::size_t handIndex, std::size_t monsterIndex,
                       std::size_t choiceIndex)
 {
@@ -1050,16 +1079,7 @@ void Battle::BeginPlayerTurn()
 
 void Battle::EndPlayerTurn()
 {
-    // What a Pride played this turn owes: on top of the draw pile, now that
-    // nothing more will be drawn from it this turn.
-    for (int i = 0; i < m_prideCopies; ++i)
-    {
-        m_player.GetDrawPile().insert(m_player.GetDrawPile().begin(),
-                                      CardRegistry::Get(CardId::PRIDE));
-    }
-
-    m_prideCopies = 0;
-
+    ResolvePrideInHand();
     ResolveEndOfTurnHandCards();
     ExhaustEtherealCards();
     RetainPlannedCards();
@@ -1496,7 +1516,9 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
                                         card.GetCardType() ==
                                             CardType::ATTACK);
 
-                    if (standing && monster->IsDead())
+                    if (effect.goldIfFatal > 0 && standing &&
+                        monster->IsDead() &&
+                        monster->GetPower(PowerType::MINION) == 0)
                     {
                         m_goldFound += effect.goldIfFatal;
                     }
@@ -1853,18 +1875,56 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
         case EffectType::SETUP_CARD:
         {
             std::vector<Card>& hand = m_player.GetHand();
+            std::vector<std::size_t> picked;
 
-            if (choiceIndex >= hand.size())
+            if (effect.manyCards)
+            {
+                for (const std::size_t at : m_choices)
+                {
+                    if (at < hand.size() &&
+                        std::find(picked.begin(), picked.end(), at) ==
+                            picked.end())
+                    {
+                        picked.emplace_back(at);
+                    }
+                }
+            }
+            else if (choiceIndex < hand.size())
+            {
+                picked.emplace_back(choiceIndex);
+            }
+
+            if (picked.empty())
             {
                 break;
             }
 
-            Card moving = hand[choiceIndex];
-            moving.SetCostThisTurn(0);
-            hand.erase(hand.begin() +
-                       static_cast<std::ptrdiff_t>(choiceIndex));
+            // Read out in the order they were named, because that is the
+            // order they end up in. Then taken out of the hand from the back
+            // forwards, so that taking one out does not move the next along.
+            std::vector<Card> moving;
 
-            m_player.AddCardToPile(std::move(moving), effect.pile, m_rng);
+            for (const std::size_t at : picked)
+            {
+                moving.emplace_back(hand[at]);
+                moving.back().SetCostThisTurn(0);
+            }
+
+            std::vector<std::size_t> backwards = picked;
+
+            std::sort(backwards.begin(), backwards.end(),
+                      std::greater<std::size_t>());
+
+            for (const std::size_t at : backwards)
+            {
+                hand.erase(hand.begin() + static_cast<std::ptrdiff_t>(at));
+            }
+
+            for (auto& card : moving)
+            {
+                m_player.AddCardToPile(std::move(card), effect.pile, m_rng);
+            }
+
             break;
         }
 
@@ -2531,12 +2591,6 @@ void Battle::OnCardPlayed(const Card& card, const PlayTriggers& before)
         {
             GainBlock(m_player.CalculateBlockGain(rage));
         }
-    }
-
-    // A Pride leaves a copy behind, but not until the turn is over.
-    if (card.GetId() == CardId::PRIDE)
-    {
-        ++m_prideCopies;
     }
 
     // Whatever the card was, some things answer every one of them.
@@ -4199,6 +4253,29 @@ void Battle::ApplyPendingSpawns()
     }
 
     m_pendingSpawns.clear();
+}
+
+void Battle::ResolvePrideInHand()
+{
+    // What holding a Pride costs: a copy of it on top of the draw pile, one
+    // for each still in hand as the turn ends. Playing it exhausts it, so a
+    // Pride that was played is not in hand to be counted - which is the whole
+    // of how a climber gets rid of one.
+    //
+    // On top, which is the back: the pile is drawn from the back, so the copy
+    // comes straight back into the next hand.
+    int owed = 0;
+
+    for (const Card& held : m_player.GetHand())
+    {
+        owed += held.GetId() == CardId::PRIDE ? 1 : 0;
+    }
+
+    for (int i = 0; i < owed; ++i)
+    {
+        m_player.AddCardToPile(CardRegistry::Get(CardId::PRIDE),
+                               CardPile::DRAW_TOP, m_rng);
+    }
 }
 
 void Battle::ResolveEndOfTurnHandCards()

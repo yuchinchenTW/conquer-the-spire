@@ -93,6 +93,9 @@ enum class ActionKind
     //! move that was already numbered keeps its number.
     CHOOSE_CARD,
 
+    //! Says that is all of them, for a card that takes as many as are named.
+    CHOOSE_DONE,
+
     //! How many kinds of move there are, for anything that has to keep a
     //! name for each of them.
     COUNT
@@ -520,6 +523,10 @@ class SpireEnv
     //! written to a saved climb: a load drops the fight altogether.
     std::size_t m_chosen = 0;
     int m_chosenTarget = 0;
+
+    //! The cards named so far, for a card that takes as many as are named.
+    //! Empty the rest of the time.
+    std::vector<std::size_t> m_answers;
 
     //! What a point of health is worth against a floor.
     float m_healthWeight = HEALTH_WEIGHT;

@@ -806,6 +806,83 @@ TEST_CASE("Every kind of move has a name")
     }
 }
 
+TEST_CASE("A card that takes as many as are named keeps being asked")
+{
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    REQUIRE(env.Step(env.LegalActions().front()).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::BATTLE);
+
+    Battle* battle = const_cast<Battle*>(env.GetBattle());
+
+    battle->GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::FORETHOUGHT, 1));
+
+    const std::size_t at = battle->GetPlayer().GetHand().size() - 1u;
+    const std::size_t others = at;
+
+    REQUIRE(others >= 2u);
+
+    REQUIRE(env.Step(Action(ActionKind::PLAY_CARD, static_cast<int>(at), 0))
+                .taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::CHOOSING);
+
+    // Every card it may pick, and the word that it is finished.
+    const auto counted = [&env]() {
+        std::size_t picks = 0;
+        bool done = false;
+
+        for (const Action& move : env.LegalActions())
+        {
+            picks += move.kind == ActionKind::CHOOSE_CARD ? 1u : 0u;
+            done = done || move.kind == ActionKind::CHOOSE_DONE;
+        }
+
+        return std::pair<std::size_t, bool>(picks, done);
+    };
+
+    REQUIRE(counted().first == others);
+    REQUIRE(counted().second == true);
+
+    // A masked-out answer is not taken and does not poison the pending list.
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_CARD,
+                            static_cast<int>(others)))
+                .taken == false);
+    CHECK(env.GetPhase() == EnvPhase::CHOOSING);
+    CHECK(counted().first == others);
+
+    // Naming one does not play the card: it is still being asked, and that
+    // card is not on offer again.
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_CARD, 0)).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::CHOOSING);
+    CHECK(counted().first == others - 1u);
+
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_CARD, 1)).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::CHOOSING);
+    CHECK(counted().first == others - 2u);
+
+    // The state says which of them have been named, or the climber would be
+    // choosing blind among its own earlier answers.
+    const SpireEnv::Layout layout = SpireEnv::GetLayout();
+    const std::vector<float> state = env.Observe();
+    const std::size_t said = layout.choiceStride - 1u;
+
+    CHECK(state[layout.choices + said] == 1.0f);
+    CHECK(state[layout.choices + layout.choiceStride + said] == 1.0f);
+    CHECK(state[layout.choices + 2u * layout.choiceStride + said] == 0.0f);
+
+    // And saying that is all of them plays it, with both cards placed.
+    const std::size_t held = battle->GetPlayer().GetHand().size();
+
+    REQUIRE(env.Step(Action(ActionKind::CHOOSE_DONE)).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::BATTLE);
+
+    // The forethought itself and the two named cards, all out of the hand.
+    CHECK(battle->GetPlayer().GetHand().size() == held - 3u);
+}
+
 TEST_CASE("Nothing the mask offers is ever turned down")
 {
     // The point of this one is the count: a mask that offers a move the run

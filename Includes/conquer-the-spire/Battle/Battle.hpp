@@ -63,6 +63,13 @@ class Battle
     bool PlayCard(std::size_t handIndex, std::size_t monsterIndex = 0,
                   std::size_t choiceIndex = 0);
 
+    //! Plays the card at \p handIndex with a whole list of chosen cards
+    //! behind it, for the cards that work on as many as are named. The
+    //! numbers are places in the pile the card picks out of, as it stands
+    //! once the card being played has left the hand.
+    bool PlayCard(std::size_t handIndex, std::size_t monsterIndex,
+                  const std::vector<std::size_t>& choices);
+
     //! Drinks the potion at \p index, aimed at the monster at \p monsterIndex
     //! when the potion needs one. Returns false and changes nothing when the
     //! potion cannot be drunk here: wrong phase, bad index, dead target, or a
@@ -143,6 +150,10 @@ class Battle
     //! Returns how many cards \p card has to pick from right now, which is
     //! how many of them are worth offering.
     std::size_t ChoiceCount(const Card& card) const;
+
+    //! Returns true if \p card works on as many of the picked cards as are
+    //! named rather than on one of them.
+    static bool ChoiceTakesMany(const Card& card);
 
     //! Returns true if PlayCard() would accept this play.
     bool CanPlay(std::size_t handIndex, std::size_t monsterIndex = 0) const;
@@ -386,10 +397,14 @@ class Battle
     //! Gold this fight has turned up that the purse has not seen yet.
     int m_goldFound = 0;
 
-    //! How many copies a Pride played this turn owes the draw pile. They go
-    //! on at the end of the turn, so that drawing after playing one cannot
-    //! turn it up again in the same turn.
-    int m_prideCopies = 0;
+    //! Every card named for the card being played, for the one step that
+    //! works on more than one of them. Empty the rest of the time, and the
+    //! single choice is used instead.
+    std::vector<std::size_t> m_choices;
+
+    //! Puts a copy of every Pride still in hand on top of the draw pile,
+    //! which is what holding one costs.
+    void ResolvePrideInHand();
 
     //! Counted per card, and copied along with the rest of the fight - so a
     //! fight simulated by a search counts into its own copy and leaves the

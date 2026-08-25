@@ -112,11 +112,11 @@ Card MakeCurseCard(CardId id, int upgradeCount)
                            CardFlag::NONE);
 
         case CardId::PRIDE:
-            // Playable, and the only curse that is. It exhausts as it goes;
-            // the copy it leaves is put on the draw pile at the end of the
-            // turn rather than the moment it is played, which is what keeps
-            // it out of the same turn it was played in. Battle::EndPlayerTurn
-            // is where that happens.
+            // Playable, and the only curse that is. Playing it exhausts it,
+            // and that is how a climber is rid of it: the copy is what
+            // holding it costs, made at the end of a turn it is still in hand
+            // for. Battle::EndPlayerTurn is where that happens, and the card
+            // itself does nothing but go.
             return Card(id, "Pride", CardColor::CURSE, CardType::CURSE,
                         CardRarity::SPECIAL, CardTarget::SELF, 1, {},
                         CardFlag::EXHAUST | CardFlag::INNATE);

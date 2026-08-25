@@ -305,12 +305,13 @@ CardEffect CardEffect::AddRandomSkill(int count, CardPile pile)
     return effect;
 }
 
-CardEffect CardEffect::SetupCard(CardPile pile)
+CardEffect CardEffect::SetupCard(CardPile pile, bool manyCards)
 {
     CardEffect effect;
     effect.type = EffectType::SETUP_CARD;
     effect.value = 1;
     effect.pile = pile;
+    effect.manyCards = manyCards;
 
     return effect;
 }

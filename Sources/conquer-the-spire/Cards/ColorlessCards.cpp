@@ -104,9 +104,12 @@ Card MakeColorlessCard(CardId id, int upgradeCount)
                           { CE::Damage(up ? 6 : 3), CE::Draw(1) });
 
         case CardId::FORETHOUGHT:
+            // One card, or as many as are chosen when sharpened. The order
+            // they are chosen in is the order they end up in at the bottom of
+            // the draw pile.
             return Skill(id, "Forethought", CardRarity::UNCOMMON,
                          CardTarget::SELF, 0,
-                         { CE::SetupCard(CardPile::DRAW_BOTTOM) });
+                         { CE::SetupCard(CardPile::DRAW_BOTTOM, up) });
 
         case CardId::GOOD_INSTINCTS:
             return Skill(id, "Good Instincts", CardRarity::UNCOMMON,
