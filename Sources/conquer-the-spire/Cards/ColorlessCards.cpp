@@ -72,6 +72,17 @@ Card MakeColorlessCard(CardId id, int upgradeCount)
                          { CE::ReshuffleAll(up ? 2 : 1)
                                .From(ValueSource::FIXED, 1) });
 
+        case CardId::DISCOVERY:
+            // The real card holds out three cards of the climber's own colour
+            // and takes the one that is picked. Nothing in a fight is picked
+            // by the climber yet - Battle::PlayCard is handed a choice and the
+            // learner has no way to say one - so this takes one of the three
+            // at random, the way Jack of All Trades already does. The cost of
+            // nought this turn and the exhaust are the card's own.
+            return Skill(id, "Discovery", CardRarity::UNCOMMON,
+                         CardTarget::SELF, 1, { CE::AddRandomCard(1) },
+                         up ? CardFlag::NONE : CardFlag::EXHAUST);
+
         case CardId::DRAMATIC_ENTRANCE:
             return Attack(id, "Dramatic Entrance", CardRarity::UNCOMMON,
                           CardTarget::ALL_ENEMIES, 0,
@@ -79,10 +90,9 @@ Card MakeColorlessCard(CardId id, int upgradeCount)
                           CardFlag::INNATE | CardFlag::EXHAUST);
 
         case CardId::ENLIGHTENMENT:
-            // The real card keeps the cost down all battle when upgraded; this
-            // one only holds it for the turn either way.
             return Skill(id, "Enlightenment", CardRarity::UNCOMMON,
-                         CardTarget::SELF, 0, { CE::SetHandCost(1) });
+                         CardTarget::SELF, 0,
+                         { CE::SetHandCost(1, false, up) });
 
         case CardId::FINESSE:
             return Skill(id, "Finesse", CardRarity::UNCOMMON, CardTarget::SELF,
@@ -172,11 +182,14 @@ Card MakeColorlessCard(CardId id, int upgradeCount)
                          CardFlag::EXHAUST);
 
         case CardId::HAND_OF_GREED:
-            // The gold it takes is outside a battle, so only the damage is
-            // here.
+            // The gold comes of the killing, not of the fight: what is paid
+            // for is a blow that finishes something off. The purse is the
+            // run's rather than the fight's, so the fight keeps a tally and
+            // the run empties it afterwards.
             return Attack(id, "Hand of Greed", CardRarity::RARE,
                           CardTarget::SINGLE_ENEMY, 2,
-                          { CE::Damage(up ? 25 : 20) });
+                          { CE::Damage(up ? 25 : 20)
+                                .IfFatalGold(up ? 25 : 20) });
 
         case CardId::MAGNETISM:
             return Power(id, "Magnetism", CardRarity::RARE, up ? 1 : 2,

@@ -205,6 +205,8 @@ class SpireEnv(object):
             "shop_card_stride",
             "offers",
             "offer_stride",
+            "choices",
+            "choice_stride",
         ]
         # The engine says how many it writes, so that this list cannot fall
         # out of step with it without saying so.
@@ -236,6 +238,7 @@ class SpireEnv(object):
             "event",
             "monsters",
             "deck",
+            "choices",
             "total",
         ]
 
@@ -435,31 +438,41 @@ class SpireEnv(object):
 
 
 # The kinds of move, in the order of ActionKind.
-ACTION_KINDS = [
-    "invalid",
-    "travel",
-    "play_card",
-    "end_turn",
-    "use_potion",
-    "discard_potion",
-    "claim_reward",
-    "skip_reward",
-    "leave_rewards",
-    "choose_option",
-    "buy_card",
-    "buy_relic",
-    "buy_potion",
-    "buy_removal",
-    "leave_shop",
-    "rest",
-    "smith",
-    "toke",
-    "dig",
-    "lift",
-    "leave_rest",
-    "fight_boss",
-    "next_act",
-]
+def action_kinds(library=None):
+    """The name of every kind of move, asked of the engine.
+
+    Kept here as a list once, and it fell out of step the moment a kind was
+    added: the card-picking move came back as "invalid", so the rule that
+    would have scored it by the card it picks never fired and nothing said
+    so. The engine holds the names now.
+    """
+    global _KINDS
+
+    if _KINDS is None:
+        api = _api(library)
+        lib = api.lib
+
+        lib.cts_action_kind_name.argtypes = [ctypes.c_int]
+        lib.cts_action_kind_name.restype = ctypes.c_char_p
+
+        out = []
+        at = 0
+
+        while True:
+            name = lib.cts_action_kind_name(at)
+
+            if not name:
+                break
+
+            out.append(name.decode("utf-8"))
+            at += 1
+
+        _KINDS = out
+
+    return _KINDS
+
+
+_KINDS = None
 
 _TABLE = None
 
@@ -481,7 +494,8 @@ def action_table(library=None):
 
         api.lib.cts_action_table(kinds, a, b)
 
-        names = [ACTION_KINDS[k] if 0 <= k < len(ACTION_KINDS) else "invalid"
+        known = action_kinds(library)
+        names = [known[k] if 0 <= k < len(known) else "invalid"
                  for k in kinds]
 
         _TABLE = (names, list(a), list(b))

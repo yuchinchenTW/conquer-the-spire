@@ -62,6 +62,86 @@ Monster Attacker(int health, int damage)
 }
 }  // namespace
 
+TEST_CASE("A card that wants one of the climber's own cards says so")
+{
+    // Which cards ask a question, and which pile they ask it about. Before
+    // this there was no way to ask: every one of them was handed nought and
+    // worked on whatever sat at the front of the hand.
+    CHECK(Battle::NeedsCardChoice(CardRegistry::Get(CardId::ARMAMENTS)));
+    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::ARMAMENTS)) ==
+          CardPile::HAND);
+    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::WARCRY)) ==
+          CardPile::HAND);
+    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::DUAL_WIELD)) ==
+          CardPile::HAND);
+    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::BURNING_PACT)) ==
+          CardPile::HAND);
+    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::HEADBUTT)) ==
+          CardPile::DISCARD);
+    CHECK(Battle::ChoicePileOf(CardRegistry::Get(CardId::EXHUME)) ==
+          CardPile::EXHAUST);
+
+    // And which ask nothing. A Strike has no question; an Apotheosis works
+    // on the lot and so has none either; an armaments sharpened works on the
+    // whole hand.
+    CHECK(Battle::NeedsCardChoice(CardRegistry::Get(CardId::STRIKE_RED)) ==
+          false);
+    CHECK(Battle::NeedsCardChoice(CardRegistry::Get(CardId::APOTHEOSIS)) ==
+          false);
+    CHECK(Battle::NeedsCardChoice(CardRegistry::Get(CardId::ARMAMENTS, 1)) ==
+          false);
+}
+
+TEST_CASE("The card picked out is the card worked on")
+{
+    // The whole of the point: index one is the second card, not the first.
+    // The card being played leaves the hand before its own effects run, so
+    // what is picked from is the hand without it.
+    Player player("Ironclad", 80);
+
+    player.AddCardToDeck(CardRegistry::Get(CardId::ARMAMENTS));
+    player.AddCardToDeck(CardRegistry::Get(CardId::STRIKE_RED));
+    player.AddCardToDeck(CardRegistry::Get(CardId::BASH));
+
+    Battle battle(std::move(player), { Monsters::TrainingDummy(200) }, 5);
+
+    battle.Start();
+
+    const std::size_t at = Idx(battle, "Armaments");
+
+    REQUIRE(at < battle.GetPlayer().GetHand().size());
+
+    // Two cards to pick from, which is the hand without the armaments.
+    REQUIRE(battle.GetPlayer().GetHand().size() == 3u);
+    CHECK(battle.ChoiceCount(battle.GetPlayer().GetHand()[at]) == 2u);
+
+    // Ask for the second of them.
+    REQUIRE(battle.PlayCard(at, 0, 1u) == true);
+
+    const std::vector<Card>& hand = battle.GetPlayer().GetHand();
+
+    REQUIRE(hand.size() == 2u);
+    CHECK(hand[0].IsUpgraded() == false);
+    CHECK(hand[1].IsUpgraded() == true);
+}
+
+TEST_CASE("A card with nothing to pick from asks nothing")
+{
+    // An exhume over an empty exhaust pile has no question, and must not be
+    // held back waiting for an answer that has no answers.
+    Player player("Ironclad", 80);
+
+    player.AddCardToDeck(CardRegistry::Get(CardId::EXHUME));
+
+    Battle battle(std::move(player), { Monsters::TrainingDummy(200) }, 5);
+
+    battle.Start();
+
+    REQUIRE(battle.GetPlayer().GetExhaustPile().empty() == true);
+    CHECK(Battle::NeedsCardChoice(CardRegistry::Get(CardId::EXHUME)) == true);
+    CHECK(battle.ChoiceCount(battle.GetPlayer().GetHand().front()) == 0u);
+}
+
 TEST_CASE("An X cost spends all the energy and repeats that many times")
 {
     Battle battle =

@@ -104,6 +104,22 @@ struct CardWorth
     //! written on the card. Fiend Fire hits for seven a card exhausted;
     //! seven is what the damage says, and this says the seven is a rate.
     int scales = 0;
+
+    //! Whether it is always in the opening hand. What Brutality buys by being
+    //! sharpened is exactly this and nothing else, so a table without it says
+    //! the sharpening changes nothing.
+    int innate = 0;
+
+    //! Whether it burns itself at the end of a turn it was not played in. An
+    //! Apparition is sharpened out of this, and again the sharpening changes
+    //! none of the other figures.
+    int ethereal = 0;
+
+    //! Whether it lands on everything standing rather than one thing. A Blind
+    //! and a Trip are sharpened from one to all, and neither the damage nor
+    //! anything else on the card moves - the width of the swing is the whole
+    //! of what is bought.
+    int hitsAll = 0;
 };
 
 class CardRegistry

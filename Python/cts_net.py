@@ -110,6 +110,12 @@ def families(layout, ids):
         Family("option", 6, layout["event"] + 2, layout["event_stride"],
                layout["event_stride"], shared=ids["event"]),
 
+        # What a played card is asking about: the cards it may pick out,
+        # each with what it asks and what it is worth beside its id. The
+        # only place a discard pile or an exhaust pile is named at all.
+        Family("choice", 40, layout["choices"], layout["choice_stride"],
+               layout["choice_stride"], ids=ids["choices"]),
+
         # A place on the map: whether a path leads there, and what waits.
         Family("column", 7, layout["map"], 8, 8),
     ]
@@ -130,6 +136,7 @@ RULES = {
     "buy_removal": ("remove", "deck", None),
     "smith": ("smith", "deck", None),
     "toke": ("toke", "deck", None),
+    "choose_card": ("pick", "choice", None),
 }
 
 QUESTIONS = sorted({rule[0] for rule in RULES.values()})

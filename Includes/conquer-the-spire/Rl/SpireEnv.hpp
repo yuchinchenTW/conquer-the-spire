@@ -48,7 +48,13 @@ enum class EnvPhase
     ACT_DONE,
 
     //! The climber is dead, or the spire is done with.
-    OVER
+    OVER,
+
+    //! A card has been played that wants one of the climber's own cards
+    //! picked out for it, and nothing else can happen until it is. Last in
+    //! the list because the numbers are written into saved climbs and read
+    //! back out of them by position.
+    CHOOSING
 };
 
 //! What an agent can do. \p a and \p b are what the move needs: a hand slot
@@ -81,8 +87,26 @@ enum class ActionKind
     LIFT,
     LEAVE_REST,
     FIGHT_BOSS,
-    NEXT_ACT
+    NEXT_ACT,
+
+    //! Picks the card a played card was asking about. Last, so that every
+    //! move that was already numbered keeps its number.
+    CHOOSE_CARD,
+
+    //! How many kinds of move there are, for anything that has to keep a
+    //! name for each of them.
+    COUNT
 };
+
+//! Returns the name of \p kind, or nothing at all when there is no such
+//! kind.
+//!
+//! Asked of the engine rather than kept in a list beside it: a list of names
+//! read by position falls quietly out of step the moment a kind is added, and
+//! a move whose name is not known is a move nothing can be said about. That
+//! is what happened when the card-picking move was added and the reader
+//! carried on calling it invalid.
+const char* NameOfActionKind(ActionKind kind);
 
 //!
 //! \brief Action struct.
@@ -183,6 +207,11 @@ class SpireEnv
     static constexpr std::size_t REWARD_OPTIONS = 20;
     static constexpr std::size_t EVENT_OPTIONS = 6;
     static constexpr std::size_t DECK_SLOTS = 40;
+
+    //! How many cards a played card may be offered to pick from. As deep as
+    //! the deck, because a discard pile late in a fight is deeper than a
+    //! hand.
+    static constexpr std::size_t CHOICE_SLOTS = DECK_SLOTS;
     static constexpr std::size_t SHOP_CARD_SLOTS = 7;
     static constexpr std::size_t SHOP_RELIC_SLOTS = 3;
     static constexpr std::size_t SHOP_POTION_SLOTS = 3;
@@ -287,6 +316,13 @@ class SpireEnv
         //! from the ids beside the state.
         std::size_t deckCards = 0;
 
+        //! Where the cards a played card is asking about begin. The pile is
+        //! whichever one that card picks out of - a hand, a discard pile, an
+        //! exhaust pile - so this is the only place the last two are written
+        //! down at all. Without it a choice would be made by its position
+        //! rather than by what is standing in it.
+        std::size_t choices = 0;
+
         //! Where the map ahead begins: what stands on the places that could
         //! be walked to next, what stands on the places those lead to, and
         //! what the rest of the act still holds.
@@ -295,6 +331,7 @@ class SpireEnv
         //! How wide each of the repeating parts is.
         std::size_t monsterStride = 0;
         std::size_t handStride = 0;
+        std::size_t choiceStride = 0;
         std::size_t pileStride = 0;
         std::size_t rewardStride = 0;
         std::size_t eventStride = 0;
@@ -329,6 +366,10 @@ class SpireEnv
         //! a slot of the deck - sharpening one, tearing one up, handing one
         //! to a room - is blind without this.
         std::size_t deck = 0;
+
+        //! Which card sits in each place a played card is asking about.
+        //! \see Layout::choices
+        std::size_t choices = 0;
         std::size_t total = 0;
     };
 
@@ -345,6 +386,14 @@ class SpireEnv
     //! Returns which card, relic, potion, room and monster each slot of the
     //! state is about. These are ids for looking up or embedding, not numbers
     //! to be weighed.
+    //! Returns the cards a played card is waiting to be answered about, in
+    //! the order the answers number them. Empty whenever nothing is asking.
+    //!
+    //! For a card picked out of the hand this is the hand without the card
+    //! doing the asking, because that card has left the hand by the time its
+    //! own effects run and the answers are numbered against what is left.
+    std::vector<CardId> ChoosableCards() const;
+
     std::vector<int> ObserveIds() const;
 
     static std::size_t IdCount();
@@ -465,6 +514,12 @@ class SpireEnv
 
     //! How many acts a climb is asked for, 0 being all of them.
     int m_actLimit = 0;
+
+    //! The card played that is waiting on an answer, where it sits in the
+    //! hand, and what it was aimed at. Only meaningful in CHOOSING, and never
+    //! written to a saved climb: a load drops the fight altogether.
+    std::size_t m_chosen = 0;
+    int m_chosenTarget = 0;
 
     //! What a point of health is worth against a floor.
     float m_healthWeight = HEALTH_WEIGHT;

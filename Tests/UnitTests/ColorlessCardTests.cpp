@@ -440,13 +440,16 @@ TEST_CASE("Bandage Up patches the player up")
 
 TEST_CASE("The colourless pool holds every card that is not a character's")
 {
+    // Twenty uncommons, which is what the game has: the twentieth was
+    // Discovery, and while it was missing nothing could ever roll it - not a
+    // shelf, not a Sensory Stone, not a Prismatic Shard.
     CHECK(CardRegistry::GetPool(CardColor::COLORLESS,
-                                CardRarity::UNCOMMON).size() == 19u);
+                                CardRarity::UNCOMMON).size() == 20u);
     CHECK(CardRegistry::GetPool(CardColor::COLORLESS,
                                 CardRarity::RARE).size() == 15u);
     CHECK(CardRegistry::GetPool(CardColor::COLORLESS,
                                 CardRarity::SPECIAL).size() == 7u);
-    CHECK(CardRegistry::GetPool(CardColor::COLORLESS).size() == 41u);
+    CHECK(CardRegistry::GetPool(CardColor::COLORLESS).size() == 42u);
 
     for (const CardId id : CardRegistry::GetPool(CardColor::COLORLESS))
     {
@@ -458,6 +461,112 @@ TEST_CASE("The colourless pool holds every card that is not a character's")
         CHECK(card.GetCardType() != CardType::INVALID);
         CHECK(card.GetRarity() != CardRarity::INVALID);
     }
+}
+
+TEST_CASE("A discovery is held out at nought and only burns unsharpened")
+{
+    const Card plain = CardRegistry::Get(CardId::DISCOVERY);
+    const Card sharp = CardRegistry::Get(CardId::DISCOVERY, 1);
+
+    CHECK(plain.GetName() == "Discovery");
+    CHECK(plain.GetColor() == CardColor::COLORLESS);
+    CHECK(plain.GetRarity() == CardRarity::UNCOMMON);
+    CHECK(plain.GetCardType() == CardType::SKILL);
+    CHECK(plain.GetCost() == 1);
+    CHECK(sharp.GetCost() == 1);
+
+    // The sharpening is the exhaust coming off, and nothing else.
+    CHECK(plain.Has(CardFlag::EXHAUST) == true);
+    CHECK(sharp.Has(CardFlag::EXHAUST) == false);
+
+    Battle battle = BattleWith({ CardId::DISCOVERY }, { Dummy(50) });
+    const std::size_t held = battle.GetPlayer().GetHand().size();
+
+    REQUIRE(battle.PlayCard(Idx(battle, "Discovery")) == true);
+
+    // A card turned up in the hand in its place, and it is free this turn.
+    const std::vector<Card>& hand = battle.GetPlayer().GetHand();
+
+    REQUIRE(hand.size() == held);
+    CHECK(battle.GetEffectiveCost(hand.back()) == 0);
+}
+
+TEST_CASE("An enlightenment holds the cost for a turn, sharpened for a fight")
+{
+    // The cards that cost more than one come down to one. Unsharpened that
+    // lasts the turn; sharpened it lasts the fight, which is the whole of
+    // what the sharpening buys.
+    for (int sharpenings = 0; sharpenings < 2; ++sharpenings)
+    {
+        Player player("Ironclad", 80);
+
+        player.AddCardToDeck(
+            CardRegistry::Get(CardId::ENLIGHTENMENT, sharpenings));
+        player.AddCardToDeck(CardRegistry::Get(CardId::IMMOLATE));
+        player.AddCardToDeck(CardRegistry::Get(CardId::STRIKE_RED));
+
+        Battle battle(std::move(player), { Dummy(200) }, 5);
+
+        battle.Start();
+
+        const auto costOf = [&battle](const char* name) {
+            const std::size_t at = Idx(battle, name);
+
+            return at < battle.GetPlayer().GetHand().size()
+                       ? battle.GetEffectiveCost(
+                             battle.GetPlayer().GetHand()[at])
+                       : -1;
+        };
+
+        const std::string named =
+            sharpenings > 0 ? "Enlightenment+" : "Enlightenment";
+
+        REQUIRE(costOf("Immolate") == 2);
+        REQUIRE(costOf("Strike") == 1);
+        REQUIRE(battle.PlayCard(Idx(battle, named)) == true);
+
+        // Down to one either way, and a Strike already at one is left alone
+        // rather than being put up to one.
+        CHECK(costOf("Immolate") == 1);
+        CHECK(costOf("Strike") == 1);
+
+        REQUIRE(battle.EndTurn() == true);
+
+        // A new turn, and only the sharpened one is still holding it down.
+        CHECK(costOf("Immolate") == (sharpenings > 0 ? 1 : 2));
+    }
+}
+
+TEST_CASE("A hand of greed pays for the killing, not for the fight")
+{
+    // Twenty damage, twenty gold, and only when the blow is the one that
+    // finishes something off.
+    Battle standing = BattleWith({ CardId::HAND_OF_GREED }, { Dummy(200) });
+
+    REQUIRE(standing.PlayCard(Idx(standing, "Hand of Greed"), 0) == true);
+
+    CHECK(standing.GetMonsters().front().IsDead() == false);
+    CHECK(standing.GetGoldFound() == 0);
+
+    Battle dying = BattleWith({ CardId::HAND_OF_GREED }, { Dummy(4) });
+
+    REQUIRE(dying.PlayCard(Idx(dying, "Hand of Greed"), 0) == true);
+
+    CHECK(dying.GetMonsters().front().IsDead() == true);
+    CHECK(dying.GetGoldFound() == 20);
+
+    // And a sharpened one pays five more.
+    Player richer("Ironclad", 80);
+
+    richer.AddCardToDeck(CardRegistry::Get(CardId::HAND_OF_GREED, 1));
+
+    Battle sharp(std::move(richer), { Dummy(4) }, 5);
+
+    sharp.Start();
+
+    REQUIRE(sharp.PlayCard(Idx(sharp, "Hand of Greed+"), 0) == true);
+
+    CHECK(sharp.GetGoldFound() == 25);
 }
 
 TEST_CASE("Every card in the registry builds and reports itself")
@@ -486,9 +595,9 @@ TEST_CASE("Every card in the registry builds and reports itself")
         }
     }
 
-    // 75 Ironclad, 76 Silent, 74 Defect, 40 colourless, 5 statuses and
+    // 75 Ironclad, 76 Silent, 74 Defect, 41 colourless, 5 statuses and
     // 14 curses.
-    CHECK(total == 285);
+    CHECK(total == 286);
 }
 
 TEST_CASE("A card that changes the rules is not worth one of anything")

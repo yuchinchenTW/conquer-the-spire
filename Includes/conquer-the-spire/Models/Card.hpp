@@ -220,11 +220,18 @@ struct CardEffect
                                     CardPile pile = CardPile::HAND);
 
     //! Forces the cards in hand to cost \p cost. Only one card is touched,
-    //! picked at random, when \p onlyOne is true.
-    static CardEffect SetHandCost(int cost, bool onlyOne = false);
+    //! picked at random, when \p onlyOne is true. The cost goes back at the
+    //! end of the turn unless \p wholeBattle, which holds it down for the
+    //! rest of the fight - the difference between Enlightenment and an
+    //! upgraded one.
+    static CardEffect SetHandCost(int cost, bool onlyOne = false,
+                                  bool wholeBattle = false);
 
     //! Moves \p count cards of \p type out of the draw pile into the hand.
     static CardEffect TakeFromDrawPileByType(CardType type, int count);
+
+    //! Hands over \p amount gold if this damage is what kills the target.
+    CardEffect& IfFatalGold(int amount);
 
     //! Repeats this effect \p count times.
     CardEffect& Times(int count);
@@ -274,6 +281,14 @@ struct CardEffect
     bool upgradedCard = false;
     bool randomPick = false;
     bool singleHit = false;
+
+    //! Whether a cost forced on the hand holds for the rest of the fight
+    //! rather than the turn.
+    bool wholeBattle = false;
+
+    //! Gold handed over when this damage is what kills the target, which is
+    //! what a Hand of Greed is for.
+    int goldIfFatal = 0;
 };
 
 //!

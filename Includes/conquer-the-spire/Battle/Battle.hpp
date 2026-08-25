@@ -113,6 +113,11 @@ class Battle
     //! leaves nothing behind.
     bool WasEscaped() const;
 
+    //! Returns the gold this fight turned up that the purse has not seen
+    //! yet: what a Hand of Greed took off whatever it finished off. The run
+    //! holds the purse and reads this when the fight is over.
+    int GetGoldFound() const;
+
     //! Returns how much gold the thieves of this fight got away with. What a
     //! thief was carrying when it was killed does not count.
     int GetGoldStolen() const;
@@ -124,6 +129,20 @@ class Battle
     //! forced for this turn and the card's own cost modifier. An X cost
     //! reports all the energy that is left.
     int GetEffectiveCost(const Card& card) const;
+
+    //! Returns true if \p card asks for one of the climber's own cards to be
+    //! picked out before it can do anything: an Armaments wants to know what
+    //! to sharpen, a Warcry what to put back, an Exhume what to fetch. What
+    //! PlayCard() is handed as its choice is that card's place in a pile.
+    static bool NeedsCardChoice(const Card& card);
+
+    //! Returns the pile \p card picks out of. Only worth asking when
+    //! NeedsCardChoice() says yes.
+    static CardPile ChoicePileOf(const Card& card);
+
+    //! Returns how many cards \p card has to pick from right now, which is
+    //! how many of them are worth offering.
+    std::size_t ChoiceCount(const Card& card) const;
 
     //! Returns true if PlayCard() would accept this play.
     bool CanPlay(std::size_t handIndex, std::size_t monsterIndex = 0) const;
@@ -363,6 +382,9 @@ class Battle
     //! action is over so that nothing holds a stale pointer.
     std::vector<Monster> m_pendingSpawns;
     int m_cardsPlayedThisTurn = 0;
+
+    //! Gold this fight has turned up that the purse has not seen yet.
+    int m_goldFound = 0;
 
     //! How many copies a Pride played this turn owes the draw pile. They go
     //! on at the end of the turn, so that drawing after playing one cannot

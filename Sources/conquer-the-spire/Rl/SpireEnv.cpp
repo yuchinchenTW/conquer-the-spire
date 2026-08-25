@@ -48,7 +48,7 @@ constexpr std::size_t WATCHED_COUNT =
     sizeof(WATCHED_POWERS) / sizeof(WATCHED_POWERS[0]);
 
 //! How many kinds of thing each part of the state takes up.
-constexpr std::size_t PHASE_SLOTS = 10;
+constexpr std::size_t PHASE_SLOTS = 11;
 constexpr std::size_t RUN_SLOTS = 14;
 constexpr std::size_t DECK_SUMMARY_SLOTS = 7;
 constexpr std::size_t BATTLE_SLOTS = 9;
@@ -124,11 +124,11 @@ constexpr std::size_t CARD_KINDS = 5;
 //! card the deck holds, what it is worth now - cost, damage, block, power -
 //! and what sharpening it would add to each of those.
 //! How many numbers PushWorth writes for one card.
-constexpr std::size_t WORTH_SLOTS = 12;
+constexpr std::size_t WORTH_SLOTS = 15;
 
 //! What a whetstone would add to each figure it can move: the cost and the
 //! seven of the worth that a sharpening ever changes.
-constexpr std::size_t DECK_WHETSTONE_SLOTS = 8;
+constexpr std::size_t DECK_WHETSTONE_SLOTS = 12;
 
 //! What each slot of the deck says besides which card it is: that there is
 //! one there at all, which kind, whether it is sharpened, whether sharpening
@@ -455,6 +455,13 @@ void PushWorth(std::vector<float>& out, const CardWorth& worth)
     out.emplace_back(Scaled(worth.harm, 4));
     out.emplace_back(worth.unplayable > 0 ? 1.0f : 0.0f);
     out.emplace_back(Scaled(worth.rarity, 3));
+
+    // The three rules none of the figures above can stand in for: whether it
+    // is always in the opening hand, whether it burns itself for being held,
+    // and whether it lands on everything standing.
+    out.emplace_back(worth.innate > 0 ? 1.0f : 0.0f);
+    out.emplace_back(worth.ethereal > 0 ? 1.0f : 0.0f);
+    out.emplace_back(worth.hitsAll > 0 ? 1.0f : 0.0f);
 }
 
 void PushOffer(std::vector<float>& out, CardId id)
@@ -701,6 +708,25 @@ std::vector<Action> SpireEnv::LegalActions() const
 
             moves.emplace_back(Action(ActionKind::LEAVE_REWARDS));
             break;
+
+        case EnvPhase::CHOOSING:
+        {
+            if (m_battle == nullptr ||
+                m_chosen >= m_battle->GetPlayer().GetHand().size())
+            {
+                break;
+            }
+
+            const std::size_t much = ChoosableCards().size();
+
+            for (std::size_t i = 0; i < much && i < CHOICE_SLOTS; ++i)
+            {
+                moves.emplace_back(
+                    Action(ActionKind::CHOOSE_CARD, static_cast<int>(i)));
+            }
+
+            break;
+        }
 
         case EnvPhase::EVENT:
             for (std::size_t i = 0; i < m_run.GetEvent().GetOptions().size();
@@ -1064,9 +1090,54 @@ StepResult SpireEnv::Step(const Action& action)
 
         case ActionKind::PLAY_CARD:
         {
-            if (m_phase != EnvPhase::BATTLE || m_battle == nullptr ||
-                !m_battle->PlayCard(static_cast<std::size_t>(action.a),
-                                    TargetOf(action.b)))
+            if (m_phase != EnvPhase::BATTLE || m_battle == nullptr)
+            {
+                return result;
+            }
+
+            const std::size_t slot = static_cast<std::size_t>(action.a);
+
+            // A card that wants one of the climber's own cards picked out is
+            // held back until it has an answer, rather than being played with
+            // whatever card happens to sit at the front of the hand. Only
+            // when there is something to pick from: an Exhume over an empty
+            // exhaust pile has nothing to ask.
+            if (slot < m_battle->GetPlayer().GetHand().size() &&
+                m_battle->CanPlay(slot) &&
+                Battle::NeedsCardChoice(m_battle->GetPlayer().GetHand()[slot]) &&
+                m_battle->ChoiceCount(m_battle->GetPlayer().GetHand()[slot]) >
+                    0u)
+            {
+                m_chosen = slot;
+                m_chosenTarget = action.b;
+                m_phase = EnvPhase::CHOOSING;
+                result.taken = true;
+                break;
+            }
+
+            if (!m_battle->PlayCard(slot, TargetOf(action.b)))
+            {
+                return result;
+            }
+
+            result.taken = true;
+            break;
+        }
+
+        case ActionKind::CHOOSE_CARD:
+        {
+            if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr)
+            {
+                return result;
+            }
+
+            // Back to the fight whatever comes of it: the card was already
+            // chosen to be played, and a play that will not go through must
+            // not leave the climber standing there being asked for ever.
+            m_phase = EnvPhase::BATTLE;
+
+            if (!m_battle->PlayCard(m_chosen, TargetOf(m_chosenTarget),
+                                    static_cast<std::size_t>(action.a)))
             {
                 return result;
             }
@@ -1483,7 +1554,10 @@ SpireEnv::Layout SpireEnv::GetLayout()
     layout.map = layout.moves + OBSERVED_MONSTERS * layout.moveStride;
     layout.deckCards = layout.map + MAP_SLOTS;
     layout.deckStride = DECK_CARD_SLOTS;
-    layout.total = layout.deckCards + DECK_SLOTS * layout.deckStride;
+
+    layout.choices = layout.deckCards + DECK_SLOTS * layout.deckStride;
+    layout.choiceStride = OFFER_SLOTS;
+    layout.total = layout.choices + CHOICE_SLOTS * layout.choiceStride;
 
     return layout;
 }
@@ -1506,7 +1580,8 @@ SpireEnv::IdLayout SpireEnv::GetIdLayout()
     layout.event = layout.shopPotions + SHOP_POTION_SLOTS;
     layout.monsters = layout.event + 1u;
     layout.deck = layout.monsters + OBSERVED_MONSTERS;
-    layout.total = layout.deck + DECK_SLOTS;
+    layout.choices = layout.deck + DECK_SLOTS;
+    layout.total = layout.choices + CHOICE_SLOTS;
 
     return layout;
 }
@@ -1628,6 +1703,13 @@ std::vector<int> SpireEnv::ObserveIds() const
         out[layout.deck + slot] = static_cast<int>(deck[slot].GetId());
     }
 
+    const std::vector<CardId> asking = ChoosableCards();
+
+    for (std::size_t i = 0; i < std::min(asking.size(), CHOICE_SLOTS); ++i)
+    {
+        out[layout.choices + i] = static_cast<int>(asking[i]);
+    }
+
     if (m_battle != nullptr)
     {
         const std::vector<std::size_t> living =
@@ -1652,6 +1734,56 @@ void SpireEnv::SetHealthWeight(float weight)
 float SpireEnv::GetHealthWeight() const
 {
     return m_healthWeight;
+}
+
+std::vector<CardId> SpireEnv::ChoosableCards() const
+{
+    std::vector<CardId> out;
+
+    if (m_phase != EnvPhase::CHOOSING || m_battle == nullptr ||
+        m_chosen >= m_battle->GetPlayer().GetHand().size())
+    {
+        return out;
+    }
+
+    const Player& player = m_battle->GetPlayer();
+    const Card& asking = player.GetHand()[m_chosen];
+    const std::vector<Card>* pile = nullptr;
+
+    switch (Battle::ChoicePileOf(asking))
+    {
+        case CardPile::HAND:
+            // Without the card doing the asking: it is gone from the hand by
+            // the time its own effects run, so the answers are numbered
+            // against the rest.
+            for (std::size_t i = 0; i < player.GetHand().size(); ++i)
+            {
+                if (i != m_chosen)
+                {
+                    out.emplace_back(player.GetHand()[i].GetId());
+                }
+            }
+
+            return out;
+
+        case CardPile::DISCARD:
+            pile = &player.GetDiscardPile();
+            break;
+
+        case CardPile::EXHAUST:
+            pile = &player.GetExhaustPile();
+            break;
+
+        default:
+            return out;
+    }
+
+    for (const Card& card : *pile)
+    {
+        out.emplace_back(card.GetId());
+    }
+
+    return out;
 }
 
 void SpireEnv::SetMaxHealthWeight(float weight)
@@ -2105,9 +2237,55 @@ std::vector<float> SpireEnv::Observe() const
         out.emplace_back(again ? Scaled(next.lasting - now.lasting, 3)
                                : 0.0f);
         out.emplace_back(again ? Scaled(now.health - next.health, 5) : 0.0f);
+
+        // And the four a sharpening can buy without moving any figure above.
+        // For Limit Break, Brutality, Apparition, Blind, Trip, Secret Weapon,
+        // Secret Technique and Thinking Ahead these four are the whole of the
+        // difference: every one of the eight above them is nought, so a fire
+        // used to be told that sharpening any of them bought nothing at all.
+        out.emplace_back(again ? Scaled(now.exhausts - next.exhausts, 3)
+                               : 0.0f);
+        out.emplace_back(again ? static_cast<float>(next.innate - now.innate)
+                               : 0.0f);
+        out.emplace_back(again
+                             ? static_cast<float>(now.ethereal - next.ethereal)
+                             : 0.0f);
+        out.emplace_back(again
+                             ? static_cast<float>(next.hitsAll - now.hitsAll)
+                             : 0.0f);
+    }
+
+    // And what a card that is asking has to pick from, which is nothing at
+    // all at every other moment of a climb.
+    const std::vector<CardId> asking = ChoosableCards();
+
+    for (std::size_t i = 0; i < CHOICE_SLOTS; ++i)
+    {
+        PushOffer(out, i < asking.size() ? asking[i] : CardId::INVALID);
     }
 
     return out;
+}
+
+const char* NameOfActionKind(ActionKind kind)
+{
+    // In the order of the enum, and checked against it.
+    static const char* names[] = {
+        "invalid",     "travel",      "play_card",   "end_turn",
+        "use_potion",  "discard_potion", "claim_reward", "skip_reward",
+        "leave_rewards", "choose_option", "buy_card",  "buy_relic",
+        "buy_potion",  "buy_removal", "leave_shop",  "rest",
+        "smith",       "toke",        "dig",         "lift",
+        "leave_rest",  "fight_boss",  "next_act",    "choose_card"};
+
+    static_assert(sizeof(names) / sizeof(names[0]) ==
+                      static_cast<std::size_t>(ActionKind::COUNT),
+                  "every kind of move needs a name");
+
+    const auto at = static_cast<std::size_t>(kind);
+
+    return at < static_cast<std::size_t>(ActionKind::COUNT) ? names[at]
+                                                            : nullptr;
 }
 
 std::size_t SpireEnv::ActionCount()
@@ -2129,7 +2307,8 @@ std::size_t SpireEnv::ActionCount()
            + DECK_SLOTS                                // toke
            + 1u + 1u + 1u                              // dig, lift, leave
            + 1u                                        // the boss
-           + 1u;                                       // the next act
+           + 1u                                        // the next act
+           + CHOICE_SLOTS;                             // pick a card out
 }
 
 Action SpireEnv::ActionFromIndex(std::size_t index)
@@ -2306,6 +2485,14 @@ Action SpireEnv::ActionFromIndex(std::size_t index)
     if (index == at)
     {
         return Action(ActionKind::NEXT_ACT);
+    }
+
+    ++at;
+
+    if (index < at + CHOICE_SLOTS)
+    {
+        return Action(ActionKind::CHOOSE_CARD,
+                      static_cast<int>(index - at));
     }
 
     return Action();

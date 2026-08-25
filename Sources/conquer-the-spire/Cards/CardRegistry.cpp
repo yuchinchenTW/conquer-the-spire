@@ -465,6 +465,15 @@ CardWorth WorthOf(const Card& card)
         ++worth.exhausts;
     }
 
+    // And the three rules a card carries that no figure above it moves.
+    // Sharpening is what these are here for: a Brutality is sharpened into
+    // being innate, an Apparition out of being ethereal, and a Blind from one
+    // thing to everything, and not one of the numbers above changes for any
+    // of them. Without these the whole difference reads as nought.
+    worth.innate = card.Has(CardFlag::INNATE) ? 1 : 0;
+    worth.ethereal = card.Has(CardFlag::ETHEREAL) ? 1 : 0;
+    worth.hitsAll = card.GetTarget() == CardTarget::ALL_ENEMIES ? 1 : 0;
+
     return worth;
 }
 
@@ -519,8 +528,20 @@ bool CardRegistry::CanUpgrade(CardId id, int upgradeCount)
     const CardWorth& now = Worth(id, upgradeCount);
     const CardWorth& next = Worth(id, upgradeCount + 1);
 
-    return now.cost != next.cost || now.damage != next.damage ||
-           now.block != next.block || now.power != next.power;
+    // Everything the table holds, not the four figures a sharpening most
+    // often moves. A Limit Break is sharpened out of exhausting itself, a
+    // Brutality into the opening hand, an Apparition out of burning itself,
+    // a Blind from one thing to everything - and cost, damage, block and
+    // power stand still for all of them. Asking only those four said there
+    // was nothing to be had, which is also what the state then told a fire.
+    return now.cost != next.cost || now.health != next.health ||
+           now.damage != next.damage || now.block != next.block ||
+           now.draw != next.draw || now.energy != next.energy ||
+           now.power != next.power || now.lasting != next.lasting ||
+           now.exhausts != next.exhausts || now.harm != next.harm ||
+           now.unplayable != next.unplayable || now.scales != next.scales ||
+           now.innate != next.innate || now.ethereal != next.ethereal ||
+           now.hitsAll != next.hitsAll;
 }
 
 Card CardRegistry::Get(CardId id, int upgradeCount)

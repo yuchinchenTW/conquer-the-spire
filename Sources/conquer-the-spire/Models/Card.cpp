@@ -514,12 +514,13 @@ CardEffect CardEffect::AddRandomCard(int count, CardPile pile)
     return effect;
 }
 
-CardEffect CardEffect::SetHandCost(int cost, bool onlyOne)
+CardEffect CardEffect::SetHandCost(int cost, bool onlyOne, bool wholeBattle)
 {
     CardEffect effect;
     effect.type = EffectType::SET_HAND_COST;
     effect.value = cost;
     effect.randomPick = onlyOne;
+    effect.wholeBattle = wholeBattle;
 
     return effect;
 }
@@ -533,6 +534,13 @@ CardEffect CardEffect::TakeFromDrawPileByType(CardType type, int count)
                                              : CardFilter::SKILL_ONLY;
 
     return effect;
+}
+
+CardEffect& CardEffect::IfFatalGold(int amount)
+{
+    goldIfFatal = amount;
+
+    return *this;
 }
 
 CardEffect& CardEffect::Times(int count)

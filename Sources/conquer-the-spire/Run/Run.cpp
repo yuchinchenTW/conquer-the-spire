@@ -2080,6 +2080,13 @@ void Run::FinishBattle(const Battle& battle)
         m_player.Heal(12);
     }
 
+    // And what a killing blow turned up along the way. Through AddGold, so
+    // that an ectoplasm still means the climber has no use for it.
+    if (const int found = battle.GetGoldFound(); found > 0)
+    {
+        AddGold(found);
+    }
+
     // What the thieves of the fight got away with is gone from the purse.
     if (const int stolen = battle.GetGoldStolen(); stolen > 0)
     {

@@ -706,6 +706,106 @@ TEST_CASE("The state says what a room's options would do")
     CHECK(other[first + signals + 9u] == 0.0f);
 }
 
+TEST_CASE("A card that asks is held back until the climber answers")
+{
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    // Into the first fight.
+    REQUIRE(env.Step(env.LegalActions().front()).taken == true);
+    REQUIRE(env.GetPhase() == EnvPhase::BATTLE);
+
+    // An armaments put in the hand, where the climber can reach it.
+    const_cast<Battle*>(env.GetBattle())->GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::ARMAMENTS));
+
+    const std::size_t at =
+        env.GetBattle()->GetPlayer().GetHand().size() - 1u;
+    const std::size_t held = at;
+
+    REQUIRE(held > 0u);
+
+    // Playing it does not play it: it asks first.
+    const StepResult asked =
+        env.Step(Action(ActionKind::PLAY_CARD, static_cast<int>(at), 0));
+
+    REQUIRE(asked.taken == true);
+    CHECK(env.GetPhase() == EnvPhase::CHOOSING);
+
+    // And the only thing to do is answer, once for every card it may pick.
+    const std::vector<Action> answers = env.LegalActions();
+
+    REQUIRE(answers.empty() == false);
+    CHECK(answers.size() == held);
+
+    for (const Action& answer : answers)
+    {
+        CHECK(answer.kind == ActionKind::CHOOSE_CARD);
+    }
+
+    // Answering with the last of them sharpens that card and nothing else.
+    const int last = answers.back().a;
+    const CardId wanted =
+        env.GetBattle()->GetPlayer().GetHand()[
+            static_cast<std::size_t>(last)].GetId();
+
+    REQUIRE(env.Step(answers.back()).taken == true);
+    CHECK(env.GetPhase() == EnvPhase::BATTLE);
+
+    int sharpened = 0;
+
+    for (const Card& card : env.GetBattle()->GetPlayer().GetHand())
+    {
+        sharpened += card.IsUpgraded() ? 1 : 0;
+
+        if (card.IsUpgraded())
+        {
+            CHECK(card.GetId() == wanted);
+        }
+    }
+
+    CHECK(sharpened == 1);
+}
+
+TEST_CASE("Every kind of move has a name")
+{
+    // The reader used to keep this list itself, and it fell out of step the
+    // moment a kind was added: the card-picking move came back as invalid, so
+    // the rule that scores it by the card it picks never fired and nothing
+    // anywhere said so.
+    for (std::size_t at = 0;
+         at < static_cast<std::size_t>(ActionKind::COUNT); ++at)
+    {
+        const char* name =
+            NameOfActionKind(static_cast<ActionKind>(at));
+
+        REQUIRE(name != nullptr);
+        CHECK(std::string(name).empty() == false);
+    }
+
+    // And nothing past the end of them.
+    CHECK(NameOfActionKind(static_cast<ActionKind>(
+              static_cast<int>(ActionKind::COUNT))) == nullptr);
+
+    // The names are the ones the reader asks for by name.
+    CHECK(std::string(NameOfActionKind(ActionKind::PLAY_CARD)) ==
+          "play_card");
+    CHECK(std::string(NameOfActionKind(ActionKind::CHOOSE_CARD)) ==
+          "choose_card");
+
+    // Every kind of move in the fixed head is one the engine can name, and
+    // every action of the head decodes to a kind that is not invalid unless
+    // it is past the end.
+    for (std::size_t at = 0; at < SpireEnv::ActionCount(); ++at)
+    {
+        const Action move = SpireEnv::ActionFromIndex(at);
+
+        CHECK(move.kind != ActionKind::INVALID);
+        CHECK(NameOfActionKind(move.kind) != nullptr);
+    }
+}
+
 TEST_CASE("Nothing the mask offers is ever turned down")
 {
     // The point of this one is the count: a mask that offers a move the run
@@ -1238,6 +1338,97 @@ TEST_CASE("A card says what it is worth, and what sharpening would add")
     CHECK(CardRegistry::CanUpgrade(CardId::WOUND, 0) == false);
 }
 
+TEST_CASE("A sharpening that only changes a rule is still written down")
+{
+    // Eight cards are sharpened into a rule and nothing else: the damage, the
+    // block, the cost, the draw, the energy, the once, the kept and the health
+    // are all the same on both sides, so every one of the first eight figures
+    // of the difference is nought. What is bought is an exhaust coming off, an
+    // innate going on, an ethereal coming off, or a swing going wide, and
+    // without those four the state said a fire had nothing to offer.
+    struct Wanted
+    {
+        CardId id;
+        int exhausts;
+        int innate;
+        int ethereal;
+        int hitsAll;
+    };
+
+    const Wanted asked[] = {
+        // An exhaust coming off is worth the card being kept.
+        { CardId::LIMIT_BREAK, 1, 0, 0, 0 },
+        { CardId::SECRET_WEAPON, 1, 0, 0, 0 },
+        { CardId::SECRET_TECHNIQUE, 1, 0, 0, 0 },
+        { CardId::THINKING_AHEAD, 1, 0, 0, 0 },
+        // Brutality is sharpened into the opening hand.
+        { CardId::BRUTALITY, 0, 1, 0, 0 },
+        // An Apparition stops burning itself for being held.
+        { CardId::APPARITION, 0, 0, 1, 0 },
+        // And these two go from one thing to everything standing.
+        { CardId::BLIND, 0, 0, 0, 1 },
+        { CardId::TRIP, 0, 0, 0, 1 },
+    };
+
+    for (const Wanted& want : asked)
+    {
+        const CardWorth& now = CardRegistry::Worth(want.id, 0);
+        const CardWorth& next = CardRegistry::Worth(want.id, 1);
+
+        REQUIRE(CardRegistry::CanUpgrade(want.id, 0) == true);
+
+        // Nothing any of the eight older figures can say.
+        CHECK(next.cost == now.cost);
+        CHECK(next.damage == now.damage);
+        CHECK(next.block == now.block);
+        CHECK(next.draw == now.draw);
+        CHECK(next.energy == now.energy);
+        CHECK(next.power == now.power);
+        CHECK(next.lasting == now.lasting);
+        CHECK(next.health == now.health);
+
+        // And what it actually buys.
+        CHECK(now.exhausts - next.exhausts == want.exhausts);
+        CHECK(next.innate - now.innate == want.innate);
+        CHECK(now.ethereal - next.ethereal == want.ethereal);
+        CHECK(next.hitsAll - now.hitsAll == want.hitsAll);
+    }
+}
+
+TEST_CASE("A fire is told what a rule-only sharpening would buy")
+{
+    // The same thing again, but read out of the state where a fire reads it.
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+
+    Run& run = env.GetRun();
+
+    run.GetPlayer().AddCardToDeck(CardRegistry::Get(CardId::LIMIT_BREAK));
+
+    const SpireEnv::Layout layout = SpireEnv::GetLayout();
+    const std::size_t slot = run.GetDeck().size() - 1u;
+
+    REQUIRE(slot < SpireEnv::DECK_SLOTS);
+
+    const std::vector<float> state = env.Observe();
+    const std::size_t at = layout.deckCards + slot * layout.deckStride;
+    const std::size_t whetstone = at + layout.deckStride - 12u;
+
+    REQUIRE(state[at] == 1.0f);
+
+    // Worth sharpening, and every one of the eight older differences nought.
+    CHECK(state[at + 7u] == 1.0f);
+
+    for (std::size_t i = 0; i < 8u; ++i)
+    {
+        CHECK(state[whetstone + i] == 0.0f);
+    }
+
+    // And the exhaust coming off is the one thing that is not.
+    CHECK(state[whetstone + 8u] > 0.0f);
+}
+
 TEST_CASE("The state says what a whetstone would buy")
 {
     SpireEnv env;
@@ -1263,12 +1454,18 @@ TEST_CASE("The state says what a whetstone would buy")
     // A slot reads: there, five kinds, sharpened, worth sharpening, how
     // many of it the deck holds, what it costs, what it is worth, then what
     // a whetstone would add to each of those. The worth itself is damage,
-    // block, drawn, energy given, once, kept, health, thrown away, and
-    // whether the figures are rates.
+    // block, drawn, energy given, once, kept, health, thrown away, whether
+    // the figures are rates, what holding it costs, whether it can be played,
+    // its rarity, and whether it is innate, ethereal or hits everything.
     const std::size_t copies = at + 1u + 5u + 2u;
     const std::size_t worth = copies + 2u;
-    // Past the twelve figures of the worth, the whetstone difference.
-    const std::size_t whetstone = worth + 12u;
+
+    // The whetstone difference is the tail of the slot, so it is counted back
+    // from the end rather than forward past a figure count that grows.
+    const std::size_t whetstones = 12u;
+    const std::size_t whetstone = at + layout.deckStride - whetstones;
+
+    REQUIRE(whetstone > worth);
 
     CHECK(before[copies] == doctest::Approx(5.0f / 5.0f));
     CHECK(before[worth] == doctest::Approx(6.0f / 20.0f));

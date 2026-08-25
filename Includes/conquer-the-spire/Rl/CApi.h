@@ -149,6 +149,9 @@ CTS_API size_t cts_event_name(int id, char* out, size_t size);
 CTS_API void cts_set_health_weight(void* env, float weight);
 CTS_API void cts_vec_set_health_weight(void* vec, float weight);
 
+/* The name of one kind of move, or null when there is no such kind. */
+CTS_API const char* cts_action_kind_name(int kind);
+
 /* What a point of the health ceiling is worth, off or handed over. */
 CTS_API void cts_set_max_health_weight(void* env, float weight);
 CTS_API void cts_vec_set_max_health_weight(void* vec, float weight);

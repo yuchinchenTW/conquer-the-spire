@@ -397,6 +397,95 @@ bool Battle::WasEscaped() const
     return m_escaped;
 }
 
+namespace
+{
+//! Which pile an effect picks a card out of, and nothing for the effects that
+//! pick nothing. An effect that takes one at random, or takes the lot, is
+//! choosing nothing: there is no question to put to anybody.
+CardPile PileOfChoice(const CardEffect& effect)
+{
+    switch (effect.type)
+    {
+        case EffectType::COPY_HAND_CARD:
+        case EffectType::HAND_TO_DRAW_TOP:
+        case EffectType::SETUP_CARD:
+        case EffectType::REMEMBER_CARD:
+        case EffectType::EXHAUST_FOR_ENERGY:
+            return CardPile::HAND;
+
+        case EffectType::DISCARD_CARDS:
+        case EffectType::EXHAUST_HAND_CARD:
+            return effect.randomPick ? CardPile::INVALID : CardPile::HAND;
+
+        // A nought here means every card in every pile, which is an
+        // Apotheosis rather than a question.
+        case EffectType::UPGRADE_HAND_CARD:
+            return effect.value == 0 || effect.randomPick ? CardPile::INVALID
+                                                          : CardPile::HAND;
+
+        case EffectType::DISCARD_TO_DRAW_TOP:
+            return CardPile::DISCARD;
+
+        // And an extra of one here means every card of the pile that costs
+        // nothing, which is not a question either.
+        case EffectType::RETURN_FROM_DISCARD:
+            return effect.extra == 1 ? CardPile::INVALID : CardPile::DISCARD;
+
+        case EffectType::RETURN_FROM_EXHAUST:
+            return CardPile::EXHAUST;
+
+        default:
+            return CardPile::INVALID;
+    }
+}
+}  // namespace
+
+bool Battle::NeedsCardChoice(const Card& card)
+{
+    return ChoicePileOf(card) != CardPile::INVALID;
+}
+
+CardPile Battle::ChoicePileOf(const Card& card)
+{
+    for (const auto& effect : card.GetEffects())
+    {
+        const CardPile pile = PileOfChoice(effect);
+
+        if (pile != CardPile::INVALID)
+        {
+            return pile;
+        }
+    }
+
+    return CardPile::INVALID;
+}
+
+std::size_t Battle::ChoiceCount(const Card& card) const
+{
+    switch (ChoicePileOf(card))
+    {
+        case CardPile::HAND:
+            // The card being played is still in the hand while its own
+            // effects run, and it is not one of the cards it may pick.
+            return m_player.GetHand().empty() ? 0u
+                                              : m_player.GetHand().size() - 1u;
+
+        case CardPile::DISCARD:
+            return m_player.GetDiscardPile().size();
+
+        case CardPile::EXHAUST:
+            return m_player.GetExhaustPile().size();
+
+        default:
+            return 0u;
+    }
+}
+
+int Battle::GetGoldFound() const
+{
+    return m_goldFound;
+}
+
 int Battle::GetGoldStolen() const
 {
     int stolen = 0;
@@ -1399,9 +1488,18 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
             {
                 for (Monster* monster : GetEffectTargets(effect, card, target))
                 {
+                    // Whether this blow was the one that finished it off, for
+                    // the cards that are paid for a killing.
+                    const bool standing = !monster->IsDead();
+
                     DealDamageToMonster(*monster, amount,
                                         card.GetCardType() ==
                                             CardType::ATTACK);
+
+                    if (standing && monster->IsDead())
+                    {
+                        m_goldFound += effect.goldIfFatal;
+                    }
                 }
             }
             break;
@@ -2078,7 +2176,23 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
 
             for (auto& held : hand)
             {
-                held.SetCostThisTurn(effect.value);
+                if (!effect.wholeBattle)
+                {
+                    held.SetCostThisTurn(effect.value);
+                    continue;
+                }
+
+                // For the rest of the fight rather than the turn, which is a
+                // cost this copy of the card carries about with it. Only the
+                // cards that cost more than the floor are touched: a card
+                // already at one or nought is left alone rather than being
+                // put up to one.
+                const int spare = held.GetCost() - effect.value;
+
+                if (spare > 0)
+                {
+                    held.AddCostReduction(spare);
+                }
             }
             break;
         }
