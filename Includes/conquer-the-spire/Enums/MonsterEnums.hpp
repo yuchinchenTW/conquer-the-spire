@@ -37,7 +37,8 @@ enum class MonsterEffectType
     SELF_DESTRUCT, //!< Goes off, and goes with it.
     SPLIT,        //!< Steps aside for two smaller ones.
     ESCAPE,       //!< Leaves the fight.
-    STASIS        //!< Holds a card until the monster dies.
+    STASIS,       //!< Holds a card until the monster dies.
+    SHAKE_OFF     //!< Throws off every debuff standing on it.
 };
 
 //! Every monster the library can build.

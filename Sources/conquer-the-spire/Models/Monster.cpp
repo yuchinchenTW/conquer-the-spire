@@ -116,6 +116,14 @@ MonsterEffect MonsterEffect::Summon(MonsterId id, int count, int cap)
     return effect;
 }
 
+MonsterEffect MonsterEffect::ShakeOff()
+{
+    MonsterEffect effect;
+    effect.type = MonsterEffectType::SHAKE_OFF;
+
+    return effect;
+}
+
 MonsterEffect MonsterEffect::Stasis()
 {
     MonsterEffect effect;
@@ -277,6 +285,13 @@ MonsterMove& MonsterMove::OnTurn(int turn)
 MonsterMove& MonsterMove::InPhase(int wanted)
 {
     phase = wanted;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::SincePhase()
+{
+    sincePhase = true;
 
     return *this;
 }
@@ -448,6 +463,12 @@ int Monster::GetPhase() const
 void Monster::SetPhase(int phase)
 {
     m_phase = phase;
+    m_phaseTurn = m_movesMade;
+}
+
+int Monster::GetPhaseTurn() const
+{
+    return m_phaseTurn;
 }
 
 int Monster::GetFlightBase() const
@@ -623,9 +644,30 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
             return i;
         }
 
-        if (move.everyTurns > 0 && next % move.everyTurns == 0)
+        if (move.everyTurns > 0)
         {
-            return i;
+            // Counted from the turn the monster turned, when it says so: a
+            // Champ executes the turn after he stops fighting fair and every
+            // third turn from there. Counted against the turn the fight
+            // started otherwise, which is what a Taunt every fourth turn
+            // means.
+            if (move.sincePhase)
+            {
+                // The first one lands on the first turn after the phase
+                // changed, and every so many turns from there. A Champ
+                // executes the turn straight after he stops fighting fair,
+                // then twice at random, then executes again.
+                const int since = m_movesMade - m_phaseTurn;
+
+                if (since >= 1 && (since - 1) % move.everyTurns == 0)
+                {
+                    return i;
+                }
+            }
+            else if (next % move.everyTurns == 0)
+            {
+                return i;
+            }
         }
 
         if (move.allyMissing > 0 && context.allyMissing >= move.allyMissing)

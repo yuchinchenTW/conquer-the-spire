@@ -631,8 +631,19 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                       .InPhase(1),
                   // Once it is losing it shakes off what has been put on it
                   // and starts executing.
-                  MM::Buff("Anger", PowerType::STRENGTH, 6).Chance(0),
-                  MM::Attack("Execute", 10, 2).Every(3).InPhase(2) });
+                  MM::Of("Anger", Intent::BUFF,
+                         { ME::ShakeOff(),
+                           ME::Buff(PowerType::STRENGTH, 6) })
+                      .Chance(0),
+                  // Counted from the turn he turned: the execute lands the
+                  // turn straight after the anger and every third turn from
+                  // there. Counted against the turn the fight started it only
+                  // landed straight after when the two happened to line up,
+                  // which is one time in three.
+                  MM::Attack("Execute", 10, 2)
+                      .Every(3)
+                      .SincePhase()
+                      .InPhase(2) });
             break;
         }
 

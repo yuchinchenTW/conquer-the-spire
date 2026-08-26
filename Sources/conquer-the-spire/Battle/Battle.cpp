@@ -4559,6 +4559,28 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
             monster.MarkEscaped();
             break;
 
+        case MonsterEffectType::SHAKE_OFF:
+        {
+            // Every debuff standing, and nothing else: the block and the
+            // strength he has built up stay where they are.
+            std::vector<PowerType> going;
+
+            for (const auto& [power, amount] : monster.GetPowers())
+            {
+                if (IsDebuff(power, amount))
+                {
+                    going.emplace_back(power);
+                }
+            }
+
+            for (const PowerType power : going)
+            {
+                monster.RemovePower(power);
+            }
+
+            break;
+        }
+
         case MonsterEffectType::STASIS:
             PutCardInStasis(monster);
             monster.SetPhase(2);

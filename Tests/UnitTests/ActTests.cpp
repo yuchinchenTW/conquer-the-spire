@@ -523,6 +523,108 @@ TEST_CASE("An automaton opens by spawning two orbs")
     CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Flail");
 }
 
+TEST_CASE("A champion shakes off what was put on him")
+{
+    // The wiki: Anger removes all debuffs and gives six strength. What the
+    // climber spent slowing him down goes at once, and only the debuffs go -
+    // the block and the strength he built up stay.
+    Battle battle = FightAgainst({ MonsterId::THE_CHAMP });
+    Monster& him = battle.GetMonsters().front();
+
+    him.AddPower(PowerType::WEAK, 3);
+    him.AddPower(PowerType::VULNERABLE, 2);
+    him.AddPower(PowerType::STRENGTH, 4);
+    him.AddBlock(9);
+
+    REQUIRE(him.ForceMove("Anger") == true);
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(him.GetPower(PowerType::WEAK) == 0);
+    CHECK(him.GetPower(PowerType::VULNERABLE) == 0);
+
+    // Six more strength than he had, and what he was holding is untouched.
+    CHECK(him.GetPower(PowerType::STRENGTH) == 10);
+}
+
+TEST_CASE("A champion executes from the turn he turned, not from the first")
+{
+    // He executes the turn straight after Anger and every third turn from
+    // there. Counted against the turn the fight started instead, it landed
+    // straight after only when the two happened to line up - one time in
+    // three - so the same rule is asked for with the turning on three
+    // different turns.
+    for (int idle = 0; idle < 3; ++idle)
+    {
+        Battle battle = FightAgainst({ MonsterId::THE_CHAMP });
+        Player& player = battle.GetPlayer();
+
+        player.GetDrawPile().clear();
+        player.GetDiscardPile().clear();
+
+        for (int i = 0; i < 40; ++i)
+        {
+            player.GetDrawPile().emplace_back(
+                CardRegistry::Get(CardId::BLUDGEON));
+        }
+
+        // Stand about for a while, so that the turning lands on a different
+        // turn each time round.
+        for (int wait = 0; wait < idle; ++wait)
+        {
+            REQUIRE(battle.EndTurn() == true);
+        }
+
+        // Stood on the edge of it, so that one blow tips him over and the
+        // turning happens on the turn this test means it to.
+        Monster& champ = battle.GetMonsters().front();
+
+        champ.SetHealth(champ.GetMaxHealth() / 2 + 20);
+
+        std::string seq;
+        bool tipped = false;
+
+        for (int turn = 0; turn < 16 &&
+                           battle.GetPhase() == BattlePhase::PLAYER_TURN;
+             ++turn)
+        {
+            Monster& him = battle.GetMonsters().front();
+
+            while (!tipped && him.GetHealth() * 2 > him.GetMaxHealth() &&
+                   !him.IsDead() && !player.GetHand().empty())
+            {
+                if (!battle.PlayCard(0, 0))
+                {
+                    break;
+                }
+            }
+
+            tipped = tipped || him.GetHealth() * 2 <= him.GetMaxHealth();
+
+            const std::string move = him.GetCurrentMove().name;
+
+            seq += move == "Anger" ? 'A' : move == "Execute" ? 'X' : '.';
+
+            REQUIRE(battle.EndTurn() == true);
+        }
+
+        const std::size_t angry = seq.find('A');
+
+        REQUIRE(angry != std::string::npos);
+        REQUIRE(angry + 1 < seq.size());
+
+        // The execute lands on the very next turn, whichever turn he turned
+        // on, and then on every third turn after it.
+        CHECK(seq[angry + 1] == 'X');
+
+        for (std::size_t at = angry + 1; at < seq.size(); ++at)
+        {
+            const bool third = (at - angry - 1) % 3u == 0u;
+
+            CHECK((seq[at] == 'X') == third);
+        }
+    }
+}
+
 TEST_CASE("A collector does not call for heads she already has")
 {
     // The wiki: with both torch heads standing the draw is a fireball and a

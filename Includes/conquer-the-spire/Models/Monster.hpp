@@ -66,6 +66,11 @@ struct MonsterEffect
     //! Takes a card out of the player's piles until this monster dies.
     static MonsterEffect Stasis();
 
+    //! Throws off every debuff standing on the monster. What a Champ does
+    //! when he stops fighting fair: everything the climber spent on slowing
+    //! him down goes at once.
+    static MonsterEffect ShakeOff();
+
     //! Steps aside for \p first and \p second, each with the health this
     //! monster has left.
     static MonsterEffect Split(MonsterId first, MonsterId second);
@@ -158,6 +163,12 @@ struct MonsterMove
     //! say, which is how the Champ finds time to taunt.
     MonsterMove& Every(int turns);
 
+    //! Counts \p Every from the turn the monster changed phase rather than
+    //! from the first turn of the fight. A Champ executes the turn after he
+    //! stops fighting fair and every third turn from there, which has nothing
+    //! to do with how long the fight had been going when he turned.
+    MonsterMove& SincePhase();
+
     //! Makes this the move of turn \p turn exactly.
     MonsterMove& OnTurn(int turn);
 
@@ -190,6 +201,9 @@ struct MonsterMove
     int everyTurns = 0;
     int onTurn = 0;
     int phase = 0;
+    //! Whether Every counts from the turn the phase changed.
+    bool sincePhase = false;
+
     bool alone = false;
     bool withAlly = false;
 
@@ -278,6 +292,10 @@ class Monster : public Creature
     int GetPhase() const;
     void SetPhase(int phase);
 
+    //! Returns how many moves the monster had made when its phase last
+    //! changed.
+    int GetPhaseTurn() const;
+
     //! How much flight and how much malleable armour this monster goes back
     //! to at the start of a turn.
     int GetFlightBase() const;
@@ -318,6 +336,10 @@ class Monster : public Creature
     int m_movesMade = 0;
     int m_sameMoveRun = 0;
     int m_phase = 1;
+
+    //! The turn the phase last changed, so that a move counting turns from
+    //! there has something to count from.
+    int m_phaseTurn = 0;
     int m_flightBase = 0;
     int m_malleableBase = 0;
     int m_stolenGold = 0;
