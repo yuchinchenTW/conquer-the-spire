@@ -231,6 +231,53 @@ TEST_CASE("The later acts ease a climber in for two fights, not three")
     }
 }
 
+TEST_CASE("The same fight does not come round within two of itself")
+{
+    std::mt19937 rng(29);
+    std::vector<std::string> lately;
+
+    // Two hundred rooms of the second act, remembered the way a run
+    // remembers them, and never a window of three holding two alike.
+    for (int room = 0; room < 200; ++room)
+    {
+        const Encounter group =
+            EncounterLibrary::Pick(2, MapNodeType::MONSTER, 9, rng, lately);
+
+        REQUIRE(group.monsters.empty() == false);
+
+        for (std::size_t at = 0; at < lately.size() && at < 2u; ++at)
+        {
+            CHECK(lately[at] != group.name);
+        }
+
+        lately.insert(lately.begin(), group.name);
+
+        if (lately.size() > 2)
+        {
+            lately.resize(2);
+        }
+    }
+
+    // The bar is only asked of plain rooms: an act has too few elites and
+    // bosses to hold one out, and the rule is not written about them.
+    const std::vector<std::string> both = { "Gremlin Nob", "Lagavulin" };
+
+    for (int i = 0; i < 20; ++i)
+    {
+        CHECK(EncounterLibrary::Pick(1, MapNodeType::ELITE, 9, rng, both)
+                  .monsters.empty() == false);
+    }
+
+    // And a pool with nothing else left to offer hands back the barred fight
+    // rather than nothing at all. The last act has the one group.
+    const Encounter only = EncounterLibrary::Pick(4, MapNodeType::MONSTER, 9,
+                                                  rng,
+                                                  { "Shield and Spear" });
+
+    REQUIRE(only.monsters.size() == 2u);
+    CHECK(only.monsters[0] == MonsterId::SPIRE_SHIELD);
+}
+
 TEST_CASE("The last act holds the pair at the door and the heart")
 {
     std::mt19937 rng(13);

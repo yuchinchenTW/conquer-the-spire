@@ -378,7 +378,20 @@ Battle Run::StartBattle(std::vector<Monster> monsters)
 Battle Run::StartBattleHere()
 {
     m_encounter = EncounterLibrary::Pick(m_act, GetCurrentNodeType(),
-                                         m_fights, m_rng);
+                                         m_fights, m_rng, m_lately);
+
+    // Remembered so it is not drawn again straight away. A fight only bars
+    // itself from the room it would be repeating in, so only plain ones are
+    // written down.
+    if (GetCurrentNodeType() == MapNodeType::MONSTER)
+    {
+        m_lately.insert(m_lately.begin(), m_encounter.name);
+
+        if (m_lately.size() > 2)
+        {
+            m_lately.resize(2);
+        }
+    }
 
     if (GetCurrentNodeType() == MapNodeType::MONSTER ||
         GetCurrentNodeType() == MapNodeType::ELITE)

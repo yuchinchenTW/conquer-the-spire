@@ -17,7 +17,7 @@ namespace
 {
 //! What a saved run starts with, so that a file from another shape of the
 //! engine is turned away rather than half read.
-constexpr int SAVE_VERSION = 3;
+constexpr int SAVE_VERSION = 4;
 
 //! Writes a name as one word, since a save is read back word by word.
 std::string Packed(const std::string& name)
@@ -241,6 +241,17 @@ std::string Run::Serialize() const
 
     WriteEncounter(out, m_encounter);
     WriteEncounter(out, m_pendingEncounter);
+
+    // The fights just had. A climb picked up without them draws its next
+    // room from the wrong pool, because the bar on repeating one is gone.
+    out << m_lately.size();
+
+    for (const std::string& had : m_lately)
+    {
+        out << ' ' << Packed(had);
+    }
+
+    out << '\n';
 
     // The room the climber is standing in.
     out << static_cast<int>(m_event.GetId()) << ' ' << m_event.GetStage()
@@ -473,6 +484,19 @@ bool Run::Load(const std::string& text)
 
     m_encounter = ReadEncounter(in);
     m_pendingEncounter = ReadEncounter(in);
+
+    std::size_t lately = 0;
+
+    in >> lately;
+    m_lately.clear();
+
+    for (std::size_t at = 0; at < lately && at < 2u; ++at)
+    {
+        std::string had;
+
+        in >> had;
+        m_lately.emplace_back(Unpacked(had));
+    }
 
     int eventId = 0;
     int stage = 0;

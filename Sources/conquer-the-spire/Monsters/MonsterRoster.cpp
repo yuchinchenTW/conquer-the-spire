@@ -266,12 +266,17 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                       .Chance(25)
                       .BeforeMove("Entangle")
                       .NotFirst(),
+                  // Fifty-five to the stab and forty-five to the scrape,
+                  // which is the way round the wiki this project reads has
+                  // it. The other wiki has the two the other way about, and
+                  // going by that one had the climber made vulnerable after
+                  // an entangle oftener than the game does it.
+                  MM::Attack("Stab", 13).Chance(55, 2).AfterMove("Entangle"),
                   MM::Of("Scrape", Intent::ATTACK_DEBUFF,
                          { ME::Damage(8),
                            ME::Debuff(PowerType::VULNERABLE, 1) })
-                      .Chance(55, 2)
-                      .AfterMove("Entangle"),
-                  MM::Attack("Stab", 13).Chance(45, 2).AfterMove("Entangle") });
+                      .Chance(45, 2)
+                      .AfterMove("Entangle") });
             break;
         }
 

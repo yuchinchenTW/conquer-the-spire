@@ -81,8 +81,16 @@ class EncounterLibrary
 
     //! Picks a group of \p act for \p node. \p fightsSoFar decides whether a
     //! normal fight is still drawn from the weak list.
+    //!
+    //! \p lately holds the fights just had, newest first. The same one does
+    //! not come round again within two of itself - three fights running can
+    //! never hold two alike - so the two newest are out of the draw. It is
+    //! asked of plain monster rooms only, which is where the rule sits, and a
+    //! pool with nothing else left to offer lets it go rather than handing
+    //! back no fight at all.
     static Encounter Pick(int act, MapNodeType node, int fightsSoFar,
-                          std::mt19937& rng);
+                          std::mt19937& rng,
+                          const std::vector<std::string>& lately = {});
 
     //! Builds the monsters of \p encounter.
     static std::vector<Monster> Build(const Encounter& encounter,

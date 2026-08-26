@@ -298,6 +298,37 @@ TEST_CASE("A Red Slaver can tie up the attacks in hand")
     CHECK(battle.CanPlay(0) == true);
 }
 
+TEST_CASE("A Red Slaver stabs oftener than it scrapes once it has entangled")
+{
+    const Monster slaver = Make(MonsterId::RED_SLAVER);
+    int stab = 0;
+    int scrape = 0;
+
+    for (const MonsterMove& move : slaver.GetMoves())
+    {
+        // Only the pair that waits on the entangle: the walk before it is
+        // gated on the turn, not on the weights.
+        if (move.afterMove != "Entangle")
+        {
+            continue;
+        }
+
+        if (move.name == "Stab")
+        {
+            stab = move.weight;
+        }
+        else if (move.name == "Scrape")
+        {
+            scrape = move.weight;
+        }
+    }
+
+    // Fifty-five to the stab, forty-five to the scrape. Turning the two round
+    // makes the climber vulnerable oftener than the game does.
+    CHECK(stab == 55);
+    CHECK(scrape == 45);
+}
+
 TEST_CASE("A Looter walks out of the fight")
 {
     Battle battle = BattleAgainst({ Make(MonsterId::LOOTER) });

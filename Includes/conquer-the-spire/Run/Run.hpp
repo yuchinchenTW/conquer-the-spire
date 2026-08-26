@@ -421,6 +421,10 @@ class Run
     bool m_bossDone = false;
     int m_fights = 0;
     Encounter m_encounter;
+
+    //! The plain fights just had, newest first, so that the same one does not
+    //! come round again within two of itself. Only ever two long.
+    std::vector<std::string> m_lately;
     RewardGenerator m_rewardGenerator;
     std::vector<Reward> m_rewards;
     Shop m_shop;

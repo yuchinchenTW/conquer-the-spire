@@ -302,7 +302,8 @@ int EncounterLibrary::WeakFightsOf(int act)
 }
 
 Encounter EncounterLibrary::Pick(int act, MapNodeType node, int fightsSoFar,
-                                 std::mt19937& rng)
+                                 std::mt19937& rng,
+                                 const std::vector<std::string>& lately)
 {
     const std::vector<Encounter>* weak = &GetAct1Weak();
     const std::vector<Encounter>* strong = &GetAct1Strong();
@@ -356,23 +357,68 @@ Encounter EncounterLibrary::Pick(int act, MapNodeType node, int fightsSoFar,
             break;
     }
 
-    int total = 0;
-
-    for (const auto& group : *pool)
-    {
-        total += group.weight > 0 ? group.weight : 1;
-    }
-
-    std::uniform_int_distribution<int> roll(1, total);
-    int score = roll(rng);
-
-    for (const auto& group : *pool)
-    {
-        score -= group.weight > 0 ? group.weight : 1;
-
-        if (score <= 0)
+    // The two just had are out of the draw, so that no three fights running
+    // hold two alike. Elites and bosses come from pools of a few and the rule
+    // is written about monster rooms, so it is only asked there.
+    const bool ruled = node == MapNodeType::MONSTER;
+    const auto barred = [&lately, ruled](const std::string& name) {
+        if (!ruled)
         {
-            return group;
+            return false;
+        }
+
+        const std::size_t deep = lately.size() < 2u ? lately.size() : 2u;
+
+        for (std::size_t at = 0; at < deep; ++at)
+        {
+            if (lately[at] == name)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    // Twice over, because a pool that has nothing left once the barred ones
+    // are out - a short list, or a run of the same fight - must still hand
+    // back a fight. The second pass bars nothing.
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        const bool barring = pass == 0;
+        int total = 0;
+
+        for (const auto& group : *pool)
+        {
+            if (barring && barred(group.name))
+            {
+                continue;
+            }
+
+            total += group.weight > 0 ? group.weight : 1;
+        }
+
+        if (total <= 0)
+        {
+            continue;
+        }
+
+        std::uniform_int_distribution<int> roll(1, total);
+        int score = roll(rng);
+
+        for (const auto& group : *pool)
+        {
+            if (barring && barred(group.name))
+            {
+                continue;
+            }
+
+            score -= group.weight > 0 ? group.weight : 1;
+
+            if (score <= 0)
+            {
+                return group;
+            }
         }
     }
 
