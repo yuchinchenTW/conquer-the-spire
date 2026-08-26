@@ -3999,7 +3999,13 @@ void Battle::DealDamageToMonster(Monster& monster, int base, bool fromAttack)
 
             if (monster.GetPower(PowerType::FLIGHT) == 0)
             {
+                // Brought down: stunned where it stands, and then it has to
+                // pick itself up before it is a flier again. Stunning it and
+                // leaving it there kept it on the ground for the rest of the
+                // fight, taking full damage and never climbing back, which is
+                // a much easier bird than the one in the game.
                 monster.ForceMove("Stunned");
+                monster.QueueMoves({ "Headbutt", "Fly" });
             }
         }
 
@@ -4534,13 +4540,43 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
 
         case MonsterEffectType::SUMMON:
         {
-            // A leader only shouts for so many at a time.
+            // A leader only shouts for so many at a time. What it shouted
+            // for may not be what turns up - a call for gremlins brings one
+            // of five kinds - so the counting has to know that any of the five
+            // is one of them. Counting the name it called by found none of
+            // them, and the limit never bit: eight gremlins where there should
+            // be three.
+            const auto oneOfThem = [](MonsterId standing, MonsterId asked) {
+                if (standing == asked)
+                {
+                    return true;
+                }
+
+                if (asked != MonsterId::RANDOM_GREMLIN)
+                {
+                    return false;
+                }
+
+                switch (standing)
+                {
+                    case MonsterId::MAD_GREMLIN:
+                    case MonsterId::SNEAKY_GREMLIN:
+                    case MonsterId::FAT_GREMLIN:
+                    case MonsterId::SHIELD_GREMLIN:
+                    case MonsterId::GREMLIN_WIZARD:
+                        return true;
+
+                    default:
+                        return false;
+                }
+            };
+
             int about = 0;
 
             for (const auto& other : m_monsters)
             {
                 if (!other.IsGone() &&
-                    other.GetMonsterId() == effect.summon)
+                    oneOfThem(other.GetMonsterId(), effect.summon))
                 {
                     ++about;
                 }
@@ -4548,7 +4584,7 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
 
             for (const auto& spawn : m_pendingSpawns)
             {
-                if (spawn.GetMonsterId() == effect.summon)
+                if (oneOfThem(spawn.GetMonsterId(), effect.summon))
                 {
                     ++about;
                 }

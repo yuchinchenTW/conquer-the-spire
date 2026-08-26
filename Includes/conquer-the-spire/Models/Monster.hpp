@@ -346,6 +346,12 @@ class Monster : public Creature
     //! move allowed only so often in a fight knows when it has had its turns.
     void CountMoveUsed();
 
+    //! Lines \p names up to be made in that order, one a turn, before the
+    //! monster goes back to choosing for itself. A byrd brought down is
+    //! stunned, then headbutts, then climbs back into the air, and none of
+    //! that is a choice it makes.
+    void QueueMoves(std::vector<std::string> names);
+
     //! Sets the standing move's hits from how often it has been made, for a
     //! move that grows. Called wherever the standing move changes, so that the
     //! intent the climber reads and the blow that lands are the same number.
@@ -411,6 +417,9 @@ class Monster : public Creature
     int m_movesMade = 0;
     int m_sameMoveRun = 0;
     int m_phase = 1;
+
+    //! What the monster must do next, in order, before it chooses again.
+    std::vector<std::string> m_queued;
 
     //! The turn the phase last changed, so that a move counting turns from
     //! there has something to count from.

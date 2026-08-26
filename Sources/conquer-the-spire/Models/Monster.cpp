@@ -503,6 +503,19 @@ void Monster::AdvanceMove(std::mt19937& rng, const MoveContext& context)
 
     const std::size_t previous = m_moveIndex;
 
+    // What it has been told to do comes before what it would choose.
+    if (!m_queued.empty())
+    {
+        const std::string next = m_queued.front();
+
+        m_queued.erase(m_queued.begin());
+
+        if (ForceMove(next))
+        {
+            return;
+        }
+    }
+
     m_moveIndex = PickWeightedMove(rng, context);
     m_sameMoveRun = SameMoveAs(previous) ? m_sameMoveRun + 1 : 1;
     RefreshGrowingMove();
@@ -598,6 +611,11 @@ Card Monster::ReleaseStasisCard()
     m_stasisCard = Card();
 
     return card;
+}
+
+void Monster::QueueMoves(std::vector<std::string> names)
+{
+    m_queued = std::move(names);
 }
 
 void Monster::RefreshGrowingMove()

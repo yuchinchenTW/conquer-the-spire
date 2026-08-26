@@ -552,20 +552,62 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         // ------------------------------------------------- Act 2, elite
 
+        case MonsterId::RANDOM_GREMLIN:
+        {
+            // One of the five, whichever comes up. A leader's fight is
+            // whatever it happens to be standing with.
+            const MonsterId kinds[] = { MonsterId::MAD_GREMLIN,
+                                        MonsterId::SNEAKY_GREMLIN,
+                                        MonsterId::FAT_GREMLIN,
+                                        MonsterId::SHIELD_GREMLIN,
+                                        MonsterId::GREMLIN_WIZARD };
+            std::uniform_int_distribution<std::size_t> pick(0, 4);
+
+            return Make(kinds[pick(rng)], rng);
+        }
+
         case MonsterId::GREMLIN_LEADER:
         {
+            // Three sets of odds, by how many are standing with it, and it
+            // never does the same thing twice running. Every move is written
+            // once for each company it has different odds in; the run rule
+            // counts them by name, so the two Rallies are one move to it.
+            //
+            //   none standing : Rally 75, Stab 25
+            //   one standing  : Rally 50, Stab 50, Encourage 30 - and with the
+            //                   run rule that reads as fifty-fifty after an
+            //                   Encourage and five-to-three after a Stab,
+            //                   which is what the game says
+            //   two or three  : Encourage 66, Stab 34
             monster = Thinking(
                 id, "Gremlin Leader", MonsterType::ELITE,
                 Roll(rng, 140, 148),
                 { MM::Of("Rally", Intent::SUMMON,
-                         { ME::Summon(MonsterId::MAD_GREMLIN, 2, 3) })
-                      .Chance(75, 1),
-                  MM::Attack("Stab", 6, 3).Chance(25, 1),
+                         { ME::Summon(MonsterId::RANDOM_GREMLIN, 2, 3) })
+                      .Chance(75, 1)
+                      .WhenAlliesUnder(1),
+                  MM::Of("Rally", Intent::SUMMON,
+                         { ME::Summon(MonsterId::RANDOM_GREMLIN, 2, 3) })
+                      .Chance(50, 1)
+                      .WhenAlliesAtLeast(1)
+                      .WhenAlliesUnder(2),
+                  MM::Attack("Stab", 6, 3).Chance(25, 1).WhenAlliesUnder(1),
+                  MM::Attack("Stab", 6, 3)
+                      .Chance(50, 1)
+                      .WhenAlliesAtLeast(1)
+                      .WhenAlliesUnder(2),
+                  MM::Attack("Stab", 6, 3).Chance(34, 1).WhenAlliesAtLeast(2),
+                  MM::Of("Encourage", Intent::BUFF,
+                         { ME::BuffAll(PowerType::STRENGTH, 3),
+                           ME::BlockAllies(6) })
+                      .Chance(30, 1)
+                      .WhenAlliesAtLeast(1)
+                      .WhenAlliesUnder(2),
                   MM::Of("Encourage", Intent::BUFF,
                          { ME::BuffAll(PowerType::STRENGTH, 3),
                            ME::BlockAllies(6) })
                       .Chance(66, 1)
-                      .WithAlly() });
+                      .WhenAlliesAtLeast(2) });
             break;
         }
 
@@ -1085,6 +1127,15 @@ const std::vector<MonsterId>& MonsterRoster::GetAll()
         for (int i = 1; i <= static_cast<int>(LAST_MONSTER_ID); ++i)
         {
             const MonsterId id = static_cast<MonsterId>(i);
+
+            // Not a monster of its own: asking for it hands back one of the
+            // five kinds of gremlin, so it belongs in no list of what there
+            // is. Everything that walks this list expects the monster it gets
+            // back to be the one it asked for.
+            if (id == MonsterId::RANDOM_GREMLIN)
+            {
+                continue;
+            }
 
             if (!MonsterRoster::Make(id, rng).GetName().empty())
             {

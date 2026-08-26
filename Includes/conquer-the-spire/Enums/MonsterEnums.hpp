@@ -91,6 +91,11 @@ enum class MonsterId
 
     // Act 2 - elite
     GREMLIN_LEADER,
+
+    //! Not a monster of its own: asked for, it makes one of the five kinds of
+    //! gremlin at random. A leader brings two of these and calls for more,
+    //! and which kinds turn up is most of what the fight is.
+    RANDOM_GREMLIN,
     TASKMASTER,
     BOOK_OF_STABBING,
 

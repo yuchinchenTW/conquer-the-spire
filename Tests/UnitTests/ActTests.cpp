@@ -490,13 +490,24 @@ TEST_CASE("A leader shouts for gremlins, and only so many of them")
         battle.EndTurn();
     }
 
+    // Whichever kinds turn up: a leader calls for gremlins, not for mad
+    // gremlins.
     int gremlins = 0;
 
     for (const auto& monster : battle.GetMonsters())
     {
-        if (monster.GetMonsterId() == MonsterId::MAD_GREMLIN)
+        switch (monster.GetMonsterId())
         {
-            ++gremlins;
+            case MonsterId::MAD_GREMLIN:
+            case MonsterId::SNEAKY_GREMLIN:
+            case MonsterId::FAT_GREMLIN:
+            case MonsterId::SHIELD_GREMLIN:
+            case MonsterId::GREMLIN_WIZARD:
+                ++gremlins;
+                break;
+
+            default:
+                break;
         }
     }
 
@@ -830,6 +841,162 @@ TEST_CASE("A champion executes from the turn he turned, not from the first")
             CHECK((seq[at] == 'X') == third);
         }
     }
+}
+
+TEST_CASE("A gremlin leader brings a pack of whatever turns up")
+{
+    // It does not stand alone: two gremlins are already there, and which kinds
+    // they are is most of what the fight is - a wizard hits far harder than a
+    // mad one. It was standing alone and calling only for mad gremlins.
+    std::map<MonsterId, int> kinds;
+
+    for (unsigned int seed = 1; seed <= 120u; ++seed)
+    {
+        const Battle battle =
+            FightAgainst({ MonsterId::GREMLIN_LEADER,
+                           MonsterId::RANDOM_GREMLIN,
+                           MonsterId::RANDOM_GREMLIN }, seed);
+
+        REQUIRE(battle.GetMonsters().size() == 3u);
+        CHECK(battle.GetMonsters()[0].GetMonsterId() ==
+              MonsterId::GREMLIN_LEADER);
+
+        for (std::size_t at = 1; at < 3u; ++at)
+        {
+            const MonsterId id = battle.GetMonsters()[at].GetMonsterId();
+
+            // A real gremlin, never the stand-in that was asked for.
+            CHECK(id != MonsterId::RANDOM_GREMLIN);
+            ++kinds[id];
+        }
+    }
+
+    // All five kinds turn up over enough fights.
+    CHECK(kinds.size() == 5u);
+    CHECK(kinds[MonsterId::GREMLIN_WIZARD] > 0);
+}
+
+TEST_CASE("A gremlin leader has odds for the company it keeps")
+{
+    // The two the game states outright, both of them about one gremlin left
+    // standing: having encouraged, it rallies or stabs evenly; having stabbed,
+    // it rallies five times for every three it encourages. Both fall out of
+    // three weights and the rule that it never repeats itself.
+    struct Expected
+    {
+        const char* last;
+        const char* move;
+        double share;
+    };
+
+    const Expected asked[] = { { "Encourage", "Rally", 50.0 },
+                               { "Encourage", "Stab", 50.0 },
+                               { "Stab", "Rally", 62.5 },
+                               { "Stab", "Encourage", 37.5 } };
+
+    for (const Expected& want : asked)
+    {
+        std::map<std::string, int> saw;
+        const int rounds = 8000;
+
+        for (int i = 0; i < rounds; ++i)
+        {
+            std::mt19937 rng(static_cast<unsigned int>(i) + 1u);
+            Monster him = MonsterRoster::Make(MonsterId::GREMLIN_LEADER, rng);
+            MoveContext company;
+
+            company.turn = 2;
+            company.allies = 1;
+
+            REQUIRE(him.ForceMove(want.last) == true);
+
+            him.AdvanceMove(rng, company);
+            ++saw[him.GetCurrentMove().name];
+        }
+
+        // Never what it just did.
+        CHECK(saw[want.last] == 0);
+
+        const double share = 100.0 * saw[want.move] / rounds;
+
+        CHECK(share > want.share - 3.0);
+        CHECK(share < want.share + 3.0);
+    }
+}
+
+TEST_CASE("A byrd brought down picks itself up again")
+{
+    // What the game says happens when a byrd loses its flying: it is stunned
+    // instantly, interrupting whatever it meant to do; it headbutts the
+    // following turn; it flies; and then it is back to its own pattern. It was
+    // only being stunned, so it stayed on the ground for the rest of the
+    // fight, taking full damage and never climbing back.
+    Battle battle = FightAgainst({ MonsterId::BYRD });
+    Monster& byrd = battle.GetMonsters().front();
+
+    // Room to survive the hits it takes coming down.
+    byrd.SetMaxHealth(400);
+    byrd.SetHealth(400);
+
+    REQUIRE(byrd.GetPower(PowerType::FLIGHT) == 3);
+
+    // A handful of small blows, because it is the number of separate hits
+    // that brings a flier down and not how hard they are.
+    battle.GetPlayer().GetHand().clear();
+
+    for (int i = 0; i < 5; ++i)
+    {
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::STRIKE_RED));
+    }
+
+    // Three separate hits in one turn bring it down.
+    int hits = 0;
+
+    while (hits < 3)
+    {
+        bool struck = false;
+
+        for (std::size_t at = 0; at < battle.GetPlayer().GetHand().size();
+             ++at)
+        {
+            if (battle.GetPlayer().GetHand()[at].GetCardType() ==
+                    CardType::ATTACK &&
+                battle.PlayCard(at, 0))
+            {
+                ++hits;
+                struck = true;
+                break;
+            }
+        }
+
+        if (!struck)
+        {
+            break;
+        }
+    }
+
+    REQUIRE(hits >= 3);
+    REQUIRE(byrd.GetPower(PowerType::FLIGHT) == 0);
+
+    // Stunned where it stands, whatever it had meant to do.
+    CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Stunned");
+
+    REQUIRE(battle.EndTurn() == true);
+    CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Headbutt");
+
+    REQUIRE(battle.EndTurn() == true);
+    CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Fly");
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // In the air again, and choosing for itself.
+    CHECK(battle.GetMonsters().front().GetPower(PowerType::FLIGHT) == 3);
+
+    const std::string back =
+        battle.GetMonsters().front().GetCurrentMove().name;
+
+    CHECK((back == "Peck" || back == "Caw" || back == "Swoop"));
 }
 
 TEST_CASE("A chosen pokes, hexes, and then turns about")

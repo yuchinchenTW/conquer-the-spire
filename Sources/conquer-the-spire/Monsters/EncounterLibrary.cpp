@@ -150,9 +150,12 @@ const std::vector<Encounter>& EncounterLibrary::GetAct2Strong()
 const std::vector<Encounter>& EncounterLibrary::GetAct2Elites()
 {
     static const std::vector<Encounter> groups = {
+        // It does not stand alone: two gremlins are already there, whichever
+        // two they happen to be.
         { "Gremlin Leader",
           MonsterType::ELITE,
-          { MonsterId::GREMLIN_LEADER } },
+          { MonsterId::GREMLIN_LEADER, MonsterId::RANDOM_GREMLIN,
+            MonsterId::RANDOM_GREMLIN } },
         { "Slavers",
           MonsterType::ELITE,
           { MonsterId::TASKMASTER, MonsterId::RED_SLAVER,
