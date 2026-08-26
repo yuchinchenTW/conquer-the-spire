@@ -4470,16 +4470,29 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
         case MonsterEffectType::BLOCK_ALLY:
         {
             // A Shield Gremlin covers somebody else, and only itself when it
-            // is the last one standing.
-            Monster* ally = nullptr;
+            // is the last one standing. Which of the others is not settled -
+            // the page says one of them and never itself - and taking the
+            // first one every time makes the cover land on the same gremlin
+            // all fight, which is a thing a policy can lean on and the game
+            // does not offer.
+            std::vector<Monster*> others;
 
             for (auto& other : m_monsters)
             {
                 if (&other != &monster && !other.IsGone())
                 {
-                    ally = &other;
-                    break;
+                    others.emplace_back(&other);
                 }
+            }
+
+            Monster* ally = nullptr;
+
+            if (!others.empty())
+            {
+                std::uniform_int_distribution<std::size_t> pick(
+                    0, others.size() - 1);
+
+                ally = others[pick(m_rng)];
             }
 
             Monster& covered = ally == nullptr ? monster : *ally;

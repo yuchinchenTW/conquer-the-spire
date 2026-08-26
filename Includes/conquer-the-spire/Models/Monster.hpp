@@ -351,6 +351,12 @@ class Monster : public Creature
     //! Which phase of its fight this monster is in. A boss that changes its
     //! ways part way through moves itself on.
     int GetPhase() const;
+    //! Sets whether this is a plain fight, an elite or a boss. The same
+    //! monster can be either: a Sentry is an elite when three of them are the
+    //! room and a plain monster when one stands beside a Spheric Guardian, so
+    //! the room says which and not the roster.
+    void SetMonsterType(MonsterType type);
+
     void SetPhase(int phase);
 
     //! Writes down that the move standing has been used once more, so that a

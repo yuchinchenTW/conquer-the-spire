@@ -349,11 +349,14 @@ Battle Run::StartBattle(std::vector<Monster> monsters)
                             ? MonsterId::INVALID
                             : m_encounter.monsters.front();
 
-    for (const auto& monster : monsters)
+    // Asked of the roster rather than of the monsters standing there: the
+    // room hands its own standing to everything in it, so once the fight is
+    // built they all answer alike.
+    for (const MonsterId id : m_encounter.monsters)
     {
-        if (monster.GetMonsterType() == m_encounter.type)
+        if (MonsterRoster::NatureOf(id) == m_encounter.type)
         {
-            leading = monster.GetMonsterId();
+            leading = id;
             break;
         }
     }

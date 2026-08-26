@@ -540,6 +540,11 @@ int Monster::GetPhase() const
     return m_phase;
 }
 
+void Monster::SetMonsterType(MonsterType type)
+{
+    m_type = type;
+}
+
 void Monster::SetPhase(int phase)
 {
     m_phase = phase;

@@ -2182,9 +2182,13 @@ TEST_CASE("A boss fight is named after the boss, not whoever stands first")
 
             MonsterId named = MonsterId::INVALID;
 
+            // By nature, not by standing: the room hands its own standing to
+            // everything in it, so a cultist walked in beside a boss answers
+            // boss too.
             for (const Monster& monster : built)
             {
-                if (monster.GetMonsterType() == encounter.type)
+                if (MonsterRoster::NatureOf(monster.GetMonsterId()) ==
+                    encounter.type)
                 {
                     named = monster.GetMonsterId();
                     break;

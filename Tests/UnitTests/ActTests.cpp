@@ -841,6 +841,111 @@ TEST_CASE("A champion executes from the turn he turned, not from the first")
     }
 }
 
+TEST_CASE("A monster stands as the room stands, not as the roster says")
+{
+    // A Sentry is an elite where three of them are the room and a plain
+    // monster where one stands beside a Spheric Guardian. Carrying elite about
+    // with it had a preserved insect taking a quarter off it in a plain fight,
+    // a slaver's collar paying out in one, and everything that asks what kind
+    // of fight this is answering elite.
+    const auto sentryIn = [](const std::vector<Encounter>& list,
+                             const std::string& name) {
+        for (const Encounter& one : list)
+        {
+            if (one.name != name)
+            {
+                continue;
+            }
+
+            std::mt19937 rng(3u);
+            const std::vector<Monster> built =
+                EncounterLibrary::Build(one, rng);
+
+            for (const Monster& monster : built)
+            {
+                if (monster.GetMonsterId() == MonsterId::SENTRY)
+                {
+                    return monster.GetMonsterType();
+                }
+            }
+        }
+
+        return MonsterType::INVALID;
+    };
+
+    CHECK(sentryIn(EncounterLibrary::GetAct1Elites(), "3 Sentries") ==
+          MonsterType::ELITE);
+    CHECK(sentryIn(EncounterLibrary::GetAct2Strong(), "Sentry and Sphere") ==
+          MonsterType::NORMAL);
+
+    // What it is by nature is a separate question, and telling which monster a
+    // room is named for still asks that one: a cultist walked in beside a boss
+    // now stands as a boss, so the standing cannot say which is which.
+    CHECK(MonsterRoster::NatureOf(MonsterId::SENTRY) == MonsterType::ELITE);
+    CHECK(MonsterRoster::NatureOf(MonsterId::CULTIST) ==
+          MonsterType::NORMAL);
+}
+
+TEST_CASE("A blow that debuffs says so on the intent")
+{
+    // A rake weakens and a scrape makes vulnerable, and both were showing as
+    // plain attacks. A policy reading the intent could not see the debuff
+    // coming.
+    const auto intentOf = [](MonsterId who, const std::string& name) {
+        std::mt19937 rng(3u);
+        const Monster monster = MonsterRoster::Make(who, rng);
+
+        for (const MonsterMove& move : monster.GetMoves())
+        {
+            if (move.name == name)
+            {
+                return move.intent;
+            }
+        }
+
+        return Intent::UNKNOWN;
+    };
+
+    CHECK(intentOf(MonsterId::BLUE_SLAVER, "Rake") ==
+          Intent::ATTACK_DEBUFF);
+    CHECK(intentOf(MonsterId::RED_SLAVER, "Scrape") ==
+          Intent::ATTACK_DEBUFF);
+}
+
+TEST_CASE("A shield gremlin does not cover the same one every time")
+{
+    // The page says it covers one of the others and never itself, and does not
+    // say which. Taking the first one every time made the cover land on the
+    // same gremlin all fight - something a policy can lean on that the game
+    // does not offer.
+    std::map<MonsterId, int> covered;
+
+    for (unsigned int seed = 1; seed <= 60u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::SHIELD_GREMLIN,
+                                       MonsterId::MAD_GREMLIN,
+                                       MonsterId::SNEAKY_GREMLIN }, seed);
+
+        REQUIRE(battle.GetMonsters().front().ForceMove("Protect") == true);
+        REQUIRE(battle.EndTurn() == true);
+
+        for (const Monster& one : battle.GetMonsters())
+        {
+            if (one.GetMonsterId() != MonsterId::SHIELD_GREMLIN &&
+                one.GetBlock() > 0)
+            {
+                ++covered[one.GetMonsterId()];
+            }
+        }
+
+        // Never itself while somebody else is standing.
+        CHECK(battle.GetMonsters().front().GetBlock() == 0);
+    }
+
+    // Both of the others were covered over enough fights.
+    CHECK(covered.size() == 2u);
+}
+
 TEST_CASE("Both thieves steal, and a leader's own pack leaves with it")
 {
     // Thievery fifteen on each of them. Only the mugger had it, so the left of

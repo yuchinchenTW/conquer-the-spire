@@ -31,6 +31,13 @@ class MonsterRoster
                         int healthOverride = 0);
 
     //! Returns every id the roster knows.
+    //! Returns what \p id is by nature, before any room says otherwise. A
+    //! Sentry is an elite by nature and a plain monster in the room where one
+    //! stands beside a Spheric Guardian, and telling which of a room's
+    //! monsters is the one it is named for wants the nature rather than the
+    //! standing.
+    static MonsterType NatureOf(MonsterId id);
+
     static const std::vector<MonsterId>& GetAll();
 
     //! Returns every id of \p type.

@@ -226,7 +226,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 // and the rake could not come twice - both wrong, and between
                 // them they moved where the damage and the weakness fell.
                 { MM::Attack("Stab", 12).Chance(60, 2),
-                  MM::Of("Rake", Intent::ATTACK,
+                  MM::Of("Rake", Intent::ATTACK_DEBUFF,
                          { ME::Damage(7), ME::Debuff(PowerType::WEAK, 1) })
                       .Chance(40, 2) });
             break;
@@ -250,13 +250,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                       .Chance(75)
                       .BeforeMove("Entangle")
                       .OnTurnsLike(3, 1),
-                  MM::Of("Scrape", Intent::ATTACK,
+                  MM::Of("Scrape", Intent::ATTACK_DEBUFF,
                          { ME::Damage(8),
                            ME::Debuff(PowerType::VULNERABLE, 1) })
                       .Chance(75)
                       .BeforeMove("Entangle")
                       .OnTurnsLike(3, 2),
-                  MM::Of("Scrape", Intent::ATTACK,
+                  MM::Of("Scrape", Intent::ATTACK_DEBUFF,
                          { ME::Damage(8),
                            ME::Debuff(PowerType::VULNERABLE, 1) })
                       .Chance(75)
@@ -266,7 +266,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                       .Chance(25)
                       .BeforeMove("Entangle")
                       .NotFirst(),
-                  MM::Of("Scrape", Intent::ATTACK,
+                  MM::Of("Scrape", Intent::ATTACK_DEBUFF,
                          { ME::Damage(8),
                            ME::Debuff(PowerType::VULNERABLE, 1) })
                       .Chance(55, 2)
@@ -1185,6 +1185,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
     }
 
     return monster;
+}
+
+MonsterType MonsterRoster::NatureOf(MonsterId id)
+{
+    std::mt19937 rng(1u);
+
+    return Make(id, rng).GetMonsterType();
 }
 
 const std::vector<MonsterId>& MonsterRoster::GetAll()

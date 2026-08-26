@@ -175,8 +175,13 @@ const std::vector<Encounter>& EncounterLibrary::GetAct2Elites()
             MonsterId::RANDOM_GREMLIN } },
         { "Slavers",
           MonsterType::ELITE,
-          { MonsterId::TASKMASTER, MonsterId::RED_SLAVER,
-            MonsterId::BLUE_SLAVER } },
+          // Blue, taskmaster, red, left to right. Where they stand is not
+          // written down on either wiki; this is the order the project's own
+          // reading of the game gives, and the order matters because the
+          // vector is the line they stand in - it decides which of them a
+          // target index names and what the state reads out first.
+          { MonsterId::BLUE_SLAVER, MonsterId::TASKMASTER,
+            MonsterId::RED_SLAVER } },
         { "Book of Stabbing",
           MonsterType::ELITE,
           { MonsterId::BOOK_OF_STABBING } }
@@ -383,6 +388,17 @@ std::vector<Monster> EncounterLibrary::Build(const Encounter& encounter,
     for (const MonsterId id : encounter.monsters)
     {
         monsters.emplace_back(MonsterRoster::Make(id, rng));
+
+        // What the room is, not what the monster usually is. A Sentry is an
+        // elite where three of them are the room and a plain monster where one
+        // stands beside a Spheric Guardian; carrying elite about with it had a
+        // preserved insect taking a quarter off it in a plain fight, a
+        // slaver's collar paying out in one, and the whole room counted as an
+        // elite by everything that asks.
+        //
+        // A minion called in later keeps whatever the roster gave it, which
+        // for the ones that matter is plain.
+        monsters.back().SetMonsterType(encounter.type);
     }
 
     // In the elite fight the middle Sentry opens the other way round.
