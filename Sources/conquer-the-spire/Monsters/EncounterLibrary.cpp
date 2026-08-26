@@ -132,9 +132,13 @@ const std::vector<Encounter>& EncounterLibrary::GetAct2Strong()
     // four, six, three, three out of twenty-nine comes to seven, ten, seven,
     // twenty-one, fourteen, twenty-one, ten, ten.
     static const std::vector<Encounter> groups = {
+        // The byrd acts first. The spire moves its monsters in the order
+        // they stand in, and having the chosen go first let it make the
+        // climber vulnerable and the byrd swoop into it on the same turn -
+        // which the game itself went back and fixed.
         { "Chosen and Byrd",
           MonsterType::NORMAL,
-          { MonsterId::CHOSEN, MonsterId::BYRD },
+          { MonsterId::BYRD, MonsterId::CHOSEN },
           2 },
         { "Sentry and Sphere",
           MonsterType::NORMAL,

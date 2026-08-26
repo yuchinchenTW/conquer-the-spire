@@ -48,6 +48,14 @@ MonsterEffect MonsterEffect::BlockAlly(int amount)
     return effect;
 }
 
+MonsterEffect MonsterEffect::BlockAlly(int amount, MonsterId who)
+{
+    MonsterEffect effect = BlockAlly(amount);
+    effect.ally = who;
+
+    return effect;
+}
+
 MonsterEffect MonsterEffect::Buff(PowerType power, int amount)
 {
     MonsterEffect effect;

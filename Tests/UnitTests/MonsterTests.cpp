@@ -441,20 +441,65 @@ TEST_CASE("A Gremlin Wizard charges before it blasts")
     }
 }
 
-TEST_CASE("A Shield Gremlin covers its friend, and itself when alone")
+TEST_CASE("A Shield Gremlin covers its friend, and hits once it is alone")
 {
     Battle battle = BattleAgainst(
         { Make(MonsterId::SHIELD_GREMLIN), Make(MonsterId::SNEAKY_GREMLIN) });
 
+    REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "Protect");
     REQUIRE(battle.EndTurn() == true);
 
     // The block went on the other gremlin.
     CHECK(battle.GetMonsters()[1].GetBlock() == 7);
+    CHECK(battle.GetMonsters()[0].GetBlock() == 0);
 
+    // Alone it stops shielding and starts hitting. Shielding itself instead
+    // left the last gremlin standing as a wall that threatened nothing, and
+    // a fight that threatens nothing can be waited out.
     Battle alone = BattleAgainst({ Make(MonsterId::SHIELD_GREMLIN) });
 
+    REQUIRE(alone.GetMonsters()[0].GetCurrentMove().name == "Shield Bash");
+
+    const int before = alone.GetPlayer().GetHealth();
+
     REQUIRE(alone.EndTurn() == true);
-    CHECK(alone.GetMonsters()[0].GetBlock() == 7);
+
+    CHECK(alone.GetMonsters()[0].GetBlock() == 0);
+    CHECK(alone.GetPlayer().GetHealth() < before);
+}
+
+TEST_CASE("A Bronze Orb's beam props up the automaton and never another orb")
+{
+    // Three orbs standing with the thing they were spawned by, every one of
+    // them beaming. The block is the automaton's, all of it: an orb propping
+    // up an orb is block spent on a thing that is not the fight.
+    for (unsigned int seed = 1; seed <= 40u; ++seed)
+    {
+        Battle battle = BattleAgainst({ Make(MonsterId::BRONZE_AUTOMATON),
+                                        Make(MonsterId::BRONZE_ORB),
+                                        Make(MonsterId::BRONZE_ORB),
+                                        Make(MonsterId::BRONZE_ORB) },
+                                      10, 400);
+
+        for (std::size_t at = 1; at < battle.GetMonsters().size(); ++at)
+        {
+            REQUIRE(battle.GetMonsters()[at].ForceMove("Support Beam") ==
+                    true);
+        }
+
+        REQUIRE(battle.EndTurn() == true);
+
+        for (const Monster& one : battle.GetMonsters())
+        {
+            if (one.GetMonsterId() == MonsterId::BRONZE_ORB)
+            {
+                CHECK(one.GetBlock() == 0);
+            }
+        }
+
+        // Three beams of twelve, and whatever the automaton put up itself.
+        CHECK(battle.GetMonsters()[0].GetBlock() >= 36);
+    }
 }
 
 TEST_CASE("A Sentry clogs the deck and the pair open the other way round")

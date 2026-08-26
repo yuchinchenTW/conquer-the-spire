@@ -310,12 +310,17 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::SHIELD_GREMLIN:
         {
-            // Protect covers somebody else, and itself once it is alone.
+            // Protect covers somebody else, every turn, for as long as
+            // there is somebody else. Left alone it stops shielding and
+            // starts hitting: shielding itself instead - which is what it
+            // did - turns the last gremlin standing into a wall that never
+            // threatens anything, and the fight can be waited out.
             monster = Thinking(
                 id, "Shield Gremlin", MonsterType::NORMAL, Roll(rng, 12, 15),
                 { MM::Of("Protect", Intent::DEFEND, { ME::BlockAlly(7) })
-                      .Chance(100),
-                  MM::Attack("Shield Bash", 6) });
+                      .Chance(100)
+                      .WithAlly(),
+                  MM::Attack("Shield Bash", 6).Chance(100).Alone() });
             break;
         }
 
@@ -739,7 +744,8 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 { MM::Of("Stasis", Intent::DEBUFF,
                          { ME::Stasis() }).Chance(30, 2).InPhase(1),
                   MM::Of("Support Beam", Intent::DEFEND,
-                         { ME::BlockAlly(12) }).Chance(7, 2),
+                         { ME::BlockAlly(12, MonsterId::BRONZE_AUTOMATON) })
+                      .Chance(7, 2),
                   MM::Attack("Beam", 8).Chance(3, 2) });
             break;
         }

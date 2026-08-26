@@ -4475,14 +4475,26 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
             // first one every time makes the cover land on the same gremlin
             // all fight, which is a thing a policy can lean on and the game
             // does not offer.
+            //
+            // Unless the move names who it is for: an orb's support beam is
+            // for the automaton and nothing else, so with two orbs in the
+            // room it never goes on the other orb.
             std::vector<Monster*> others;
 
             for (auto& other : m_monsters)
             {
-                if (&other != &monster && !other.IsGone())
+                if (&other == &monster || other.IsGone())
                 {
-                    others.emplace_back(&other);
+                    continue;
                 }
+
+                if (effect.ally != MonsterId::INVALID &&
+                    other.GetMonsterId() != effect.ally)
+                {
+                    continue;
+                }
+
+                others.emplace_back(&other);
             }
 
             Monster* ally = nullptr;

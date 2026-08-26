@@ -1449,12 +1449,52 @@ TEST_CASE("Two thieves are a looter and a mugger")
 
         found = true;
 
+        // The byrd first. The spire moves its monsters in the order they
+        // stand in, and the game went back and fixed this very pair so that
+        // the chosen cannot make the climber vulnerable and have the byrd
+        // swoop into it on the same turn.
         REQUIRE(one.monsters.size() == 2u);
-        CHECK(one.monsters[0] == MonsterId::CHOSEN);
-        CHECK(one.monsters[1] == MonsterId::BYRD);
+        CHECK(one.monsters[0] == MonsterId::BYRD);
+        CHECK(one.monsters[1] == MonsterId::CHOSEN);
     }
 
     CHECK(found == true);
+}
+
+TEST_CASE("A byrd swoops before the chosen can make the climber vulnerable")
+{
+    // The pair as the pool holds them, in the order the pool holds them,
+    // because the order is the whole of it.
+    std::vector<MonsterId> pair;
+
+    for (const Encounter& one : EncounterLibrary::GetAct2Strong())
+    {
+        if (one.name == "Chosen and Byrd")
+        {
+            pair = one.monsters;
+        }
+    }
+
+    REQUIRE(pair.size() == 2u);
+
+    Battle battle = FightAgainst(pair);
+
+    for (Monster& one : battle.GetMonsters())
+    {
+        REQUIRE(one.ForceMove(one.GetMonsterId() == MonsterId::BYRD
+                                  ? "Swoop"
+                                  : "Debilitate") == true);
+    }
+
+    const int before = battle.GetPlayer().GetHealth();
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // Twelve for the swoop and ten for the debilitate. Had the chosen gone
+    // first, its two of vulnerable would have been on the climber before the
+    // byrd left the ground and the swoop would have come to eighteen - which
+    // is the turn order the game itself went back and fixed.
+    CHECK(before - battle.GetPlayer().GetHealth() == 22);
 }
 
 TEST_CASE("A guardian keeps what it puts up")

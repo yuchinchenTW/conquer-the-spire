@@ -39,6 +39,12 @@ struct MonsterEffect
     //! Blocks \p amount for another monster, or itself when it is alone.
     static MonsterEffect BlockAlly(int amount);
 
+    //! Blocks for \p who by name of its kind rather than for whichever ally
+    //! comes up. An orb's beam props up the automaton it was spawned by, and
+    //! only that: with three orbs in the room, one orb propping up another is
+    //! block spent on a thing that is not the fight.
+    static MonsterEffect BlockAlly(int amount, MonsterId who);
+
     //! Applies \p amount of \p power to itself.
     static MonsterEffect Buff(PowerType power, int amount);
 
@@ -101,6 +107,10 @@ struct MonsterEffect
 
     //! What a summon calls in, and how many of them there may be at once.
     MonsterId summon = MonsterId::INVALID;
+
+    //! Who a block is owed to, when it is owed to one kind in particular.
+    //! Anything else, and it goes to whichever ally comes up.
+    MonsterId ally = MonsterId::INVALID;
     int cap = 0;
 };
 
