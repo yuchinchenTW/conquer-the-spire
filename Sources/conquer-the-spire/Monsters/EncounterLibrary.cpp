@@ -108,9 +108,12 @@ const std::vector<Encounter>& EncounterLibrary::GetAct2Weak()
         { "3 Byrds",
           MonsterType::NORMAL,
           { MonsterId::BYRD, MonsterId::BYRD, MonsterId::BYRD } },
+        // A looter and a mugger, not two muggers: the looter runs off with
+        // what it has taken and the mugger stays, so which of the two is
+        // which changes what the fight is about.
         { "2 Thieves",
           MonsterType::NORMAL,
-          { MonsterId::MUGGER, MonsterId::MUGGER } }
+          { MonsterId::LOOTER, MonsterId::MUGGER } }
     };
 
     return groups;
@@ -119,9 +122,9 @@ const std::vector<Encounter>& EncounterLibrary::GetAct2Weak()
 const std::vector<Encounter>& EncounterLibrary::GetAct2Strong()
 {
     static const std::vector<Encounter> groups = {
-        { "Chosen and Byrds",
+        { "Chosen and Byrd",
           MonsterType::NORMAL,
-          { MonsterId::CHOSEN, MonsterId::BYRD, MonsterId::BYRD } },
+          { MonsterId::CHOSEN, MonsterId::BYRD } },
         { "Sentry and Sphere",
           MonsterType::NORMAL,
           { MonsterId::SENTRY, MonsterId::SPHERIC_GUARDIAN } },

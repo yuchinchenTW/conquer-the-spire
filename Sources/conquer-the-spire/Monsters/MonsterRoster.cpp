@@ -405,7 +405,12 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                                   MM::Of("Harden", Intent::ATTACK_DEFEND,
                                          { ME::Damage(10), ME::Block(15) }) },
                                 true, 2);
-            monster.AddBlock(40);
+
+            // The block is what this fight is: it comes with a barricade, so
+            // what it puts up stays up. Clearing it at the top of every turn
+            // the way every other monster's block is cleared made a wall into
+            // a nuisance.
+            monster.AddPower(PowerType::BARRICADE, 1);
             monster.AddPower(PowerType::ARTIFACT, 3);
             break;
         }
@@ -437,9 +442,10 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 id, "Shelled Parasite", MonsterType::NORMAL,
                 Roll(rng, 68, 72),
                 { MM::Attack("Double Strike", 6, 2).Chance(40, 2),
-                  // Life Suck heals it for what gets through, which is what
-                  // its damage already does through the shell.
-                  MM::Attack("Suck", 10).Chance(40, 2),
+                  // It drinks what gets through: ten thrown, and whatever
+                  // of it lands comes back as health.
+                  MM::Of("Suck", Intent::ATTACK_BUFF, { ME::Drain(10) })
+                      .Chance(40, 2),
                   MM::Of("Fell", Intent::ATTACK_DEBUFF,
                          { ME::Damage(18), ME::Debuff(PowerType::FRAIL, 2) })
                       .Chance(20, 1)

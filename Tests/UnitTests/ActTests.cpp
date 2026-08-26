@@ -379,7 +379,11 @@ TEST_CASE("A guardian of the sphere sits behind its block")
     Battle battle = FightAgainst({ MonsterId::SPHERIC_GUARDIAN });
     const Monster& guardian = battle.GetMonsters().front();
 
-    CHECK(guardian.GetBlock() == 40);
+    // It starts behind a barricade rather than behind a wall someone
+    // stacked for it: nothing up yet, and Activate is what puts the
+    // twenty-five there on the first turn.
+    CHECK(guardian.GetBlock() == 0);
+    CHECK(guardian.GetPower(PowerType::BARRICADE) > 0);
     CHECK(guardian.GetPower(PowerType::ARTIFACT) == 3);
     CHECK(guardian.GetCurrentMove().name == "Activate");
 }
@@ -824,6 +828,159 @@ TEST_CASE("A champion executes from the turn he turned, not from the first")
             const bool third = (at - angry - 1) % 3u == 0u;
 
             CHECK((seq[at] == 'X') == third);
+        }
+    }
+}
+
+TEST_CASE("Two thieves are a looter and a mugger")
+{
+    // A looter runs off with what it has taken and a mugger stays, so which
+    // of the two is in the room is most of what the fight is about.
+    bool found = false;
+
+    for (const Encounter& one : EncounterLibrary::GetAct2Weak())
+    {
+        if (one.name != "2 Thieves")
+        {
+            continue;
+        }
+
+        found = true;
+
+        REQUIRE(one.monsters.size() == 2u);
+        CHECK(one.monsters[0] == MonsterId::LOOTER);
+        CHECK(one.monsters[1] == MonsterId::MUGGER);
+    }
+
+    CHECK(found == true);
+
+    // And a Chosen brings one byrd, not two.
+    found = false;
+
+    for (const Encounter& one : EncounterLibrary::GetAct2Strong())
+    {
+        if (one.name.find("Chosen and Byrd") != 0u)
+        {
+            continue;
+        }
+
+        found = true;
+
+        REQUIRE(one.monsters.size() == 2u);
+        CHECK(one.monsters[0] == MonsterId::CHOSEN);
+        CHECK(one.monsters[1] == MonsterId::BYRD);
+    }
+
+    CHECK(found == true);
+}
+
+TEST_CASE("A guardian keeps what it puts up")
+{
+    // It comes with a barricade, so the block it raises stays raised. Every
+    // other monster's block is cleared at the top of the turn and this one's
+    // was too, which turned the wall the whole fight is about into a
+    // nuisance.
+    Battle battle = FightAgainst({ MonsterId::SPHERIC_GUARDIAN });
+
+    REQUIRE(battle.GetMonsters().front().GetPower(PowerType::BARRICADE) > 0);
+    CHECK(battle.GetMonsters().front().GetBlock() == 0);
+
+    // Activate puts twenty-five up on the first turn.
+    REQUIRE(battle.EndTurn() == true);
+
+    const int raised = battle.GetMonsters().front().GetBlock();
+
+    CHECK(raised >= 25);
+
+    // And a turn later it is still there rather than swept away.
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(battle.GetMonsters().front().GetBlock() >= raised);
+}
+
+TEST_CASE("A parasite drinks what it gets through")
+{
+    // Suck deals ten and takes back what lands as health. Blocked, it drinks
+    // nothing.
+    Battle drinking = FightAgainst({ MonsterId::SHELLED_PARASITE });
+    Monster& it = drinking.GetMonsters().front();
+
+    it.SetHealth(it.GetMaxHealth() - 30);
+
+    const int before = it.GetHealth();
+
+    REQUIRE(it.ForceMove("Suck") == true);
+    REQUIRE(drinking.EndTurn() == true);
+
+    CHECK(drinking.GetMonsters().front().GetHealth() > before);
+
+    // And behind enough block it drinks nothing at all.
+    Battle blocked = FightAgainst({ MonsterId::SHELLED_PARASITE });
+    Monster& other = blocked.GetMonsters().front();
+
+    other.SetHealth(other.GetMaxHealth() - 30);
+    blocked.GetPlayer().AddBlock(60);
+
+    const int held = other.GetHealth();
+
+    REQUIRE(other.ForceMove("Suck") == true);
+    REQUIRE(blocked.EndTurn() == true);
+
+    CHECK(blocked.GetMonsters().front().GetHealth() == held);
+}
+
+TEST_CASE("Minions leave when the last of their leaders falls")
+{
+    // What the game says of the Minion buff, in as many words: minions
+    // abandon combat without their leader. So killing a Collector ends the
+    // fight rather than leaving her torch heads to be worked through.
+    Battle battle = FightAgainst({ MonsterId::THE_COLLECTOR });
+
+    // Her opening move calls two heads in.
+    REQUIRE(battle.EndTurn() == true);
+
+    int heads = 0;
+
+    for (const Monster& one : battle.GetMonsters())
+    {
+        heads += !one.IsGone() &&
+                         one.GetMonsterId() == MonsterId::TORCH_HEAD
+                     ? 1
+                     : 0;
+    }
+
+    REQUIRE(heads == 2);
+
+    // And with her gone they go. Struck down rather than set to nothing: a
+    // monster is only noticed dying where the damage lands.
+    for (Monster& one : battle.GetMonsters())
+    {
+        if (one.GetMonsterId() == MonsterId::THE_COLLECTOR)
+        {
+            one.SetHealth(1);
+        }
+    }
+
+    bool struck = false;
+
+    for (std::size_t at = 0; at < battle.GetPlayer().GetHand().size(); ++at)
+    {
+        if (battle.GetPlayer().GetHand()[at].GetCardType() ==
+            CardType::ATTACK)
+        {
+            struck = battle.PlayCard(at, 0);
+            break;
+        }
+    }
+
+    REQUIRE(struck == true);
+    REQUIRE(battle.GetMonsters().front().IsDead() == true);
+
+    for (const Monster& one : battle.GetMonsters())
+    {
+        if (one.GetMonsterId() == MonsterId::TORCH_HEAD)
+        {
+            CHECK(one.IsGone() == true);
         }
     }
 }

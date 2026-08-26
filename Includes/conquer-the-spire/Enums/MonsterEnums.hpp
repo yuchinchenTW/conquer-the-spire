@@ -38,6 +38,7 @@ enum class MonsterEffectType
     SPLIT,        //!< Steps aside for two smaller ones.
     ESCAPE,       //!< Leaves the fight.
     STASIS,       //!< Holds a card until the monster dies.
+    DRAIN,        //!< Hits, and takes back what got through as health.
     SHAKE_OFF     //!< Throws off every debuff standing on it.
 };
 

@@ -64,6 +64,10 @@ struct MonsterEffect
     static MonsterEffect Summon(MonsterId id, int count, int cap);
 
     //! Takes a card out of the player's piles until this monster dies.
+    //! Hits for \p amount and takes back what got through the block as
+    //! health. A parasite grows on what it drinks.
+    static MonsterEffect Drain(int amount);
+
     static MonsterEffect Stasis();
 
     //! Throws off every debuff standing on the monster. What a Champ does

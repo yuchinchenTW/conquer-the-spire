@@ -1372,7 +1372,13 @@ void Battle::RunMonsterTurn()
     {
         if (!monster.IsGone())
         {
-            monster.ClearBlock();
+            // A barricade is a barricade whoever is standing behind it: a
+            // Spheric Guardian keeps what it put up, which is the whole of
+            // what that fight is about.
+            if (monster.GetPower(PowerType::BARRICADE) == 0)
+            {
+                monster.ClearBlock();
+            }
             TickPoison(monster);
 
             // Poison can finish a monster off before anything moves.
@@ -3304,6 +3310,37 @@ void Battle::OnMonsterDied(Monster& monster)
                                m_rng);
     }
 
+    // Minions abandon combat without their leader. Whoever was not summoned
+    // is the leader, so once none of those is left standing the summoned ones
+    // walk off - which is why killing a Gremlin Leader ends the fight rather
+    // than leaving a yard of gremlins to work through.
+    if (monster.GetPower(PowerType::MINION) == 0)
+    {
+        bool anyLeader = false;
+
+        for (const auto& other : m_monsters)
+        {
+            if (&other != &monster && !other.IsGone() && !other.IsDead() &&
+                other.GetPower(PowerType::MINION) == 0)
+            {
+                anyLeader = true;
+                break;
+            }
+        }
+
+        if (!anyLeader)
+        {
+            for (auto& other : m_monsters)
+            {
+                if (!other.IsGone() && !other.IsDead() &&
+                    other.GetPower(PowerType::MINION) > 0)
+                {
+                    other.MarkEscaped();
+                }
+            }
+        }
+    }
+
     FireRelics(RelicHook::ENEMY_KILLED);
 
     if (const int spores = monster.GetPower(PowerType::SPORE_CLOUD);
@@ -4562,6 +4599,24 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
         case MonsterEffectType::ESCAPE:
             monster.MarkEscaped();
             break;
+
+        case MonsterEffectType::DRAIN:
+        {
+            // What got through, not what was thrown: block drunk is nothing
+            // drunk.
+            const int before = m_player.GetHealth();
+
+            DealDamageToPlayer(effect.amount, monster);
+
+            const int through = std::max(0, before - m_player.GetHealth());
+
+            if (through > 0)
+            {
+                monster.Heal(through);
+            }
+
+            break;
+        }
 
         case MonsterEffectType::SHAKE_OFF:
         {

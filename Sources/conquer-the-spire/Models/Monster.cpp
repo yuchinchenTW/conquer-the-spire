@@ -124,6 +124,15 @@ MonsterEffect MonsterEffect::ShakeOff()
     return effect;
 }
 
+MonsterEffect MonsterEffect::Drain(int amount)
+{
+    MonsterEffect effect;
+    effect.type = MonsterEffectType::DRAIN;
+    effect.amount = amount;
+
+    return effect;
+}
+
 MonsterEffect MonsterEffect::Stasis()
 {
     MonsterEffect effect;
