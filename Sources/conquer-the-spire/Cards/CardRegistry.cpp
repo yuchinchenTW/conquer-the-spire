@@ -371,6 +371,45 @@ CardWorth WorthOf(const Card& card)
                 else if (holding == PowerWorth::LASTING)
                 {
                     worth.lasting += value;
+
+                    // And what it hands over every turn, in the field for
+                    // that thing, where the figure has a home. Only the ones
+                    // that give a fixed amount every turn: a card drawn is a
+                    // card drawn whenever it arrives, and lumping it into the
+                    // lasting made a Brutality read as one small something a
+                    // turn - the same as a Rupture, a fifth of a Combust -
+                    // when what it hands over is a card, which is the one
+                    // thing in this game that buys any other thing.
+                    //
+                    // Nothing here for the ones that fire on a trigger rather
+                    // than on the clock: a Rupture waits for a card to draw
+                    // blood, a Dark Embrace for a card to burn, and writing
+                    // either of them down as a fixed draw would be trading
+                    // one lie for another. And nothing for the per-turn
+                    // damage or block: those two fields mean what a card does
+                    // when it is played, so a Combust in them would read as a
+                    // Cleave.
+                    switch (effect.power)
+                    {
+                        case PowerType::BRUTALITY:
+                            worth.draw += value;
+                            worth.health += value;
+                            break;
+
+                        case PowerType::BERSERK:
+                            worth.energy += value;
+                            break;
+
+                        case PowerType::COMBUST:
+                            // One health a turn for each copy played, and
+                            // this card is one copy. The damage stays where
+                            // it is.
+                            ++worth.health;
+                            break;
+
+                        default:
+                            break;
+                    }
                 }
                 else if (holding == PowerWorth::RULE)
                 {

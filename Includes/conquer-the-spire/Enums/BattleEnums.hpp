@@ -121,7 +121,13 @@ enum class PowerType
     BARRICADE,       //!< Block no longer expires.
     BERSERK,         //!< Gains that much extra energy each turn.
     BRUTALITY,       //!< Turn start: lose 1 health and draw a card, per stack.
-    COMBUST,         //!< Turn end: lose health and damage every enemy.
+    COMBUST,
+
+    //! How many Combusts have been played, which is what the health costs at
+    //! the end of a turn. Kept apart from COMBUST because that one holds the
+    //! damage, and a Combust and a sharpened one together deal twelve while
+    //! costing two - twelve says nothing about two.
+    COMBUST_COPIES,         //!< Turn end: lose health and damage every enemy.
     CORRUPTION,      //!< Skills cost no energy but exhaust.
     DARK_EMBRACE,    //!< Draws a card whenever a card is exhausted.
     DEMON_FORM,      //!< Turn start: gain that much Strength.

@@ -38,6 +38,7 @@ const PowerType WATCHED_POWERS[] = {
     PowerType::EVOLVE,      PowerType::FIRE_BREATHING,
     // whether spending health is an investment or the end:
     PowerType::RUPTURE,     PowerType::BRUTALITY,  PowerType::COMBUST,
+    PowerType::COMBUST_COPIES,
     // whether blocking also hits back:
     PowerType::JUGGERNAUT,  PowerType::FLAME_BARRIER,
     // and what this turn is worth against the next one:

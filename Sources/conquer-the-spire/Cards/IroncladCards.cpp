@@ -219,9 +219,14 @@ Card MakeIroncladCard(CardId id, int upgradeCount)
                           { CE::Damage(up ? 28 : 20) }, CardFlag::ETHEREAL);
 
         case CardId::COMBUST:
+            // Two numbers, because the damage stacks and the health it costs
+            // stacks separately: five or seven of the one, and one of the
+            // other for every copy played.
             return Power(id, "Combust", CardRarity::UNCOMMON, 1,
                          { CE::ApplyPowerToSelf(PowerType::COMBUST,
-                                                up ? 7 : 5) });
+                                                up ? 7 : 5),
+                           CE::ApplyPowerToSelf(PowerType::COMBUST_COPIES,
+                                                1) });
 
         case CardId::DARK_EMBRACE:
             return Power(id, "Dark Embrace", CardRarity::UNCOMMON, up ? 1 : 2,

@@ -1056,7 +1056,10 @@ void Battle::BeginPlayerTurn()
 
     if (brutality > 0)
     {
-        PlayerLoseHealth(brutality, false);
+        // A card did this, even though a turn ending is what set it off,
+        // so a Rupture answers for it. The wiki names Combust and Brutality
+        // in the same breath: both trigger it every turn.
+        PlayerLoseHealth(brutality, true);
 
         if (m_player.IsDead())
         {
@@ -1282,9 +1285,16 @@ void Battle::EndPlayerTurn()
 
     if (const int combust = m_player.GetPower(PowerType::COMBUST); combust > 0)
     {
-        // The real card loses one health per copy played; this loses one per
-        // turn no matter how many copies are stacked.
-        PlayerLoseHealth(1, false);
+        // One health for every copy played, which is not the same number as
+        // the damage: a Combust and a sharpened one together deal twelve and
+        // cost two, and twelve says nothing about two. So the copies are
+        // counted beside the damage, the way the game itself keeps them.
+        //
+        // A card did this, so a Rupture answers for it.
+        const int copies =
+            std::max(1, m_player.GetPower(PowerType::COMBUST_COPIES));
+
+        PlayerLoseHealth(copies, true);
         DamageAllEnemies(combust);
     }
 
@@ -4580,7 +4590,8 @@ void Battle::ResolveEndOfTurnHandCards()
                 break;
 
             case CardId::REGRET:
-                PlayerLoseHealth(static_cast<int>(handSize), false);
+                // A curse is a card, and a Rupture answers for what it costs.
+                PlayerLoseHealth(static_cast<int>(handSize), true);
                 break;
 
             default:

@@ -75,6 +75,106 @@ Monster Attacker(int health, int damage)
 }
 }  // namespace
 
+TEST_CASE("A per-turn engine says what it hands over, in the field for it")
+{
+    // Brutality draws a card every turn and Berserk hands over an energy.
+    // Both were a bare lasting 1 - the same figure as a Rupture, a fifth of a
+    // Combust - so the two things that buy any other thing in this game were
+    // invisible on the two cards that give them every turn.
+    const CardWorth& brutal = CardRegistry::Worth(CardId::BRUTALITY, 0);
+    const CardWorth& berserk = CardRegistry::Worth(CardId::BERSERK, 0);
+    const CardWorth& combust = CardRegistry::Worth(CardId::COMBUST, 0);
+
+    CHECK(brutal.draw == 1);
+    CHECK(brutal.health == 1);
+    CHECK(brutal.lasting > 0);
+
+    CHECK(berserk.energy == 1);
+    CHECK(berserk.lasting > 0);
+
+    // A Combust costs a health a turn, which was nowhere, and its damage
+    // stays in the lasting: the damage field means what a card does when it
+    // is played, and five a turn is not a Cleave.
+    CHECK(combust.health == 1);
+    CHECK(combust.damage == 0);
+    CHECK(combust.lasting >= 5);
+
+    // And the ones that wait for a trigger are left alone: writing a Rupture
+    // down as a fixed anything would be trading one lie for another.
+    const CardWorth& rupture = CardRegistry::Worth(CardId::RUPTURE, 0);
+    const CardWorth& embrace = CardRegistry::Worth(CardId::DARK_EMBRACE, 0);
+
+    CHECK(rupture.draw == 0);
+    CHECK(rupture.health == 0);
+    CHECK(rupture.energy == 0);
+    CHECK(embrace.draw == 0);
+}
+
+TEST_CASE("Blood a card drew is blood a Rupture answers for")
+{
+    // The wiki names them together: Combust and Brutality trigger Rupture
+    // every turn, and a Regret triggers it for being held. All three were
+    // losing the health as though a monster had done it.
+    const auto strengthAfter = [](CardId engine) {
+        Player player("Ironclad", 80);
+
+        player.AddCardToDeck(CardRegistry::Get(CardId::RUPTURE));
+        player.AddCardToDeck(CardRegistry::Get(engine));
+
+        Battle battle(std::move(player), { Monsters::TrainingDummy(300) }, 5);
+
+        battle.Start();
+
+        REQUIRE(battle.PlayCard(Idx(battle, "Rupture")) == true);
+
+        const std::size_t at = Idx(battle, CardRegistry::Get(engine)
+                                               .GetName());
+
+        if (at < battle.GetPlayer().GetHand().size())
+        {
+            REQUIRE(battle.PlayCard(at) == true);
+        }
+
+        const int before = battle.GetPlayer().GetPower(PowerType::STRENGTH);
+
+        REQUIRE(battle.EndTurn() == true);
+
+        return battle.GetPlayer().GetPower(PowerType::STRENGTH) - before;
+    };
+
+    CHECK(strengthAfter(CardId::BRUTALITY) > 0);
+    CHECK(strengthAfter(CardId::COMBUST) > 0);
+}
+
+TEST_CASE("A combust costs a health for every copy of it")
+{
+    // The damage stacks and so does what it costs, and the two are not the
+    // same number: a Combust and a sharpened one deal twelve and cost two.
+    Player player("Ironclad", 80);
+
+    player.AddCardToDeck(CardRegistry::Get(CardId::COMBUST));
+    player.AddCardToDeck(CardRegistry::Get(CardId::COMBUST, 1));
+
+    Battle battle(std::move(player), { Monsters::TrainingDummy(300) }, 5);
+
+    battle.Start();
+
+    REQUIRE(battle.PlayCard(Idx(battle, "Combust")) == true);
+    REQUIRE(battle.PlayCard(Idx(battle, "Combust+")) == true);
+
+    CHECK(battle.GetPlayer().GetPower(PowerType::COMBUST) == 12);
+    CHECK(battle.GetPlayer().GetPower(PowerType::COMBUST_COPIES) == 2);
+
+    const int health = battle.GetPlayer().GetHealth();
+    const int hurt = battle.GetMonsters().front().GetHealth();
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // Twelve off the monster, two off the climber.
+    CHECK(hurt - battle.GetMonsters().front().GetHealth() == 12);
+    CHECK(health - battle.GetPlayer().GetHealth() == 2);
+}
+
 TEST_CASE("A card that wants one of the climber's own cards says so")
 {
     // Which cards ask a question, and which pile they ask it about. Before
