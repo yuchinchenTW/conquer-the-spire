@@ -523,6 +523,50 @@ TEST_CASE("An automaton opens by spawning two orbs")
     CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Flail");
 }
 
+TEST_CASE("Half is not below half")
+{
+    // The wiki: a Champ turns when his health drops below fifty in a hundred,
+    // and a Time Eater hastes when it is reduced to below half. Standing
+    // exactly on half is not below it. A slime splitting and a relic paying
+    // out say at or below in as many words, and those are asked for here too
+    // so that fixing the one does not quietly move the other.
+    const auto turnsAt = [](MonsterId who, int health) {
+        Battle battle = FightAgainst({ who });
+        Monster& it = battle.GetMonsters().front();
+
+        it.SetHealth(health);
+        battle.EndTurn();
+
+        return battle.GetMonsters().front().GetPhase() == 2;
+    };
+
+    for (const MonsterId who : { MonsterId::THE_CHAMP,
+                                 MonsterId::TIME_EATER })
+    {
+        Battle sizing = FightAgainst({ who });
+        const int whole = sizing.GetMonsters().front().GetMaxHealth();
+
+        REQUIRE(whole % 2 == 0);
+
+        // Exactly half: still fighting fair.
+        CHECK(turnsAt(who, whole / 2) == false);
+
+        // One point below it: not any more.
+        CHECK(turnsAt(who, whole / 2 - 1) == true);
+    }
+
+    // And a slime standing exactly on half does split, because that one says
+    // at or below.
+    Battle slime = FightAgainst({ MonsterId::SLIME_BOSS });
+    Monster& boss = slime.GetMonsters().front();
+    const int whole = boss.GetMaxHealth();
+
+    boss.SetHealth(whole / 2);
+    slime.EndTurn();
+
+    CHECK(slime.GetMonsters().front().GetCurrentMove().name == "Split");
+}
+
 TEST_CASE("A champion shakes off what was put on him")
 {
     // The wiki: Anger removes all debuffs and gives six strength. What the

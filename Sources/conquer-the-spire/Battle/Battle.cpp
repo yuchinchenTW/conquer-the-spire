@@ -4598,10 +4598,14 @@ void Battle::CheckMonsterRules(Monster& monster)
         return;
     }
 
-    // A champion who is losing stops fighting fair.
+    // A champion who is losing stops fighting fair. Below half, not at it: at
+    // four hundred and twenty he turns at two hundred and nine and not at two
+    // hundred and ten. A slime splitting and a relic paying out really do say
+    // at or below, and the wiki says so in as many words, so those stay as
+    // they are.
     if (monster.GetPhase() == 1 &&
         monster.GetMonsterId() == MonsterId::THE_CHAMP &&
-        monster.GetHealth() * 2 <= monster.GetMaxHealth())
+        monster.GetHealth() * 2 < monster.GetMaxHealth())
     {
         monster.SetPhase(2);
         monster.ForceMove("Anger");
@@ -4620,7 +4624,7 @@ void Battle::CheckMonsterRules(Monster& monster)
     // and only the once.
     if (monster.GetMonsterId() == MonsterId::TIME_EATER &&
         monster.GetPhase() == 1 &&
-        monster.GetHealth() * 2 <= monster.GetMaxHealth())
+        monster.GetHealth() * 2 < monster.GetMaxHealth())
     {
         monster.SetPhase(2);
         monster.ForceMove("Haste");
