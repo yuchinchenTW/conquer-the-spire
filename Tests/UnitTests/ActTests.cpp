@@ -1972,3 +1972,117 @@ TEST_CASE("A hex answers everything that is not an attack")
 
     CHECK(battle.GetPlayer().GetDrawPile().size() == before + 1);
 }
+
+namespace
+{
+//! Counts \p id across one pile.
+int CountIn(const std::vector<Card>& pile, CardId id)
+{
+    int found = 0;
+
+    for (const Card& one : pile)
+    {
+        found += one.GetId() == id ? 1 : 0;
+    }
+
+    return found;
+}
+}  // namespace
+
+TEST_CASE("A monster's card lands in the pile the spire puts it in")
+{
+    // A laser burns twice over, and only one of the two waits in the discard.
+    // Both in the discard is a turn of nothing until the pile runs out; one
+    // on top of the draw pile is in the way of the next hand, which is the
+    // half of the move that hurts.
+    {
+        Battle battle = FightAgainst({ MonsterId::ORB_WALKER });
+
+        REQUIRE(battle.GetMonsters()[0].ForceMove("Laser") == true);
+        REQUIRE(battle.EndTurn() == true);
+
+        const Player& player = battle.GetPlayer();
+        const int drawn = CountIn(player.GetDrawPile(), CardId::BURN) +
+                          CountIn(player.GetHand(), CardId::BURN);
+
+        CHECK(drawn == 1);
+        CHECK(CountIn(player.GetDiscardPile(), CardId::BURN) == 1);
+    }
+
+    // A repulsor's daze goes into the draw pile, both of them.
+    {
+        Battle battle = FightAgainst({ MonsterId::REPULSOR });
+
+        REQUIRE(battle.GetMonsters()[0].ForceMove("Repulse") == true);
+        REQUIRE(battle.EndTurn() == true);
+
+        const Player& player = battle.GetPlayer();
+
+        CHECK(CountIn(player.GetDrawPile(), CardId::DAZED) +
+                  CountIn(player.GetHand(), CardId::DAZED) ==
+              2);
+        CHECK(CountIn(player.GetDiscardPile(), CardId::DAZED) == 0);
+    }
+
+    // And a void, the same way.
+    {
+        Battle battle = FightAgainst({ MonsterId::AWAKENED_ONE });
+
+        battle.GetMonsters()[0].SetPhase(2);
+
+        REQUIRE(battle.GetMonsters()[0].ForceMove("Sludge") == true);
+        REQUIRE(battle.EndTurn() == true);
+
+        const Player& player = battle.GetPlayer();
+
+        CHECK(CountIn(player.GetDrawPile(), CardId::VOID) +
+                  CountIn(player.GetHand(), CardId::VOID) ==
+              1);
+        CHECK(CountIn(player.GetDiscardPile(), CardId::VOID) == 0);
+    }
+}
+
+TEST_CASE("A parasite is put in the deck, once, and not in any pile")
+{
+    // Where it goes: the deck, and no pile of this fight. It does nothing to
+    // the fight it is given in and everything to the ones after.
+    {
+        Battle battle = FightAgainst({ MonsterId::WRITHING_MASS });
+
+        REQUIRE(battle.GetMonsters()[0].ForceMove("Implant") == true);
+        REQUIRE(battle.EndTurn() == true);
+
+        const Player& player = battle.GetPlayer();
+
+        CHECK(CountIn(player.GetDrawPile(), CardId::PARASITE) == 0);
+        CHECK(CountIn(player.GetHand(), CardId::PARASITE) == 0);
+        CHECK(CountIn(player.GetDiscardPile(), CardId::PARASITE) == 0);
+        CHECK(CountIn(battle.GetKeptCards(), CardId::PARASITE) == 1);
+    }
+
+    // And how often: once a fight, left to choose for itself. A repeat limit
+    // instead of a limit for the whole fight let it come round again a few
+    // turns later, which is two parasites where the spire gives one.
+    int gave = 0;
+
+    for (unsigned int seed = 1; seed <= 40u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::WRITHING_MASS }, seed);
+
+        for (int turn = 0; turn < 30; ++turn)
+        {
+            if (!battle.EndTurn())
+            {
+                break;
+            }
+        }
+
+        const int kept = CountIn(battle.GetKeptCards(), CardId::PARASITE);
+
+        CHECK(kept <= 1);
+        gave += kept;
+    }
+
+    // It does give them, so the limit above is not passing for want of any.
+    CHECK(gave > 0);
+}

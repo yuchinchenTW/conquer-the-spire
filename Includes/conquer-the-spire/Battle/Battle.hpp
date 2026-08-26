@@ -202,6 +202,11 @@ class Battle
     const std::map<CardId, int>& GetPlayedCounts() const;
     const std::map<CardId, int>& GetStrandedCounts() const;
 
+    //! The cards a monster put into the deck for keeps rather than into a
+    //! pile of this fight. A parasite is not swept away with the rest of the
+    //! fight's litter, so the climb takes these up when the fight ends.
+    const std::vector<Card>& GetKeptCards() const;
+
     //! Returns how many times the player has lost health this battle, which is
     //! what Blood for Blood reads.
     int GetHealthLossCount() const;
@@ -453,6 +458,7 @@ class Battle
     //! fight simulated by a search counts into its own copy and leaves the
     //! real one alone.
     std::map<CardId, int> m_playedCounts;
+    std::vector<Card> m_kept;
     std::map<CardId, int> m_strandedCounts;
     int m_cardsDiscardedThisTurn = 0;
     int m_attacksPlayedThisTurn = 0;

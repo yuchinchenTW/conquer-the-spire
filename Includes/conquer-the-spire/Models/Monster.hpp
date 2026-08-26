@@ -7,6 +7,7 @@
 #ifndef CONQUER_THE_SPIRE_MONSTER_HPP
 #define CONQUER_THE_SPIRE_MONSTER_HPP
 
+#include <conquer-the-spire/Enums/BattleEnums.hpp>
 #include <conquer-the-spire/Enums/MonsterEnums.hpp>
 #include <conquer-the-spire/Models/Card.hpp>
 #include <conquer-the-spire/Models/Creature.hpp>
@@ -51,9 +52,18 @@ struct MonsterEffect
     //! Applies \p amount of \p power to the player.
     static MonsterEffect Debuff(PowerType power, int amount);
 
-    //! Puts \p count copies of \p id into the player's discard pile.
+    //! Puts \p count copies of \p id into \p pile. The discard is where most
+    //! of them go, but not all: a repulsor's daze and an awakened one's void
+    //! go into the draw pile, where they are in the way of the next hand
+    //! rather than of some hand after the next shuffle.
     static MonsterEffect AddCard(CardId id, int count = 1,
-                                 bool upgraded = false);
+                                 bool upgraded = false,
+                                 CardPile pile = CardPile::DISCARD);
+
+    //! Puts one \p id into the deck itself, for keeps. A parasite is not a
+    //! card in a pile that the fight ending sweeps away - it is in the deck
+    //! from then on, and only the next fight finds out.
+    static MonsterEffect AddCardToDeck(CardId id);
 
     //! Applies \p amount of \p power to every monster still standing.
     static MonsterEffect BuffAll(PowerType power, int amount);
@@ -101,6 +111,10 @@ struct MonsterEffect
     PowerType power = PowerType::INVALID;
     bool toPlayer = false;
     CardId cardId = CardId::INVALID;
+
+    //! Where a made card goes. \c INVALID means the deck itself rather than
+    //! any pile of the fight.
+    CardPile pile = CardPile::DISCARD;
     bool upgradedCard = false;
     MonsterId splitFirst = MonsterId::INVALID;
     MonsterId splitSecond = MonsterId::INVALID;

@@ -860,8 +860,15 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Orb Walker", MonsterType::NORMAL, Roll(rng, 90, 96),
+                // One burn into the draw pile and one into the discard, not
+                // two into the discard. The one on top of the draw pile is in
+                // the way of the next hand, which is the half of the move
+                // that hurts.
                 { MM::Of("Laser", Intent::ATTACK_DEBUFF,
-                         { ME::Damage(10), ME::AddCard(CardId::BURN, 2) })
+                         { ME::Damage(10),
+                           ME::AddCard(CardId::BURN, 1, false,
+                                       CardPile::DRAW_SHUFFLED),
+                           ME::AddCard(CardId::BURN, 1) })
                       .Chance(60, 2),
                   MM::Attack("Claw", 15).Chance(40, 2) });
             monster.AddPower(PowerType::RITUAL, 3);
@@ -882,8 +889,11 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Repulsor", MonsterType::NORMAL, Roll(rng, 29, 35),
+                // Into the draw pile: two dazed waiting in the discard are
+                // no trouble at all until the pile runs out.
                 { MM::Of("Repulse", Intent::DEBUFF,
-                         { ME::AddCard(CardId::DAZED, 2) })
+                         { ME::AddCard(CardId::DAZED, 2, false,
+                                       CardPile::DRAW_SHUFFLED) })
                       .Chance(80),
                   MM::Attack("Bash", 11).Chance(20, 1) });
             break;
@@ -954,9 +964,14 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                   MM::Of("Block Attack", Intent::ATTACK_DEFEND,
                          { ME::Damage(15), ME::Block(16) })
                       .Chance(10, 1),
+                  // Into the deck itself and only the once: it does nothing
+                  // to this fight and everything to the ones after it. A
+                  // repeat limit let it come round again a few turns later,
+                  // which is two parasites where the spire gives one.
                   MM::Of("Implant", Intent::DEBUFF,
-                         { ME::AddCard(CardId::PARASITE, 1) })
-                      .Chance(10, 1)
+                         { ME::AddCardToDeck(CardId::PARASITE) })
+                      .Chance(10)
+                      .AtMost(1, "Multi Hit")
                       .NotFirst() });
             monster.AddPower(PowerType::MALLEABLE, 4);
             monster.SetMalleableBase(4);
@@ -1034,7 +1049,9 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                   MM::Attack("Dark Echo", 40).Chance(0).InPhase(2),
                   MM::Attack("Tackle", 10, 3).Chance(50, 2).InPhase(2),
                   MM::Of("Sludge", Intent::ATTACK_DEBUFF,
-                         { ME::Damage(18), ME::AddCard(CardId::VOID, 1) })
+                         { ME::Damage(18),
+                           ME::AddCard(CardId::VOID, 1, false,
+                                       CardPile::DRAW_SHUFFLED) })
                       .Chance(50, 2)
                       .InPhase(2) });
             monster.AddPower(PowerType::REGENERATION, 10);

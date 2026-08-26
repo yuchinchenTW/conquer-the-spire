@@ -74,13 +74,23 @@ MonsterEffect MonsterEffect::Debuff(PowerType power, int amount)
     return effect;
 }
 
-MonsterEffect MonsterEffect::AddCard(CardId id, int count, bool upgraded)
+MonsterEffect MonsterEffect::AddCard(CardId id, int count, bool upgraded,
+                                    CardPile pile)
 {
     MonsterEffect effect;
     effect.type = MonsterEffectType::ADD_CARD;
     effect.cardId = id;
     effect.amount = count;
     effect.upgradedCard = upgraded;
+    effect.pile = pile;
+
+    return effect;
+}
+
+MonsterEffect MonsterEffect::AddCardToDeck(CardId id)
+{
+    MonsterEffect effect = AddCard(id, 1);
+    effect.pile = CardPile::INVALID;
 
     return effect;
 }

@@ -851,6 +851,11 @@ std::vector<std::size_t> Battle::GetLivingMonsterIndices() const
     return indices;
 }
 
+const std::vector<Card>& Battle::GetKeptCards() const
+{
+    return m_kept;
+}
+
 const std::map<CardId, int>& Battle::GetPlayedCounts() const
 {
     return m_playedCounts;
@@ -4526,10 +4531,20 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
         case MonsterEffectType::ADD_CARD:
             for (int i = 0; i < effect.amount; ++i)
             {
-                m_player.AddCardToPile(
-                    CardRegistry::Get(effect.cardId,
-                                      effect.upgradedCard ? 1 : 0),
-                    CardPile::DISCARD, m_rng);
+                Card made = CardRegistry::Get(effect.cardId,
+                                              effect.upgradedCard ? 1 : 0);
+
+                // The deck itself, for the ones that are not litter for this
+                // fight but a card owned from now on. A fight cannot reach
+                // the deck, so it writes them down and the climb takes them
+                // up once the fight is over.
+                if (effect.pile == CardPile::INVALID)
+                {
+                    m_kept.emplace_back(std::move(made));
+                    continue;
+                }
+
+                m_player.AddCardToPile(std::move(made), effect.pile, m_rng);
             }
             break;
 

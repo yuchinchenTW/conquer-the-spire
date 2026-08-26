@@ -2067,6 +2067,14 @@ void Run::FinishBattle(const Battle& battle)
     m_player.SetMaxHealth(fought.GetMaxHealth());
     m_player.GetPotions() = fought.GetPotions();
 
+    // What a monster put into the deck rather than into a pile. Taken up
+    // before the climb can end here, because a parasite is owed whether or
+    // not this was the last fight.
+    for (const Card& kept : battle.GetKeptCards())
+    {
+        AddCardToDeck(kept);
+    }
+
     if (m_player.GetHealth() <= 0)
     {
         Note(LogEntry::DIED, static_cast<int>(m_encounter.type));
