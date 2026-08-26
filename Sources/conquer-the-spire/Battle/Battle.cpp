@@ -1056,7 +1056,7 @@ void Battle::BeginPlayerTurn()
 
     if (brutality > 0)
     {
-        // A card did this, even though a turn ending is what set it off,
+        // A card did this, even though a turn starting is what set it off,
         // so a Rupture answers for it. The wiki names Combust and Brutality
         // in the same breath: both trigger it every turn.
         PlayerLoseHealth(brutality, true);

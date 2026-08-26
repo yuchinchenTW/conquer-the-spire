@@ -415,6 +415,12 @@ CardWorth WorthOf(const Card& card)
                 {
                     worth.lasting += RULE_WORTH;
                 }
+                else if (effect.power == PowerType::COMBUST_COPIES)
+                {
+                    // Internal bookkeeping for how many Combust cards were
+                    // played. COMBUST carries the damage and the typed
+                    // health cost above; the counter is not a benefit.
+                }
                 else
                 {
                     worth.power += value;

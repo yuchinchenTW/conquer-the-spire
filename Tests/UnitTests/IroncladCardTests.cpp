@@ -97,6 +97,7 @@ TEST_CASE("A per-turn engine says what it hands over, in the field for it")
     // is played, and five a turn is not a Cleave.
     CHECK(combust.health == 1);
     CHECK(combust.damage == 0);
+    CHECK(combust.power == 0);
     CHECK(combust.lasting >= 5);
 
     // And the ones that wait for a trigger are left alone: writing a Rupture
@@ -144,6 +145,23 @@ TEST_CASE("Blood a card drew is blood a Rupture answers for")
 
     CHECK(strengthAfter(CardId::BRUTALITY) > 0);
     CHECK(strengthAfter(CardId::COMBUST) > 0);
+
+    Player player("Ironclad", 80);
+
+    player.AddCardToDeck(CardRegistry::Get(CardId::RUPTURE));
+    player.AddCardToDeck(CardRegistry::Get(CardId::REGRET));
+
+    Battle battle(std::move(player), { Monsters::TrainingDummy(300) }, 5);
+
+    battle.Start();
+
+    REQUIRE(battle.PlayCard(Idx(battle, "Rupture")) == true);
+
+    const int before = battle.GetPlayer().GetPower(PowerType::STRENGTH);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(battle.GetPlayer().GetPower(PowerType::STRENGTH) > before);
 }
 
 TEST_CASE("A combust costs a health for every copy of it")
