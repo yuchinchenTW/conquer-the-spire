@@ -637,6 +637,51 @@ TEST_CASE("A Champ takes his stance twice and gloats after that")
     CHECK(100.0 * saw["Gloat"] / rounds < 33.0);
 }
 
+TEST_CASE("A share handed on keeps going until it can sit down")
+{
+    // The corner where following the redirect one step is not enough. His
+    // stance has been taken twice, so its share is the gloat's - but he
+    // gloated last turn, and no move comes twice running, so the share goes on
+    // again to the slap. Stopping at the gloat let a gloat come twice running,
+    // which is the one thing the rule exists to stop.
+    std::map<std::string, int> saw;
+    const int rounds = 20000;
+
+    for (int i = 0; i < rounds; ++i)
+    {
+        std::mt19937 rng(static_cast<unsigned int>(i) + 1u);
+        Monster him = MonsterRoster::Make(MonsterId::THE_CHAMP, rng);
+        MoveContext context;
+
+        context.turn = 1;
+
+        for (int again = 0; again < 2; ++again)
+        {
+            REQUIRE(him.ForceMove("Defensive Stance") == true);
+            him.CountMoveUsed();
+        }
+
+        REQUIRE(him.ForceMove("Gloat") == true);
+
+        him.AdvanceMove(rng, context);
+        ++saw[him.GetCurrentMove().name];
+    }
+
+    // Neither of the two that cannot be made.
+    CHECK(saw["Gloat"] == 0);
+    CHECK(saw["Defensive Stance"] == 0);
+
+    // The slash keeps its own forty-five; the slap holds its twenty-five, the
+    // gloat's fifteen, and the stance's fifteen that came by way of the gloat.
+    const double slash = 100.0 * saw["Heavy Slash"] / rounds;
+    const double slap = 100.0 * saw["Face Slap"] / rounds;
+
+    CHECK(slash > 42.0);
+    CHECK(slash < 48.0);
+    CHECK(slap > 52.0);
+    CHECK(slap < 58.0);
+}
+
 TEST_CASE("Half is not below half")
 {
     // The wiki: a Champ turns when his health drops below fifty in a hundred,

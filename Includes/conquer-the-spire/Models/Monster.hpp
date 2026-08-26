@@ -320,6 +320,14 @@ class Monster : public Creature
     //! move allowed only so often in a fight knows when it has had its turns.
     void CountMoveUsed();
 
+    //! Returns whether the move at \p at could be made right now: allowed by
+    //! the company and the phase, not just made, and not out of its turns.
+    bool MoveDrawable(std::size_t at, const MoveContext& context) const;
+
+    //! Returns who ends up with the share of the move at \p at, following the
+    //! redirects until one lands somewhere it can actually be drawn.
+    std::size_t HeirOfMove(std::size_t at, const MoveContext& context) const;
+
     //! Returns where \p name sits in the list, or the size of it.
     std::size_t IndexOfMove(const std::string& name) const;
 

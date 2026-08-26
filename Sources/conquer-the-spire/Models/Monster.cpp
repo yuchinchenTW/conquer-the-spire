@@ -562,6 +562,67 @@ Card Monster::ReleaseStasisCard()
     return card;
 }
 
+bool Monster::MoveDrawable(std::size_t at, const MoveContext& context) const
+{
+    if (at >= m_moves.size())
+    {
+        return false;
+    }
+
+    const MonsterMove& move = m_moves[at];
+
+    if (move.weight <= 0 || !MoveAllowed(move, context))
+    {
+        return false;
+    }
+
+    if (move.maxInARow > 0 && at == m_moveIndex &&
+        m_sameMoveRun >= move.maxInARow)
+    {
+        return false;
+    }
+
+    return move.atMost <= 0 || move.used < move.atMost;
+}
+
+std::size_t Monster::HeirOfMove(std::size_t at, const MoveContext& context)
+    const
+{
+    // A share handed on can land somewhere that cannot take it either - a
+    // Champ who has taken his stance twice gloats instead, and if he gloated
+    // last turn he cannot gloat now, so the share goes on again to the slap.
+    // Following it one step and stopping was letting a gloat come twice
+    // running, which is the one thing the whole rule is about.
+    for (std::size_t hops = 0; hops <= m_moves.size(); ++hops)
+    {
+        if (at >= m_moves.size())
+        {
+            return m_moves.size();
+        }
+
+        if (MoveDrawable(at, context))
+        {
+            return at;
+        }
+
+        const MonsterMove& move = m_moves[at];
+        const bool finished = move.atMost > 0 && move.used >= move.atMost;
+        const std::string& next =
+            finished ? move.insteadAfter : move.spillsTo;
+
+        if (next.empty())
+        {
+            return m_moves.size();
+        }
+
+        at = IndexOfMove(next);
+    }
+
+    // Round in a circle: nobody gets it rather than somebody getting it
+    // twice.
+    return m_moves.size();
+}
+
 std::size_t Monster::IndexOfMove(const std::string& name) const
 {
     for (std::size_t i = 0; i < m_moves.size(); ++i)
@@ -732,23 +793,13 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
         // has just gloated faces a face slap at forty and everything else
         // exactly where it was, and one who has taken his stance twice gloats
         // in its place at thirty.
-        const bool repeating = move.maxInARow > 0 && i == m_moveIndex &&
-                               m_sameMoveRun >= move.maxInARow;
-        const bool finished = move.atMost > 0 && move.used >= move.atMost;
-
-        if (repeating || finished)
+        if (!MoveDrawable(i, context))
         {
-            const std::string& heirName =
-                finished ? move.insteadAfter : move.spillsTo;
+            const std::size_t heir = HeirOfMove(i, context);
 
-            if (!heirName.empty())
+            if (heir < m_moves.size())
             {
-                const std::size_t heir = IndexOfMove(heirName);
-
-                if (heir < m_moves.size())
-                {
-                    shares[heir] += move.weight;
-                }
+                shares[heir] += move.weight;
             }
 
             continue;
@@ -759,7 +810,7 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
 
     for (std::size_t i = 0; i < m_moves.size(); ++i)
     {
-        if (shares[i] > 0 && MoveAllowed(m_moves[i], context))
+        if (shares[i] > 0 && MoveDrawable(i, context))
         {
             allowed.emplace_back(i);
             total += shares[i];
