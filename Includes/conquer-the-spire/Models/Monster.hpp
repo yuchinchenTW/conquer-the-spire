@@ -173,6 +173,18 @@ struct MonsterMove
     //! to do with how long the fight had been going when he turned.
     MonsterMove& SincePhase();
 
+    //! Adds one more hit for every time this move has already been made in
+    //! the fight. A Book of Stabbing stabs twice, then three times, then four,
+    //! and what it is about to do has to be on the intent as well as in the
+    //! blow - the climber can see the number coming.
+    MonsterMove& GrowsWithUse();
+
+    //! Only on the turns where the turn number leaves \p remainder when
+    //! divided by \p every. A Chosen turns about between two pairs of moves,
+    //! one pair on the odd turns and the other on the even ones, which is a
+    //! gate on the turn rather than a move owed on it.
+    MonsterMove& OnTurnsLike(int every, int remainder);
+
     //! Hands this move's share to \p other when it may not be repeated,
     //! rather than leaving it to be shared out among everything else.
     //!
@@ -222,6 +234,16 @@ struct MonsterMove
     int phase = 0;
     //! Whether Every counts from the turn the phase changed.
     bool sincePhase = false;
+
+    //! Whether one more hit is added for every time it has been made, and how
+    //! many it had to begin with.
+    bool growsWithUse = false;
+    int baseTimes = 0;
+
+    //! Which turns it may be made on: the turn number divided by \p turnEvery
+    //! has to leave \p turnLike. Nought asks nothing.
+    int turnEvery = 0;
+    int turnLike = 0;
 
     //! Who gets this move's share when it may not be repeated, and who it
     //! turns into once it has been used as often as it is allowed.
@@ -323,6 +345,11 @@ class Monster : public Creature
     //! Writes down that the move standing has been used once more, so that a
     //! move allowed only so often in a fight knows when it has had its turns.
     void CountMoveUsed();
+
+    //! Sets the standing move's hits from how often it has been made, for a
+    //! move that grows. Called wherever the standing move changes, so that the
+    //! intent the climber reads and the blow that lands are the same number.
+    void RefreshGrowingMove();
 
     //! Returns whether the move at \p at is the same move as the one
     //! standing, which is a question about its name and not about where it

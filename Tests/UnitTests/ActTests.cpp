@@ -832,6 +832,98 @@ TEST_CASE("A champion executes from the turn he turned, not from the first")
     }
 }
 
+TEST_CASE("A chosen pokes, hexes, and then turns about")
+{
+    // A poke, then the hex on the second turn, and after that it turns about
+    // between two pairs: a debilitate or a drain on the odd turns, a poke or a
+    // zap on the even ones. It was drawing from all four every turn, so the
+    // hex landed whenever it happened to and the turning about was not there.
+    std::map<std::string, int> odd;
+    std::map<std::string, int> even;
+
+    for (unsigned int seed = 1; seed <= 40u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::CHOSEN }, seed);
+
+        CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Poke");
+
+        REQUIRE(battle.EndTurn() == true);
+
+        CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Hex");
+
+        for (int turn = 3; turn <= 10 &&
+                           battle.GetPhase() == BattlePhase::PLAYER_TURN;
+             ++turn)
+        {
+            REQUIRE(battle.EndTurn() == true);
+
+            const std::string move =
+                battle.GetMonsters().front().GetCurrentMove().name;
+
+            if (turn % 2 == 1)
+            {
+                ++odd[move];
+            }
+            else
+            {
+                ++even[move];
+            }
+        }
+    }
+
+    // The odd turns hold only the two that debuff, the even ones only the two
+    // that hit.
+    CHECK(odd["Poke"] == 0);
+    CHECK(odd["Zap"] == 0);
+    CHECK(even["Debilitate"] == 0);
+    CHECK(even["Drain"] == 0);
+
+    // And both of each pair are actually drawn, or the halves above pass for
+    // being empty.
+    CHECK(odd["Debilitate"] + odd["Drain"] > 0);
+    CHECK(even["Poke"] + even["Zap"] > 0);
+}
+
+TEST_CASE("A book left standing stabs more every time")
+{
+    // Six a hit, twice over to begin with and one more hit for every Multi
+    // Stab already thrown. It has to be on the intent as well as in the blow,
+    // because the whole reason to kill it quickly is being able to see the
+    // number climbing.
+    Battle battle = FightAgainst({ MonsterId::BOOK_OF_STABBING });
+    int expected = 2;
+
+    for (int turn = 0; turn < 10 &&
+                       battle.GetPhase() == BattlePhase::PLAYER_TURN;
+         ++turn)
+    {
+        const Monster& it = battle.GetMonsters().front();
+        const MonsterMove move = it.GetCurrentMove();
+
+        if (move.name == "Multi Stab")
+        {
+            int hits = 0;
+
+            for (const MonsterEffect& effect : move.effects)
+            {
+                if (effect.type == MonsterEffectType::DAMAGE)
+                {
+                    hits = effect.times;
+                    CHECK(effect.amount == 6);
+                }
+            }
+
+            CHECK(hits == expected);
+            ++expected;
+        }
+
+        REQUIRE(battle.EndTurn() == true);
+    }
+
+    // It threw at least a few of them, or nothing above was tested.
+    CHECK(expected > 4);
+}
+
 TEST_CASE("Two thieves are a looter and a mugger")
 {
     // A looter runs off with what it has taken and a mugger stays, so which

@@ -419,17 +419,25 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Chosen", MonsterType::NORMAL, Roll(rng, 95, 99),
-                { MM::Attack("Poke", 5, 2).Chance(60),
-                  MM::Debuff("Hex", PowerType::HEX, 1).Chance(0),
+                // A poke, then the hex, and after that it turns about
+                // between two pairs: on the odd turns a debilitate or a drain,
+                // on the even ones a poke or a zap. It was drawing from all
+                // four every turn, so the hex never landed on the second turn
+                // and the turning about was not there at all.
+                { MM::Attack("Poke", 5, 2).Chance(60).OnTurnsLike(2, 0)
+                      .Opener(),
+                  MM::Debuff("Hex", PowerType::HEX, 1).Chance(0).OnTurn(2),
                   MM::Of("Debilitate", Intent::ATTACK_DEBUFF,
                          { ME::Damage(10),
                            ME::Debuff(PowerType::VULNERABLE, 2) })
-                      .Chance(50),
+                      .Chance(50)
+                      .OnTurnsLike(2, 1),
                   MM::Of("Drain", Intent::DEBUFF,
                          { ME::Debuff(PowerType::WEAK, 3),
                            ME::Buff(PowerType::STRENGTH, 3) })
-                      .Chance(50),
-                  MM::Attack("Zap", 18).Chance(40) });
+                      .Chance(50)
+                      .OnTurnsLike(2, 1),
+                  MM::Attack("Zap", 18).Chance(40).OnTurnsLike(2, 0) });
 
             // It pokes, hexes, and only then starts choosing.
             monster.ForceMove("Poke");
@@ -573,12 +581,14 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::BOOK_OF_STABBING:
         {
-            // Multi Stab grows with every use; the roster hands it the third
-            // hit it starts a fight on.
+            // Multi Stab is six a hit, twice over to begin with and one
+            // more hit for every time it has already been thrown. A book left
+            // standing gets worse and worse, which is the whole reason to kill
+            // it quickly, and it was throwing the same two hits all fight.
             monster = Thinking(
                 id, "Book of Stabbing", MonsterType::ELITE,
                 Roll(rng, 160, 164),
-                { MM::Attack("Multi Stab", 6, 2).Chance(85, 2),
+                { MM::Attack("Multi Stab", 6, 2).Chance(85, 2).GrowsWithUse(),
                   MM::Attack("Big Stab", 21).Chance(15, 1) });
             monster.AddPower(PowerType::PAINFUL_STABS, 1);
             break;

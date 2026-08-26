@@ -305,6 +305,32 @@ MonsterMove& MonsterMove::SincePhase()
     return *this;
 }
 
+MonsterMove& MonsterMove::GrowsWithUse()
+{
+    growsWithUse = true;
+
+    // The hits live on the blow rather than on the move, so the number it
+    // starts with is read off the first blow that has one.
+    for (const MonsterEffect& effect : effects)
+    {
+        if (effect.type == MonsterEffectType::DAMAGE)
+        {
+            baseTimes = effect.times;
+            break;
+        }
+    }
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::OnTurnsLike(int every, int remainder)
+{
+    turnEvery = every;
+    turnLike = remainder;
+
+    return *this;
+}
+
 MonsterMove& MonsterMove::SpillsTo(const std::string& other)
 {
     spillsTo = other;
@@ -436,12 +462,14 @@ void Monster::ChooseOpeningMove(std::mt19937& rng, const MoveContext& context)
         {
             m_moveIndex = i;
             m_sameMoveRun = 1;
+            RefreshGrowingMove();
             return;
         }
     }
 
     m_moveIndex = PickWeightedMove(rng, context);
     m_sameMoveRun = 1;
+    RefreshGrowingMove();
 }
 
 void Monster::AdvanceMove(std::mt19937& rng)
@@ -477,6 +505,7 @@ void Monster::AdvanceMove(std::mt19937& rng, const MoveContext& context)
 
     m_moveIndex = PickWeightedMove(rng, context);
     m_sameMoveRun = SameMoveAs(previous) ? m_sameMoveRun + 1 : 1;
+    RefreshGrowingMove();
 }
 
 int Monster::GetPhase() const
@@ -569,6 +598,33 @@ Card Monster::ReleaseStasisCard()
     m_stasisCard = Card();
 
     return card;
+}
+
+void Monster::RefreshGrowingMove()
+{
+    if (m_moveIndex >= m_moves.size())
+    {
+        return;
+    }
+
+    MonsterMove& move = m_moves[m_moveIndex];
+
+    if (!move.growsWithUse)
+    {
+        return;
+    }
+
+    // Two to start with, and one more for every one already made. The count
+    // is put up as the move begins to resolve, so what it holds here is how
+    // many came before this one.
+    for (MonsterEffect& effect : move.effects)
+    {
+        if (effect.type == MonsterEffectType::DAMAGE)
+        {
+            effect.times = move.baseTimes + move.used;
+            break;
+        }
+    }
 }
 
 bool Monster::SameMoveAs(std::size_t other) const
@@ -678,6 +734,12 @@ bool Monster::MoveAllowed(const MonsterMove& move,
         return false;
     }
 
+    if (move.turnEvery > 0 &&
+        (context.turn + 1) % move.turnEvery != move.turnLike)
+    {
+        return false;
+    }
+
     if (move.withAlly && context.allies == 0)
     {
         return false;
@@ -709,6 +771,8 @@ bool Monster::ForceMove(const std::string& name)
         {
             m_sameMoveRun = SameMoveAs(i) ? m_sameMoveRun + 1 : 1;
             m_moveIndex = i;
+
+            RefreshGrowingMove();
 
             return true;
         }
