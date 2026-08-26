@@ -333,20 +333,97 @@ TEST_CASE("A Looter walks out of the fight")
 {
     Battle battle = BattleAgainst({ Make(MonsterId::LOOTER) });
 
-    // Mug, Mug, Lunge, Smoke Bomb, then away.
-    const char* order[] = { "Mug", "Mug", "Lunge", "Smoke Bomb", "Escape" };
-
-    for (const char* name : order)
+    // Mug, mug, and then whichever way the coin went: lunge, smoke, away, or
+    // smoke and straight away.
+    for (int turn = 0; turn < 2; ++turn)
     {
-        REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == name);
+        REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "Mug");
         REQUIRE(battle.EndTurn() == true);
     }
+
+    const std::string third = battle.GetMonsters()[0].GetCurrentMove().name;
+
+    REQUIRE((third == "Lunge" || third == "Smoke Bomb"));
+    REQUIRE(battle.EndTurn() == true);
+
+    if (third == "Lunge")
+    {
+        REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "Smoke Bomb");
+        REQUIRE(battle.EndTurn() == true);
+    }
+
+    REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "Escape");
+    REQUIRE(battle.EndTurn() == true);
 
     CHECK(battle.GetMonsters()[0].HasEscaped() == true);
     CHECK(battle.GetMonsters()[0].IsGone() == true);
 
     // Nothing is left to fight, so the battle is over.
     CHECK(battle.GetPhase() == BattlePhase::WON);
+}
+
+TEST_CASE("A thief tosses its coin on the third turn, not when it is made")
+{
+    for (const MonsterId id : { MonsterId::LOOTER, MonsterId::MUGGER })
+    {
+        std::map<std::string, int> third;
+        const int rounds = 400;
+
+        // The same thief every time - one seed for the making of it - and a
+        // different generator driving the turns. If the coin were tossed when
+        // the thief was made, every one of these would go the same way.
+        for (int round = 0; round < rounds; ++round)
+        {
+            Monster thief = Make(id);
+            std::mt19937 rng(static_cast<unsigned int>(round) + 1u);
+            MoveContext context;
+
+            // The move of turn one, chosen with nothing behind it.
+            context.turn = 0;
+            thief.ChooseOpeningMove(rng, context);
+
+            const auto step = [&thief, &rng, &context](int turn) {
+                // What a battle does at the end of a monster's turn: the move
+                // is written down as made, and then the next one is chosen.
+                // The gates that ask whether the lunge happened read that
+                // count, so a bare walk that skips it sees no lunge ever.
+                thief.CountMoveUsed();
+                context.turn = turn - 1;
+                thief.AdvanceMove(rng, context);
+            };
+
+            CHECK(thief.GetCurrentMove().name == "Mug");
+            step(2);
+            CHECK(thief.GetCurrentMove().name == "Mug");
+            step(3);
+            ++third[thief.GetCurrentMove().name];
+
+            // And what follows the coin follows from the coin: a lunge is
+            // paid for with an extra turn before the thief can go.
+            const bool lunged = thief.GetCurrentMove().name == "Lunge";
+
+            step(4);
+
+            if (lunged)
+            {
+                CHECK(thief.GetCurrentMove().name == "Smoke Bomb");
+                step(5);
+            }
+
+            CHECK(thief.GetCurrentMove().name == "Escape");
+        }
+
+        REQUIRE(third.count("Lunge") == 1u);
+        REQUIRE(third.count("Smoke Bomb") == 1u);
+        CHECK(third.size() == 2u);
+        CHECK(third["Lunge"] + third["Smoke Bomb"] == rounds);
+
+        // A coin, so near enough half each.
+        const double share = 100.0 * third["Lunge"] / rounds;
+
+        CHECK(share > 42.0);
+        CHECK(share < 58.0);
+    }
 }
 
 TEST_CASE("A Gremlin Wizard charges before it blasts")

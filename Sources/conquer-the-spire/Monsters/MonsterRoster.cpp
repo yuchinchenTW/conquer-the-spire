@@ -185,34 +185,33 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::LOOTER:
         {
-            // Two mugs, and then a coin: a lunge and then the smoke, or
-            // straight to the smoke. Always lunging first meant a thief always
-            // stayed the extra turn, which is a turn of getting the gold back
-            // that the climber was being given for nothing.
+            // Mug, mug, and then a coin: lunge and go up in smoke, or
+            // straight up in smoke. Always lunging first meant a thief always
+            // stayed the extra turn, which is a turn of getting back the gold
+            // it was being handed for nothing.
             //
-            // Tossed here rather than on the third turn, because the intent is
-            // only ever shown one turn ahead - the climber learns of it at the
-            // same moment either way.
-            std::uniform_int_distribution<int> coin(0, 1);
-            std::vector<MonsterMove> walk = { MM::Attack("Mug", 10),
-                                              MM::Attack("Mug", 10) };
+            // The coin is tossed on the third turn rather than when the thief
+            // is made, so that what it does is decided when the fight gets
+            // there. The two entries owed on that turn are drawn between by
+            // their weights, and everything after is gated on whether the
+            // lunge happened.
+            monster = Thinking(
+                id, "Looter", MonsterType::NORMAL, Roll(rng, 44, 48),
+                { MM::Attack("Mug", 10).Opener(),
+                  MM::Attack("Mug", 10).OnTurn(2),
+                  MM::Attack("Lunge", 12).Chance(50).OnTurn(3),
+                  MM::Defend("Smoke Bomb", 6).Chance(50).OnTurn(3),
+                  MM::Defend("Smoke Bomb", 6)
+                      .OnTurn(4)
+                      .AfterMove("Lunge"),
+                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() })
+                      .OnTurn(4)
+                      .BeforeMove("Lunge"),
+                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() })
+                      .OnTurn(5)
+                      .AfterMove("Lunge") });
 
-            if (coin(rng) == 0)
-            {
-                walk.emplace_back(MM::Attack("Lunge", 12));
-            }
-
-            walk.emplace_back(MM::Defend("Smoke Bomb", 6));
-            walk.emplace_back(
-                MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }));
-
-            monster = Patterned(id, "Looter", MonsterType::NORMAL,
-                                Roll(rng, 44, 48),
-                                std::move(walk), false);
-
-            // It steals as it mugs, the same as the bigger one does. Only the
-            // mugger was taking anything, so the left of the pair was mugging
-            // for nothing.
+            // It steals as it mugs, the same as the bigger one does.
             monster.AddPower(PowerType::THIEVERY, 15);
             break;
         }
@@ -237,7 +236,7 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             // A stab to open. After that, a quarter chance of entangling
             // every turn, and until it does it walks scrape, scrape, stab
             // over and over. Once it has entangled - and it entangles once a
-            // fight - it draws scrape against stab at fifty-five to
+            // fight - it draws stab against scrape at fifty-five to
             // forty-five, and neither of them comes three turns running.
             //
             // The walk is counted off the turn: the second turn and the third
@@ -540,21 +539,22 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             // The same walk as a Looter, for more, and the same coin on the
             // third turn.
-            std::uniform_int_distribution<int> coin(0, 1);
-            std::vector<MonsterMove> walk = { MM::Attack("Mug", 10),
-                                              MM::Attack("Mug", 10) };
+            monster = Thinking(
+                id, "Mugger", MonsterType::NORMAL, Roll(rng, 48, 52),
+                { MM::Attack("Mug", 10).Opener(),
+                  MM::Attack("Mug", 10).OnTurn(2),
+                  MM::Attack("Lunge", 16).Chance(50).OnTurn(3),
+                  MM::Defend("Smoke Bomb", 11).Chance(50).OnTurn(3),
+                  MM::Defend("Smoke Bomb", 11)
+                      .OnTurn(4)
+                      .AfterMove("Lunge"),
+                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() })
+                      .OnTurn(4)
+                      .BeforeMove("Lunge"),
+                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() })
+                      .OnTurn(5)
+                      .AfterMove("Lunge") });
 
-            if (coin(rng) == 0)
-            {
-                walk.emplace_back(MM::Attack("Lunge", 16));
-            }
-
-            walk.emplace_back(MM::Defend("Smoke Bomb", 11));
-            walk.emplace_back(
-                MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }));
-
-            monster = Patterned(id, "Mugger", MonsterType::NORMAL,
-                                Roll(rng, 48, 52), std::move(walk), false);
             monster.AddPower(PowerType::THIEVERY, 15);
             break;
         }

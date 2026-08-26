@@ -1108,47 +1108,6 @@ TEST_CASE("The slavers keep to their own patterns")
     }
 }
 
-TEST_CASE("A thief tosses a coin on its third turn")
-{
-    // Two mugs, and then a lunge and the smoke, or straight to the smoke.
-    // Always lunging first meant a thief always stayed the extra turn, which
-    // is a free turn of getting the gold back.
-    for (const MonsterId who : { MonsterId::LOOTER, MonsterId::MUGGER })
-    {
-        int lunged = 0;
-        const int rounds = 600;
-
-        for (int i = 0; i < rounds; ++i)
-        {
-            std::mt19937 rng(static_cast<unsigned int>(i) + 1u);
-            const Monster thief = MonsterRoster::Make(who, rng);
-            bool hasLunge = false;
-
-            for (const MonsterMove& move : thief.GetMoves())
-            {
-                hasLunge = hasLunge || move.name == "Lunge";
-            }
-
-            lunged += hasLunge ? 1 : 0;
-
-            // Whichever way the coin fell, it mugs twice and leaves by way of
-            // the smoke.
-            const std::vector<MonsterMove>& walk = thief.GetMoves();
-
-            REQUIRE(walk.size() >= 4u);
-            CHECK(walk[0].name == "Mug");
-            CHECK(walk[1].name == "Mug");
-            CHECK(walk[walk.size() - 2u].name == "Smoke Bomb");
-            CHECK(walk.back().name == "Escape");
-        }
-
-        const double share = 100.0 * lunged / rounds;
-
-        CHECK(share > 42.0);
-        CHECK(share < 58.0);
-    }
-}
-
 TEST_CASE("The second act deals its rooms out the way the spire does")
 {
     // The chances are published for this act: a snake plant or a centurion

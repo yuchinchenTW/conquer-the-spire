@@ -858,9 +858,63 @@ bool Monster::IsGone() const
 std::size_t Monster::PickWeightedMove(std::mt19937& rng,
                                       const MoveContext& context) const
 {
-    // A move that belongs to a certain turn, or that comes round every so
-    // many turns, is made whatever the weights say. So is the one a healer
-    // waits for.
+    // A turn can owe more than one move - a thief tosses a coin on its third
+    // turn between lunging and going up in smoke - and then the weights
+    // decide between them. One owed move is the usual case and comes out of
+    // this the same as it always did.
+    std::vector<std::size_t> owed;
+    int owedTotal = 0;
+
+    for (std::size_t i = 0; i < m_moves.size(); ++i)
+    {
+        const MonsterMove& move = m_moves[i];
+
+        if (move.onTurn <= 0 || move.onTurn != context.turn + 1 ||
+            !MoveAllowed(move, context))
+        {
+            continue;
+        }
+
+        const bool spent = move.maxInARow > 0 && SameMoveAs(i) &&
+                           m_sameMoveRun >= move.maxInARow;
+
+        if (spent || (move.atMost > 0 && move.used >= move.atMost))
+        {
+            continue;
+        }
+
+        owed.emplace_back(i);
+
+        // A move owed on a turn it has to itself does not need a weight
+        // written on it, and most of them do not carry one.
+        owedTotal += move.weight > 0 ? move.weight : 1;
+    }
+
+    if (owed.size() == 1u)
+    {
+        return owed.front();
+    }
+
+    if (owed.size() > 1u)
+    {
+        std::uniform_int_distribution<int> coin(1, owedTotal);
+        int score = coin(rng);
+
+        for (const std::size_t i : owed)
+        {
+            score -= m_moves[i].weight > 0 ? m_moves[i].weight : 1;
+
+            if (score <= 0)
+            {
+                return i;
+            }
+        }
+
+        return owed.back();
+    }
+
+    // A move that comes round every so many turns is made whatever the
+    // weights say. So is the one a healer waits for.
     for (std::size_t i = 0; i < m_moves.size(); ++i)
     {
         const MonsterMove& move = m_moves[i];
@@ -878,12 +932,13 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
             continue;
         }
 
-        const int next = context.turn + 1;
-
-        if (move.onTurn > 0 && move.onTurn == next)
+        if (move.onTurn > 0)
         {
-            return i;
+            // Already asked, just above.
+            continue;
         }
+
+        const int next = context.turn + 1;
 
         if (move.everyTurns > 0)
         {
