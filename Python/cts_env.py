@@ -244,6 +244,7 @@ class SpireEnv(object):
             "asking",
             "asking_potion",
             "choices",
+            "monster_stasis",
             "total",
         ]
 

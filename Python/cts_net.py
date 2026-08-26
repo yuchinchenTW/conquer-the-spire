@@ -127,6 +127,11 @@ def families(layout, ids):
         Family("choice", 40, layout["choices"], layout["choice_stride"],
                layout["choice_stride"], ids=ids["choices"]),
 
+        # What a monster is holding of the climber's, which is a card and
+        # so is named the way every other card is: no numbers of its own, so
+        # the token is the name and nothing else.
+        Family("monsterstasis", 8, ids=ids["monster_stasis"]),
+
         # A place on the map: whether a path leads there, and what waits.
         Family("column", 7, layout["map"], 8, 8),
     ]

@@ -116,6 +116,14 @@ MonsterEffect MonsterEffect::Summon(MonsterId id, int count, int cap)
     return effect;
 }
 
+MonsterEffect MonsterEffect::Stasis()
+{
+    MonsterEffect effect;
+    effect.type = MonsterEffectType::STASIS;
+
+    return effect;
+}
+
 MonsterEffect MonsterEffect::Split(MonsterId first, MonsterId second)
 {
     MonsterEffect effect;
@@ -479,6 +487,29 @@ void Monster::StealGold(int amount)
     {
         m_stolenGold += amount;
     }
+}
+
+bool Monster::HasStasisCard() const
+{
+    return m_stasisCard.GetId() != CardId::INVALID;
+}
+
+const Card& Monster::GetStasisCard() const
+{
+    return m_stasisCard;
+}
+
+void Monster::HoldStasisCard(Card card)
+{
+    m_stasisCard = std::move(card);
+}
+
+Card Monster::ReleaseStasisCard()
+{
+    Card card = std::move(m_stasisCard);
+    m_stasisCard = Card();
+
+    return card;
 }
 
 bool Monster::MoveAllowed(const MonsterMove& move,

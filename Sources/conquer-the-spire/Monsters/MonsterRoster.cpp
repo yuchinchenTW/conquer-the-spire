@@ -598,16 +598,17 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::BRONZE_ORB:
         {
-            // Stasis takes a card out of the draw pile in the real spire;
-            // here the orb spends the turn charging instead, then helps its
-            // maker and beams.
-            monster = Patterned(id, "Bronze Orb", MonsterType::NORMAL,
-                                Roll(rng, 52, 58),
-                                { MM::Nothing("Stasis", Intent::CHARGING),
-                                  MM::Of("Support Beam", Intent::DEFEND,
-                                         { ME::BlockAlly(12) }),
-                                  MM::Attack("Beam", 8) },
-                                true, 1);
+            // Until Stasis has been used it takes three quarters of the
+            // weighted draw; afterwards the orb falls back to the 70/30
+            // support-or-beam mix. The repeat limit is the spire rule that
+            // it cannot do the same thing three times in a row.
+            monster = Thinking(
+                id, "Bronze Orb", MonsterType::NORMAL, Roll(rng, 52, 58),
+                { MM::Of("Stasis", Intent::DEBUFF,
+                         { ME::Stasis() }).Chance(30, 2).InPhase(1),
+                  MM::Of("Support Beam", Intent::DEFEND,
+                         { ME::BlockAlly(12) }).Chance(7, 2),
+                  MM::Attack("Beam", 8).Chance(3, 2) });
             break;
         }
 

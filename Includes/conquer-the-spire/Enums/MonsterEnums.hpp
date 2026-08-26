@@ -36,7 +36,8 @@ enum class MonsterEffectType
     REVIVE,       //!< Comes back with a share of its health.
     SELF_DESTRUCT, //!< Goes off, and goes with it.
     SPLIT,        //!< Steps aside for two smaller ones.
-    ESCAPE        //!< Leaves the fight.
+    ESCAPE,       //!< Leaves the fight.
+    STASIS        //!< Holds a card until the monster dies.
 };
 
 //! Every monster the library can build.

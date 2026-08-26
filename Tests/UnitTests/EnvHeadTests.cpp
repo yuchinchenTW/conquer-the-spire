@@ -280,6 +280,40 @@ TEST_CASE("The state counts up what the piles hold")
               env.GetBattle()->GetPlayer().GetDrawPile().size())));
 }
 
+TEST_CASE("The state says which card a monster holds in stasis")
+{
+    SpireEnv env = InBattle();
+
+    REQUIRE(env.GetBattle() != nullptr);
+
+    Battle& battle = *env.GetBattle();
+    const std::vector<std::size_t> living = battle.GetLivingMonsterIndices();
+
+    REQUIRE(living.empty() == false);
+
+    battle.GetMonsters()[living.front()].HoldStasisCard(
+        CardRegistry::Get(CardId::DEMON_FORM));
+
+    const SpireEnv::IdLayout ids = SpireEnv::GetIdLayout();
+    const std::vector<int> named = env.ObserveIds();
+
+    // The card is named, the way every other card in the state is named, so
+    // that it reaches the same embedding the deck and the hand reach.
+    CHECK(named[ids.monsterStasis] == static_cast<int>(CardId::DEMON_FORM));
+
+    // And the monsters holding nothing say nothing.
+    for (std::size_t i = 1; i < SpireEnv::OBSERVED_MONSTERS; ++i)
+    {
+        CHECK(named[ids.monsterStasis + i] == 0);
+    }
+
+    // Letting it go stops the state naming it. What the card does on the way
+    // back to the hand is asked of the fight itself, in the act tests.
+    battle.GetMonsters()[living.front()].ReleaseStasisCard();
+
+    CHECK(env.ObserveIds()[ids.monsterStasis] == 0);
+}
+
 TEST_CASE("A move names the monster by where it stands among the living")
 {
     SpireEnv env = InBattle(8);

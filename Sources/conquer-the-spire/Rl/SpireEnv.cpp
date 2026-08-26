@@ -15,6 +15,8 @@ namespace ConquerTheSpire
 {
 namespace
 {
+std::size_t CardSlots();
+
 //! The powers the state keeps a number for. Everything else is left out
 //! rather than making the vector unreadable.
 const PowerType WATCHED_POWERS[] = {
@@ -397,6 +399,7 @@ void PushMove(std::vector<float>& out, const MonsterMove& move, int strength)
                 break;
 
             case MonsterEffectType::ADD_CARD:
+            case MonsterEffectType::STASIS:
                 nasty = true;
                 break;
 
@@ -578,6 +581,11 @@ const Run& SpireEnv::GetRun() const
 Run& SpireEnv::GetRun()
 {
     return m_run;
+}
+
+Battle* SpireEnv::GetBattle()
+{
+    return m_battle.get();
 }
 
 const Battle* SpireEnv::GetBattle() const
@@ -1762,7 +1770,8 @@ SpireEnv::IdLayout SpireEnv::GetIdLayout()
     layout.shopPotions = layout.shopRelics + SHOP_RELIC_SLOTS;
     layout.event = layout.shopPotions + SHOP_POTION_SLOTS;
     layout.monsters = layout.event + 1u;
-    layout.deck = layout.monsters + OBSERVED_MONSTERS;
+    layout.monsterStasis = layout.monsters + OBSERVED_MONSTERS;
+    layout.deck = layout.monsterStasis + OBSERVED_MONSTERS;
     layout.asking = layout.deck + DECK_SLOTS;
     layout.askingPotion = layout.asking + 1u;
     layout.choices = layout.askingPotion + 1u;
@@ -1906,8 +1915,16 @@ std::vector<int> SpireEnv::ObserveIds() const
         for (std::size_t i = 0; i < std::min(living.size(), OBSERVED_MONSTERS);
              ++i)
         {
-            out[layout.monsters + i] = static_cast<int>(
-                m_battle->GetMonsters()[living[i]].GetMonsterId());
+            const Monster& monster = m_battle->GetMonsters()[living[i]];
+
+            out[layout.monsters + i] =
+                static_cast<int>(monster.GetMonsterId());
+
+            // And the card it is holding of the climber's, if it holds one.
+            out[layout.monsterStasis + i] =
+                monster.HasStasisCard()
+                    ? static_cast<int>(monster.GetStasisCard().GetId())
+                    : 0;
         }
     }
 
@@ -2236,6 +2253,15 @@ std::vector<float> SpireEnv::Observe() const
             out.emplace_back(slot == intent ? 1.0f : 0.0f);
         }
 
+        // What a Bronze Orb is holding in Stasis is written down beside the
+        // state as an id, not spelled out one flag a card at a time. Every
+        // other card in here is named that way - a hand, a deck, a shelf, the
+        // cards a played card is asking about - and the reason is the same
+        // every time: the name goes through the embedding every other card
+        // goes through, so the Bludgeon an orb is holding is the same
+        // Bludgeon the deck knows about. Two hundred and eighty-seven flags a
+        // monster would have had to learn that from nothing, eight times
+        // over.
         PushPowers(out, monster);
     }
 

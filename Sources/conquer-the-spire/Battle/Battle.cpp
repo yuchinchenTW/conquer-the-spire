@@ -74,6 +74,30 @@ bool IsStrikeCard(const Card& card)
 {
     return card.GetName().find("Strike") != std::string::npos;
 }
+
+int RarityRank(CardRarity rarity)
+{
+    switch (rarity)
+    {
+        case CardRarity::RARE:
+            return 4;
+
+        case CardRarity::UNCOMMON:
+            return 3;
+
+        case CardRarity::COMMON:
+            return 2;
+
+        case CardRarity::BASIC:
+            return 1;
+
+        case CardRarity::SPECIAL:
+        case CardRarity::INVALID:
+            return 0;
+    }
+
+    return 0;
+}
 }  // namespace
 
 Battle::Battle(Player player, std::vector<Monster> monsters, unsigned int seed)
@@ -3274,6 +3298,12 @@ void Battle::OnMonsterDied(Monster& monster)
         return;
     }
 
+    if (monster.HasStasisCard())
+    {
+        m_player.AddCardToPile(monster.ReleaseStasisCard(), CardPile::HAND,
+                               m_rng);
+    }
+
     FireRelics(RelicHook::ENEMY_KILLED);
 
     if (const int spores = monster.GetPower(PowerType::SPORE_CLOUD);
@@ -4127,6 +4157,64 @@ void Battle::PlayerLoseHealth(int amount, bool fromCard)
     }
 }
 
+Card Battle::TakeStasisCardFrom(std::vector<Card>& pile)
+{
+    if (pile.empty())
+    {
+        return Card();
+    }
+
+    int best = -1;
+
+    for (const Card& card : pile)
+    {
+        best = std::max(best, RarityRank(card.GetRarity()));
+    }
+
+    std::vector<std::size_t> choices;
+
+    for (std::size_t i = 0; i < pile.size(); ++i)
+    {
+        if (RarityRank(pile[i].GetRarity()) == best)
+        {
+            choices.emplace_back(i);
+        }
+    }
+
+    if (choices.empty())
+    {
+        return Card();
+    }
+
+    std::uniform_int_distribution<std::size_t> pick(0, choices.size() - 1);
+    const std::size_t index = choices[pick(m_rng)];
+    Card card = std::move(pile[index]);
+
+    pile.erase(pile.begin() + static_cast<std::ptrdiff_t>(index));
+
+    return card;
+}
+
+void Battle::PutCardInStasis(Monster& monster)
+{
+    if (monster.HasStasisCard())
+    {
+        return;
+    }
+
+    Card card = TakeStasisCardFrom(m_player.GetDrawPile());
+
+    if (card.GetId() == CardId::INVALID)
+    {
+        card = TakeStasisCardFrom(m_player.GetDiscardPile());
+    }
+
+    if (card.GetId() != CardId::INVALID)
+    {
+        monster.HoldStasisCard(std::move(card));
+    }
+}
+
 void Battle::ApplyPowerTo(Creature& creature, PowerType power, int amount)
 {
     if (amount == 0 || power == PowerType::INVALID)
@@ -4457,6 +4545,11 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
 
         case MonsterEffectType::ESCAPE:
             monster.MarkEscaped();
+            break;
+
+        case MonsterEffectType::STASIS:
+            PutCardInStasis(monster);
+            monster.SetPhase(2);
             break;
 
         case MonsterEffectType::NOTHING:

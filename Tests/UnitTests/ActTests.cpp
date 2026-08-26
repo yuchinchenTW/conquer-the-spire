@@ -90,6 +90,24 @@ std::set<MonsterId> IdsOf(const std::vector<Encounter>& pool)
 
     return ids;
 }
+
+//! Counts \p id in the player's battle piles.
+int CountHeldByPlayer(const Player& player, CardId id)
+{
+    int found = 0;
+
+    for (const std::vector<Card>* pile :
+         { &player.GetHand(), &player.GetDrawPile(),
+           &player.GetDiscardPile(), &player.GetExhaustPile() })
+    {
+        for (const Card& card : *pile)
+        {
+            found += card.GetId() == id ? 1 : 0;
+        }
+    }
+
+    return found;
+}
 }  // namespace
 
 TEST_CASE("Every monster of the later acts builds with health and moves")
@@ -503,6 +521,69 @@ TEST_CASE("An automaton opens by spawning two orbs")
 
     CHECK(orbs == 2);
     CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Flail");
+}
+
+TEST_CASE("A bronze orb holds a card in stasis until it dies")
+{
+    Battle battle = FightAgainst({ MonsterId::BRONZE_ORB });
+    Player& player = battle.GetPlayer();
+    Monster& orb = battle.GetMonsters().front();
+
+    player.GetHand().clear();
+    player.GetDrawPile().clear();
+    player.GetDiscardPile().clear();
+
+    player.GetDrawPile().emplace_back(CardRegistry::Get(CardId::STRIKE_RED));
+    player.GetDrawPile().emplace_back(CardRegistry::Get(CardId::SHRUG_IT_OFF));
+    player.GetDrawPile().emplace_back(CardRegistry::Get(CardId::DEMON_FORM));
+
+    REQUIRE(orb.ForceMove("Stasis") == true);
+    REQUIRE(battle.EndTurn() == true);
+
+    REQUIRE(orb.HasStasisCard() == true);
+    CHECK(orb.GetStasisCard().GetId() == CardId::DEMON_FORM);
+    CHECK(CountHeldByPlayer(player, CardId::DEMON_FORM) == 0);
+    CHECK(orb.GetPhase() == 2);
+    CHECK(orb.GetCurrentMove().name != "Stasis");
+
+    orb.SetHealth(1);
+    player.GetHand().emplace_back(CardRegistry::Get(CardId::BLUDGEON));
+    player.SetEnergy(3);
+
+    REQUIRE(battle.PlayCard(player.GetHand().size() - 1u, 0) == true);
+
+    CHECK(orb.IsGone() == true);
+    CHECK(orb.HasStasisCard() == false);
+
+    bool returned = false;
+
+    for (const Card& card : player.GetHand())
+    {
+        returned = returned || card.GetId() == CardId::DEMON_FORM;
+    }
+
+    CHECK(returned == true);
+}
+
+TEST_CASE("A bronze orb takes from discard only when draw is empty")
+{
+    Battle battle = FightAgainst({ MonsterId::BRONZE_ORB });
+    Player& player = battle.GetPlayer();
+    Monster& orb = battle.GetMonsters().front();
+
+    player.GetHand().clear();
+    player.GetDrawPile().clear();
+    player.GetDiscardPile().clear();
+
+    player.GetDiscardPile().emplace_back(CardRegistry::Get(CardId::DEFEND_RED));
+    player.GetDiscardPile().emplace_back(CardRegistry::Get(CardId::IMMOLATE));
+
+    REQUIRE(orb.ForceMove("Stasis") == true);
+    REQUIRE(battle.EndTurn() == true);
+
+    REQUIRE(orb.HasStasisCard() == true);
+    CHECK(orb.GetStasisCard().GetId() == CardId::IMMOLATE);
+    CHECK(CountHeldByPlayer(player, CardId::IMMOLATE) == 0);
 }
 
 TEST_CASE("A champion stops fighting fair once it is losing")

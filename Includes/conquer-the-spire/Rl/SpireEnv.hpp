@@ -241,6 +241,7 @@ class SpireEnv
     Run& GetRun();
 
     //! Returns the fight going on, or nullptr when there is none.
+    Battle* GetBattle();
     const Battle* GetBattle() const;
 
     //! Returns every move that is legal right now, which doubles as the mask
@@ -377,6 +378,12 @@ class SpireEnv
         std::size_t shopPotions = 0;
         std::size_t event = 0;
         std::size_t monsters = 0;
+
+        //! Which of the climber's cards each monster is holding in Stasis,
+        //! and nothing where none is held. A card is named here the way every
+        //! other card in the state is named, so that the Bludgeon an orb is
+        //! holding reaches the same embedding as the Bludgeon in the deck.
+        std::size_t monsterStasis = 0;
 
         //! Which card sits in each slot of the deck. Every action that names
         //! a slot of the deck - sharpening one, tearing one up, handing one

@@ -351,6 +351,8 @@ class Battle
     void DamageAllEnemies(int amount);
     void DamageRandomEnemy(int amount);
     void PlayerLoseHealth(int amount, bool fromCard);
+    void PutCardInStasis(Monster& monster);
+    Card TakeStasisCardFrom(std::vector<Card>& pile);
     void ApplyPowerTo(Creature& creature, PowerType power, int amount);
     void TickPoison(Creature& creature);
     void DecayTimedPowers(Creature& creature);

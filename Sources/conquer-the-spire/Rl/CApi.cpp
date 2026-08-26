@@ -104,7 +104,7 @@ size_t cts_layout_slots(void)
 
 size_t cts_id_layout_slots(void)
 {
-    return 16u;
+    return 17u;
 }
 
 void cts_layout(size_t* out)
@@ -196,7 +196,8 @@ void cts_id_layout(size_t* out)
     out[12] = layout.asking;
     out[13] = layout.askingPotion;
     out[14] = layout.choices;
-    out[15] = layout.total;
+    out[15] = layout.monsterStasis;
+    out[16] = layout.total;
 }
 
 void cts_observe_ids(cts_env env, int* out)

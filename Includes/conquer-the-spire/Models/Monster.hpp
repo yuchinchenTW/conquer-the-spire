@@ -7,8 +7,8 @@
 #ifndef CONQUER_THE_SPIRE_MONSTER_HPP
 #define CONQUER_THE_SPIRE_MONSTER_HPP
 
-#include <conquer-the-spire/Enums/CardId.hpp>
 #include <conquer-the-spire/Enums/MonsterEnums.hpp>
+#include <conquer-the-spire/Models/Card.hpp>
 #include <conquer-the-spire/Models/Creature.hpp>
 
 #include <cstddef>
@@ -62,6 +62,9 @@ struct MonsterEffect
     //! Calls in \p count more of \p id, so long as no more than \p cap of
     //! them are already about.
     static MonsterEffect Summon(MonsterId id, int count, int cap);
+
+    //! Takes a card out of the player's piles until this monster dies.
+    static MonsterEffect Stasis();
 
     //! Steps aside for \p first and \p second, each with the health this
     //! monster has left.
@@ -275,6 +278,12 @@ class Monster : public Creature
     int GetStolenGold() const;
     void StealGold(int amount);
 
+    //! The card this monster is keeping in stasis, if any.
+    bool HasStasisCard() const;
+    const Card& GetStasisCard() const;
+    void HoldStasisCard(Card card);
+    Card ReleaseStasisCard();
+
  private:
     //! Returns the index of a move picked by weight, honouring the repeat
     //! limits, the opening rules and whatever \p context rules out.
@@ -302,6 +311,7 @@ class Monster : public Creature
     int m_stolenGold = 0;
     bool m_regrowing = false;
     int m_damageCapLeft = 0;
+    Card m_stasisCard;
 };
 }  // namespace ConquerTheSpire
 
