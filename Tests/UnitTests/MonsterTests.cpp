@@ -70,7 +70,7 @@ TEST_CASE("Every monster of the roster builds with health and moves")
 {
     const std::vector<MonsterId>& all = MonsterRoster::GetAll();
 
-    CHECK(all.size() == 66u);
+    CHECK(all.size() == 67u);
 
     for (const MonsterId id : all)
     {

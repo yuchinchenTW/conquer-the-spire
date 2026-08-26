@@ -42,7 +42,7 @@ Monster Patterned(MonsterId id, const char* name, MonsterType type,
     return monster;
 }
 
-constexpr MonsterId LAST_MONSTER_ID = MonsterId::TRAINING_DUMMY;
+constexpr MonsterId LAST_MONSTER_ID = MonsterId::JAW_WORM_HARD;
 }  // namespace
 
 Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
@@ -645,6 +645,38 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             return called;
         }
 
+        case MonsterId::RANDOM_SHAPE:
+        {
+            // One of the three. Which of them turn up is what a room of
+            // shapes is: a repulsor clogs the deck, an exploder has to be
+            // answered, and a spiker punishes answering.
+            const MonsterId kinds[] = { MonsterId::REPULSOR,
+                                        MonsterId::EXPLODER,
+                                        MonsterId::SPIKER };
+            std::uniform_int_distribution<std::size_t> pick(0, 2);
+
+            return Make(kinds[pick(rng)], rng);
+        }
+
+        case MonsterId::JAW_WORM_HARD:
+        {
+            // The third act's worm. It has already bellowed once when the
+            // fight starts - three of strength and six of block - and it does
+            // not have to open on a chomp the way the first act's does, so
+            // the first turn is the ordinary draw of forty-five, thirty and
+            // twenty-five.
+            monster = Thinking(
+                id, "Jaw Worm", MonsterType::NORMAL, Roll(rng, 40, 44),
+                { MM::Attack("Chomp", 11).Chance(25, 1),
+                  MM::Of("Bellow", Intent::BUFF,
+                         { ME::Buff(PowerType::STRENGTH, 3), ME::Block(6) })
+                      .Chance(45, 1),
+                  MM::AttackAndDefend("Thrash", 7, 5).Chance(30, 2) });
+            monster.AddPower(PowerType::STRENGTH, 3);
+            monster.AddBlock(6);
+            break;
+        }
+
         case MonsterId::GREMLIN_LEADER:
         {
             // Three sets of odds, by how many are standing with it, and it
@@ -1088,10 +1120,16 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Reptomancer", MonsterType::ELITE, Roll(rng, 180, 190),
+                // Two daggers a time, four on the floor at most, and when
+                // the floor is full the spawn's share goes to the snake
+                // strike rather than the turn being spent on a summon that
+                // makes nothing.
                 { MM::Of("Summon", Intent::SUMMON,
-                         { ME::Summon(MonsterId::DAGGER, 1, 4) })
+                         { ME::Summon(MonsterId::DAGGER, 2, 4) })
                       .Chance(33, 2)
-                      .Opener(),
+                      .Opener()
+                      .WhenAlliesUnder(4)
+                      .SpillsTo("Snake Strike"),
                   MM::Attack("Big Bite", 30).Chance(33, 1),
                   MM::Of("Snake Strike", Intent::ATTACK_DEBUFF,
                          { ME::Damage(13, 2), ME::Debuff(PowerType::WEAK, 1) })
@@ -1316,7 +1354,8 @@ const std::vector<MonsterId>& MonsterRoster::GetAll()
             // five kinds of gremlin, so it belongs in no list of what there
             // is. Everything that walks this list expects the monster it gets
             // back to be the one it asked for.
-            if (id == MonsterId::RANDOM_GREMLIN)
+            if (id == MonsterId::RANDOM_GREMLIN ||
+                id == MonsterId::RANDOM_SHAPE)
             {
                 continue;
             }

@@ -216,9 +216,11 @@ const std::vector<Encounter>& EncounterLibrary::GetAct3Weak()
           MonsterType::NORMAL,
           { MonsterId::DARKLING, MonsterId::DARKLING, MonsterId::DARKLING } },
         { "Orb Walker", MonsterType::NORMAL, { MonsterId::ORB_WALKER } },
+        // Three of the shapes, whichever three, and never three alike.
         { "3 Shapes",
           MonsterType::NORMAL,
-          { MonsterId::SPIKER, MonsterId::REPULSOR, MonsterId::EXPLODER } }
+          { MonsterId::RANDOM_SHAPE, MonsterId::RANDOM_SHAPE,
+            MonsterId::RANDOM_SHAPE } }
     };
 
     return groups;
@@ -231,16 +233,20 @@ const std::vector<Encounter>& EncounterLibrary::GetAct3Strong()
         { "Transient", MonsterType::NORMAL, { MonsterId::TRANSIENT } },
         { "4 Shapes",
           MonsterType::NORMAL,
-          { MonsterId::SPIKER, MonsterId::SPIKER, MonsterId::REPULSOR,
-            MonsterId::EXPLODER } },
+          { MonsterId::RANDOM_SHAPE, MonsterId::RANDOM_SHAPE,
+            MonsterId::RANDOM_SHAPE, MonsterId::RANDOM_SHAPE } },
         { "Maw", MonsterType::NORMAL, { MonsterId::THE_MAW } },
         { "Sphere and 2 Shapes",
           MonsterType::NORMAL,
-          { MonsterId::SPHERIC_GUARDIAN, MonsterId::REPULSOR,
-            MonsterId::SPIKER } },
+          { MonsterId::SPHERIC_GUARDIAN, MonsterId::RANDOM_SHAPE,
+            MonsterId::RANDOM_SHAPE } },
+        // The third act's worms, which have already bellowed once when the
+        // fight starts. Three of the first act's worms is a much softer room
+        // than the one the spire puts here.
         { "Jaw Worm Horde",
           MonsterType::NORMAL,
-          { MonsterId::JAW_WORM, MonsterId::JAW_WORM, MonsterId::JAW_WORM } },
+          { MonsterId::JAW_WORM_HARD, MonsterId::JAW_WORM_HARD,
+            MonsterId::JAW_WORM_HARD } },
         { "Writhing Mass",
           MonsterType::NORMAL,
           { MonsterId::WRITHING_MASS } },
@@ -258,7 +264,12 @@ const std::vector<Encounter>& EncounterLibrary::GetAct3Elites()
     static const std::vector<Encounter> groups = {
         { "Giant Head", MonsterType::ELITE, { MonsterId::GIANT_HEAD } },
         { "Nemesis", MonsterType::ELITE, { MonsterId::NEMESIS } },
-        { "Reptomancer", MonsterType::ELITE, { MonsterId::REPTOMANCER } }
+        // It starts the fight with two daggers already beside it, and
+        // spawns more on top of those. Standing alone, its opening summon was
+        // the whole of the threat rather than the second wave of it.
+        { "Reptomancer",
+          MonsterType::ELITE,
+          { MonsterId::REPTOMANCER, MonsterId::DAGGER, MonsterId::DAGGER } }
     };
 
     return groups;
@@ -435,8 +446,29 @@ std::vector<Monster> EncounterLibrary::Build(const Encounter& encounter,
     std::vector<Monster> monsters;
     monsters.reserve(encounter.monsters.size());
 
+    // No more than two shapes alike in a room, which the draw for each of
+    // them cannot know on its own. Counted as they are made, and a third of a
+    // kind is drawn again until it is not a third of that kind.
+    std::map<std::string, int> shapes;
+
     for (const MonsterId id : encounter.monsters)
     {
+        if (id == MonsterId::RANDOM_SHAPE)
+        {
+            Monster shape = MonsterRoster::Make(id, rng);
+
+            for (int again = 0; again < 8 && shapes[shape.GetName()] >= 2;
+                 ++again)
+            {
+                shape = MonsterRoster::Make(id, rng);
+            }
+
+            ++shapes[shape.GetName()];
+            shape.SetMonsterType(encounter.type);
+            monsters.emplace_back(std::move(shape));
+            continue;
+        }
+
         monsters.emplace_back(MonsterRoster::Make(id, rng));
 
         // What the room is, not what the monster usually is. A Sentry is an

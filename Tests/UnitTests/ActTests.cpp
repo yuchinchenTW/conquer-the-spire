@@ -2443,3 +2443,200 @@ TEST_CASE("A Darkling sleeping one off cannot hold another one up")
     CHECK(battle.GetMonsters()[1].IsRegrowing() == false);
     CHECK(battle.GetMonsters()[1].IsDead() == true);
 }
+
+TEST_CASE("A Reptomancer stands with two daggers and strikes when the floor is full")
+{
+    std::vector<MonsterId> room;
+
+    for (const Encounter& one : EncounterLibrary::GetAct3Elites())
+    {
+        if (one.name == "Reptomancer")
+        {
+            room = one.monsters;
+        }
+    }
+
+    // Two daggers already beside it. Standing alone, its opening summon was
+    // the whole of the threat rather than the second wave of it.
+    REQUIRE(room.size() == 3u);
+    CHECK(room[0] == MonsterId::REPTOMANCER);
+    CHECK(room[1] == MonsterId::DAGGER);
+    CHECK(room[2] == MonsterId::DAGGER);
+
+    Battle battle = FightAgainst(room);
+
+    CHECK(battle.GetMonsters()[0].GetCurrentMove().name == "Summon");
+
+    // Four on the floor and the summon has nowhere to put anybody, so its
+    // share goes to the snake strike rather than the turn being spent on a
+    // summon that makes nothing.
+    // Counted from the second turn on. The opening summon is owed whatever
+    // else is true - it always opens on one, and in its own room there are
+    // only two daggers standing, so the floor cannot be full yet.
+    Battle full = FightAgainst({ MonsterId::REPTOMANCER, MonsterId::DAGGER,
+                                 MonsterId::DAGGER, MonsterId::DAGGER,
+                                 MonsterId::DAGGER });
+    std::set<std::string> seen;
+
+    full.GetPlayer().SetHealth(400);
+
+    REQUIRE(full.EndTurn() == true);
+
+    for (int turn = 0; turn < 6; ++turn)
+    {
+        full.GetPlayer().SetHealth(400);
+        seen.insert(full.GetMonsters()[0].GetCurrentMove().name);
+
+        if (!full.EndTurn())
+        {
+            break;
+        }
+    }
+
+    CHECK(seen.count("Summon") == 0u);
+    CHECK(seen.count("Snake Strike") == 1u);
+}
+
+TEST_CASE("A room of shapes is whichever shapes, and never three alike")
+{
+    const std::set<MonsterId> kinds = { MonsterId::REPULSOR,
+                                        MonsterId::EXPLODER,
+                                        MonsterId::SPIKER };
+    std::set<std::vector<MonsterId>> rooms;
+
+    for (const char* name : { "3 Shapes", "4 Shapes", "Sphere and 2 Shapes" })
+    {
+        std::vector<MonsterId> asked;
+        const std::vector<Encounter>* pools[] = {
+            &EncounterLibrary::GetAct3Weak(), &EncounterLibrary::GetAct3Strong()
+        };
+
+        for (const std::vector<Encounter>* pool : pools)
+        {
+            for (const Encounter& one : *pool)
+            {
+                if (one.name == name)
+                {
+                    asked = one.monsters;
+                }
+            }
+        }
+
+        REQUIRE(asked.empty() == false);
+
+        std::set<std::vector<MonsterId>> here;
+
+        for (unsigned int seed = 1; seed <= 60u; ++seed)
+        {
+            std::mt19937 rng(seed);
+            const std::vector<Monster> built = EncounterLibrary::Build(
+                { name, MonsterType::NORMAL, asked }, rng);
+
+            REQUIRE(built.size() == asked.size());
+
+            std::map<MonsterId, int> alike;
+            std::vector<MonsterId> made;
+
+            for (const Monster& one : built)
+            {
+                if (kinds.count(one.GetMonsterId()) == 1u)
+                {
+                    ++alike[one.GetMonsterId()];
+                }
+
+                made.emplace_back(one.GetMonsterId());
+            }
+
+            // Never three of a kind in one room.
+            for (const auto& counted : alike)
+            {
+                CHECK(counted.second <= 2);
+            }
+
+            rooms.insert(made);
+            here.insert(made);
+        }
+
+        // Counted for this room on its own. Counting them all together let
+        // one fixed room hide behind the two that were drawn.
+        CHECK(here.size() > 3u);
+    }
+
+    CHECK(rooms.size() > 9u);
+}
+
+TEST_CASE("The third act's jaw worms have already bellowed")
+{
+    std::vector<MonsterId> horde;
+
+    for (const Encounter& one : EncounterLibrary::GetAct3Strong())
+    {
+        if (one.name == "Jaw Worm Horde")
+        {
+            horde = one.monsters;
+        }
+    }
+
+    REQUIRE(horde.size() == 3u);
+
+    for (const MonsterId id : horde)
+    {
+        CHECK(id == MonsterId::JAW_WORM_HARD);
+    }
+
+    Battle battle = FightAgainst(horde);
+    std::set<std::string> opened;
+
+    for (const Monster& one : battle.GetMonsters())
+    {
+        // Three of strength and six of block, standing there before a card is
+        // played. Three of the first act's worms is a much softer room.
+        CHECK(one.GetName() == "Jaw Worm");
+        CHECK(one.GetPower(PowerType::STRENGTH) == 3);
+        CHECK(one.GetBlock() == 6);
+
+        opened.insert(one.GetCurrentMove().name);
+    }
+
+    // And no forced chomp to open on, so the first turn is the ordinary draw.
+    int chomped = 0;
+
+    for (unsigned int seed = 1; seed <= 40u; ++seed)
+    {
+        Battle again = FightAgainst(horde, seed);
+
+        for (const Monster& one : again.GetMonsters())
+        {
+            chomped += one.GetCurrentMove().name == "Chomp" ? 1 : 0;
+            opened.insert(one.GetCurrentMove().name);
+        }
+    }
+
+    CHECK(opened.size() == 3u);
+    CHECK(chomped < 40 * 3);
+
+    // The first act's worm still opens on its chomp.
+    Battle first = FightAgainst({ MonsterId::JAW_WORM });
+
+    CHECK(first.GetMonsters()[0].GetCurrentMove().name == "Chomp");
+    CHECK(first.GetMonsters()[0].GetPower(PowerType::STRENGTH) == 0);
+}
+
+TEST_CASE("The monster ids are only ever appended to")
+{
+    // The number a monster has in the enum is the row it gets in the
+    // learner's table of monsters, so putting a new one in the middle moves
+    // every monster after it onto somebody else's row and throws away what a
+    // running climb has learned about all of them. These are the last few,
+    // in order, and a new one belongs after them and nowhere else.
+    CHECK(static_cast<int>(MonsterId::POINTY) + 1 ==
+          static_cast<int>(MonsterId::ROMEO));
+    CHECK(static_cast<int>(MonsterId::ROMEO) + 1 ==
+          static_cast<int>(MonsterId::BEAR));
+    CHECK(static_cast<int>(MonsterId::BEAR) + 1 ==
+          static_cast<int>(MonsterId::TRAINING_DUMMY));
+    CHECK(static_cast<int>(MonsterId::TRAINING_DUMMY) + 1 ==
+          static_cast<int>(MonsterId::RANDOM_SHAPE));
+    CHECK(static_cast<int>(MonsterId::RANDOM_SHAPE) + 1 ==
+          static_cast<int>(MonsterId::JAW_WORM_HARD));
+}

@@ -142,7 +142,21 @@ enum class MonsterId
     BEAR,
 
     // For tests and practice
-    TRAINING_DUMMY
+    TRAINING_DUMMY,
+
+    // Appended, and only ever appended: the number a monster has here is the
+    // row it gets in the learner's table of monsters, so putting one in the
+    // middle moves every monster after it onto somebody else's row and throws
+    // away what a running climb has learned about all of them.
+
+    //! Not a monster of its own: asked for, it makes one of a repulsor, an
+    //! exploder or a spiker. Which three or four turn up is what a room of
+    //! shapes is, and the rooms are built so that no more than two are alike.
+    RANDOM_SHAPE,
+
+    //! A jaw worm of the third act, which is the same worm that has already
+    //! bellowed once before the fight starts.
+    JAW_WORM_HARD
 };
 }  // namespace ConquerTheSpire
 
