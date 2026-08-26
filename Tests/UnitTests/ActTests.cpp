@@ -828,6 +828,41 @@ TEST_CASE("A champion executes from the turn he turned, not from the first")
     }
 }
 
+TEST_CASE("A run of a move survives the company changing")
+{
+    // Her fireball is written twice, once for the share it has with both
+    // heads standing and once for the share it has without them. She may not
+    // throw three running - and when a head falls between one turn and the
+    // next, the share moves from one line to the other. Counting a run by
+    // which line it came from let her throw the third one nearly half the
+    // time; counting it by what the move is called does not.
+    int third = 0;
+    const int rounds = 20000;
+
+    for (int i = 0; i < rounds; ++i)
+    {
+        std::mt19937 rng(static_cast<unsigned int>(i) + 1u);
+        Monster her = MonsterRoster::Make(MonsterId::THE_COLLECTOR, rng);
+        MoveContext company;
+
+        company.turn = 1;
+        company.allies = 2;
+
+        // Two thrown with both heads up, which is the line gated to two.
+        REQUIRE(her.ForceMove("Fireball") == true);
+        REQUIRE(her.ForceMove("Fireball") == true);
+
+        // And then one of them falls, which is what moves the share.
+        company.allies = 1;
+
+        her.AdvanceMove(rng, company);
+
+        third += her.GetCurrentMove().name == "Fireball" ? 1 : 0;
+    }
+
+    CHECK(third == 0);
+}
+
 TEST_CASE("A collector does not call for heads she already has")
 {
     // The wiki: with both torch heads standing the draw is a fireball and a

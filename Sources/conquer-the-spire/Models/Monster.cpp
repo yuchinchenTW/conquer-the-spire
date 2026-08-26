@@ -467,7 +467,7 @@ void Monster::AdvanceMove(std::mt19937& rng, const MoveContext& context)
     const std::size_t previous = m_moveIndex;
 
     m_moveIndex = PickWeightedMove(rng, context);
-    m_sameMoveRun = m_moveIndex == previous ? m_sameMoveRun + 1 : 1;
+    m_sameMoveRun = SameMoveAs(previous) ? m_sameMoveRun + 1 : 1;
 }
 
 int Monster::GetPhase() const
@@ -562,6 +562,18 @@ Card Monster::ReleaseStasisCard()
     return card;
 }
 
+bool Monster::SameMoveAs(std::size_t other) const
+{
+    // By name, because a move can be written twice - once for the share it
+    // has in one company and once for the share it has in another. A
+    // Collector's fireball is two lines, and when a torch head falls between
+    // one turn and the next the share moves from one line to the other. Asking
+    // which line it came from let her throw three fireballs running, which she
+    // may not do; asking what the move is called does not.
+    return other < m_moves.size() && m_moveIndex < m_moves.size() &&
+           m_moves[other].name == m_moves[m_moveIndex].name;
+}
+
 bool Monster::MoveDrawable(std::size_t at, const MoveContext& context) const
 {
     if (at >= m_moves.size())
@@ -576,7 +588,7 @@ bool Monster::MoveDrawable(std::size_t at, const MoveContext& context) const
         return false;
     }
 
-    if (move.maxInARow > 0 && at == m_moveIndex &&
+    if (move.maxInARow > 0 && SameMoveAs(at) &&
         m_sameMoveRun >= move.maxInARow)
     {
         return false;
@@ -686,7 +698,7 @@ bool Monster::ForceMove(const std::string& name)
     {
         if (m_moves[i].name == name)
         {
-            m_sameMoveRun = m_moveIndex == i ? m_sameMoveRun + 1 : 1;
+            m_sameMoveRun = SameMoveAs(i) ? m_sameMoveRun + 1 : 1;
             m_moveIndex = i;
 
             return true;
@@ -726,7 +738,7 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
             continue;
         }
 
-        const bool spent = move.maxInARow > 0 && i == m_moveIndex &&
+        const bool spent = move.maxInARow > 0 && SameMoveAs(i) &&
                            m_sameMoveRun >= move.maxInARow;
 
         if (spent || (move.atMost > 0 && move.used >= move.atMost))

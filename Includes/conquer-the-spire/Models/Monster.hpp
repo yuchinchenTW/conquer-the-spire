@@ -320,6 +320,11 @@ class Monster : public Creature
     //! move allowed only so often in a fight knows when it has had its turns.
     void CountMoveUsed();
 
+    //! Returns whether the move at \p at is the same move as the one
+    //! standing, which is a question about its name and not about where it
+    //! sits in the list.
+    bool SameMoveAs(std::size_t other) const;
+
     //! Returns whether the move at \p at could be made right now: allowed by
     //! the company and the phase, not just made, and not out of its turns.
     bool MoveDrawable(std::size_t at, const MoveContext& context) const;
