@@ -169,6 +169,21 @@ struct MonsterMove
     //! to do with how long the fight had been going when he turned.
     MonsterMove& SincePhase();
 
+    //! Hands this move's share to \p other when it may not be repeated,
+    //! rather than leaving it to be shared out among everything else.
+    //!
+    //! A Champ that has just gloated does not gloat again, and the fifteen it
+    //! would have had goes to the face slap and nowhere else - so a face slap
+    //! at twenty-five becomes one at forty while the rest stand still. Sharing
+    //! it out instead moved every other share a little, which is a different
+    //! monster.
+    MonsterMove& SpillsTo(const std::string& other);
+
+    //! Allows this move \p many times in a fight, and turns it into \p other
+    //! after that. A Champ may take his stance twice and gloats instead from
+    //! then on.
+    MonsterMove& AtMost(int many, const std::string& other);
+
     //! Makes this the move of turn \p turn exactly.
     MonsterMove& OnTurn(int turn);
 
@@ -203,6 +218,15 @@ struct MonsterMove
     int phase = 0;
     //! Whether Every counts from the turn the phase changed.
     bool sincePhase = false;
+
+    //! Who gets this move's share when it may not be repeated, and who it
+    //! turns into once it has been used as often as it is allowed.
+    std::string spillsTo;
+    std::string insteadAfter;
+
+    //! How often it may be used in one fight, and how often it has been.
+    int atMost = 0;
+    int used = 0;
 
     bool alone = false;
     bool withAlly = false;
@@ -291,6 +315,13 @@ class Monster : public Creature
     //! ways part way through moves itself on.
     int GetPhase() const;
     void SetPhase(int phase);
+
+    //! Writes down that the move standing has been used once more, so that a
+    //! move allowed only so often in a fight knows when it has had its turns.
+    void CountMoveUsed();
+
+    //! Returns where \p name sits in the list, or the size of it.
+    std::size_t IndexOfMove(const std::string& name) const;
 
     //! Returns how many moves the monster had made when its phase last
     //! changed.

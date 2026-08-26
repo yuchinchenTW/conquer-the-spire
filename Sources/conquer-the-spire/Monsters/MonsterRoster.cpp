@@ -616,14 +616,26 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "The Champ", MonsterType::BOSS, 420,
-                { MM::Attack("Heavy Slash", 16).Chance(45, 1),
+                // A move he may not repeat hands its share to one named
+                // other rather than to all of them: the stance to the gloat,
+                // the gloat to the slap, the slap to the slash, and the slash
+                // back to the slap rather than round to the stance. So a
+                // Champ who has just gloated faces a slap at forty and every
+                // other share exactly where it was. And the stance comes
+                // twice in a fight at most; after that he gloats instead.
+                { MM::Attack("Heavy Slash", 16).Chance(45, 1)
+                      .SpillsTo("Face Slap"),
                   MM::Of("Face Slap", Intent::ATTACK_DEBUFF,
                          { ME::Damage(12), ME::Debuff(PowerType::FRAIL, 2),
                            ME::Debuff(PowerType::VULNERABLE, 2) })
-                      .Chance(25, 1),
+                      .Chance(25, 1)
+                      .SpillsTo("Heavy Slash"),
                   MM::Buff("Defensive Stance", PowerType::METALLICIZE, 5, 15)
-                      .Chance(15, 1),
-                  MM::Buff("Gloat", PowerType::STRENGTH, 2).Chance(15, 1),
+                      .Chance(15, 1)
+                      .SpillsTo("Gloat")
+                      .AtMost(2, "Gloat"),
+                  MM::Buff("Gloat", PowerType::STRENGTH, 2).Chance(15, 1)
+                      .SpillsTo("Face Slap"),
                   MM::Of("Taunt", Intent::DEBUFF,
                          { ME::Debuff(PowerType::WEAK, 2),
                            ME::Debuff(PowerType::VULNERABLE, 2) })

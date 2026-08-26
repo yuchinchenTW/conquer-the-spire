@@ -296,6 +296,21 @@ MonsterMove& MonsterMove::SincePhase()
     return *this;
 }
 
+MonsterMove& MonsterMove::SpillsTo(const std::string& other)
+{
+    spillsTo = other;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::AtMost(int many, const std::string& other)
+{
+    atMost = many;
+    insteadAfter = other;
+
+    return *this;
+}
+
 MonsterMove& MonsterMove::Alone()
 {
     alone = true;
@@ -547,6 +562,27 @@ Card Monster::ReleaseStasisCard()
     return card;
 }
 
+std::size_t Monster::IndexOfMove(const std::string& name) const
+{
+    for (std::size_t i = 0; i < m_moves.size(); ++i)
+    {
+        if (m_moves[i].name == name)
+        {
+            return i;
+        }
+    }
+
+    return m_moves.size();
+}
+
+void Monster::CountMoveUsed()
+{
+    if (m_moveIndex < m_moves.size())
+    {
+        ++m_moves[m_moveIndex].used;
+    }
+}
+
 bool Monster::MoveAllowed(const MonsterMove& move,
                           const MoveContext& context) const
 {
@@ -632,7 +668,7 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
         const bool spent = move.maxInARow > 0 && i == m_moveIndex &&
                            m_sameMoveRun >= move.maxInARow;
 
-        if (spent)
+        if (spent || (move.atMost > 0 && move.used >= move.atMost))
         {
             continue;
         }
@@ -677,6 +713,7 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
     }
 
     std::vector<std::size_t> allowed;
+    std::vector<int> shares(m_moves.size(), 0);
     int total = 0;
 
     for (std::size_t i = 0; i < m_moves.size(); ++i)
@@ -688,15 +725,45 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
             continue;
         }
 
-        // A move that has come up too often in a row steps aside.
-        if (move.maxInARow > 0 && i == m_moveIndex &&
-            m_sameMoveRun >= move.maxInARow)
+        // A move steps aside for having come up too often in a row, or for
+        // having had all the turns it gets in one fight, and where it says so
+        // its share goes to one named other rather than being shared out
+        // among all of them. The two are not the same monster: a Champ who
+        // has just gloated faces a face slap at forty and everything else
+        // exactly where it was, and one who has taken his stance twice gloats
+        // in its place at thirty.
+        const bool repeating = move.maxInARow > 0 && i == m_moveIndex &&
+                               m_sameMoveRun >= move.maxInARow;
+        const bool finished = move.atMost > 0 && move.used >= move.atMost;
+
+        if (repeating || finished)
         {
+            const std::string& heirName =
+                finished ? move.insteadAfter : move.spillsTo;
+
+            if (!heirName.empty())
+            {
+                const std::size_t heir = IndexOfMove(heirName);
+
+                if (heir < m_moves.size())
+                {
+                    shares[heir] += move.weight;
+                }
+            }
+
             continue;
         }
 
-        allowed.emplace_back(i);
-        total += move.weight;
+        shares[i] += move.weight;
+    }
+
+    for (std::size_t i = 0; i < m_moves.size(); ++i)
+    {
+        if (shares[i] > 0 && MoveAllowed(m_moves[i], context))
+        {
+            allowed.emplace_back(i);
+            total += shares[i];
+        }
     }
 
     if (allowed.empty() || total <= 0)
@@ -711,7 +778,9 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
 
     for (const std::size_t index : allowed)
     {
-        score -= m_moves[index].weight;
+        // The share, not the weight written on the card: a move that took in
+        // a blocked move's share is drawn for the two of them together.
+        score -= shares[index];
 
         if (score <= 0)
         {

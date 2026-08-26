@@ -4362,6 +4362,10 @@ void Battle::ResolveMonsterMove(Monster& monster)
     // Copy the move: the monster picks its next one at the end of this.
     const MonsterMove move = monster.GetCurrentMove();
 
+    // Written down before it resolves, so that a move a monster may only make
+    // so often in a fight has been counted whatever the move then does.
+    monster.CountMoveUsed();
+
     for (const auto& effect : move.effects)
     {
         ResolveMonsterEffect(effect, monster);

@@ -523,6 +523,120 @@ TEST_CASE("An automaton opens by spawning two orbs")
     CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Flail");
 }
 
+TEST_CASE("A move a Champ may not repeat hands its share to one other")
+{
+    // What the game says, in as many words: if the previous move would be
+    // repeated, the move after it in the list is selected instead - so having
+    // just gloated there is no chance of gloating and a two-in-five chance of
+    // a face slap, with every other chance exactly where it was. Sharing the
+    // blocked move out among all of them instead moves all of them a little,
+    // which is a different monster.
+    //
+    // The list is the stance, the gloat, the slap, the slash; the slash is
+    // last and hands its share back to the slap rather than round to the
+    // stance.
+    struct Expected
+    {
+        const char* was;
+        const char* heir;
+        double share;
+    };
+
+    const Expected asked[] = { { "Heavy Slash", "Face Slap", 70.0 },
+                               { "Face Slap", "Heavy Slash", 70.0 },
+                               { "Gloat", "Face Slap", 40.0 },
+                               { "Defensive Stance", "Gloat", 30.0 } };
+
+    for (const Expected& want : asked)
+    {
+        std::map<std::string, int> saw;
+        const int rounds = 8000;
+
+        for (int i = 0; i < rounds; ++i)
+        {
+            std::mt19937 rng(static_cast<unsigned int>(i) + 1u);
+            Monster him = MonsterRoster::Make(MonsterId::THE_CHAMP, rng);
+            MoveContext context;
+
+            // Not a turn the taunt is owed on.
+            context.turn = 1;
+
+            REQUIRE(him.ForceMove(want.was) == true);
+
+            him.AdvanceMove(rng, context);
+            ++saw[him.GetCurrentMove().name];
+        }
+
+        // Never the move just made.
+        CHECK(saw[want.was] == 0);
+
+        // And the one named after it holds both shares.
+        const double heir = 100.0 * saw[want.heir] / rounds;
+
+        CHECK(heir > want.share - 3.0);
+        CHECK(heir < want.share + 3.0);
+    }
+}
+
+TEST_CASE("A Champ takes his stance twice and gloats after that")
+{
+    // The game: the stance can be cast at most twice per battle and
+    // subsequent casts are instead gloats. Being merely unavailable is not
+    // the same thing - its share has to go to the gloat, or every other
+    // chance shifts to fill the hole.
+    for (unsigned int seed = 1; seed <= 40u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::THE_CHAMP }, seed);
+        int stances = 0;
+
+        for (int turn = 0; turn < 30 &&
+                           battle.GetPhase() == BattlePhase::PLAYER_TURN;
+             ++turn)
+        {
+            if (battle.GetMonsters().front().GetCurrentMove().name ==
+                "Defensive Stance")
+            {
+                ++stances;
+            }
+
+            REQUIRE(battle.EndTurn() == true);
+        }
+
+        CHECK(stances <= 2);
+    }
+
+    // And once he has taken it twice, the share it had is the gloat's.
+    std::map<std::string, int> saw;
+    const int rounds = 8000;
+
+    for (int i = 0; i < rounds; ++i)
+    {
+        std::mt19937 rng(static_cast<unsigned int>(i) + 1u);
+        Monster him = MonsterRoster::Make(MonsterId::THE_CHAMP, rng);
+        MoveContext context;
+
+        context.turn = 1;
+
+        // Twice taken, so the third is somebody else's.
+        for (int again = 0; again < 2; ++again)
+        {
+            REQUIRE(him.ForceMove("Defensive Stance") == true);
+            him.CountMoveUsed();
+        }
+
+        REQUIRE(him.ForceMove("Heavy Slash") == true);
+
+        him.AdvanceMove(rng, context);
+        ++saw[him.GetCurrentMove().name];
+    }
+
+    // The slash it just made hands its forty-five to the slap, and the stance
+    // hands its fifteen to the gloat: a slap at seventy and a gloat at thirty.
+    CHECK(saw["Defensive Stance"] == 0);
+    CHECK(100.0 * saw["Gloat"] / rounds > 27.0);
+    CHECK(100.0 * saw["Gloat"] / rounds < 33.0);
+}
+
 TEST_CASE("Half is not below half")
 {
     // The wiki: a Champ turns when his health drops below fifty in a hundred,
