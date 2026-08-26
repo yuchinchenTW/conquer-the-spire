@@ -542,14 +542,15 @@ def _check():
         for i in range(deckStride):
             obs[0, deckAt + slot * deckStride + i] = obs[0, deckAt + i]
 
-    smith = find("smith", 0, 0)
-    smithOther = find("smith", 5, 0)
-
     with torch.no_grad():
         decked, _, _ = net(obs, ids)
 
-    assert abs(float(decked[0, smith]) - float(decked[0, smithOther])) < 1e-5, \
-        "the same deck card scored differently by slot"
+    for kind in ("smith", "buy_removal", "toke"):
+        here = find(kind, 0, 0)
+        there = find(kind, 5, 0)
+
+        assert abs(float(decked[0, here]) - float(decked[0, there])) < 1e-5, \
+            "the same deck card scored differently by slot for %s" % kind
 
     # Every move of the head is either scored from a token or has a weight of
     # its own, and none is both.
