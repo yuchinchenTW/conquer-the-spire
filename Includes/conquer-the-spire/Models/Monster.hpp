@@ -84,6 +84,11 @@ struct MonsterEffect
     //! health. A parasite grows on what it drinks.
     static MonsterEffect Drain(int amount);
 
+    //! Shakes off every debuff on it and comes back up to \p percent of its
+    //! health, if it is under that. What a thing that eats time does when it
+    //! is losing.
+    static MonsterEffect Recover(int percent);
+
     static MonsterEffect Stasis();
 
     //! Throws off every debuff standing on the monster. What a Champ does
@@ -203,6 +208,12 @@ struct MonsterMove
     //! blow - the climber can see the number coming.
     MonsterMove& GrowsWithUse();
 
+    //! Adds \p per to the damage for every time this move has already been
+    //! made, up to \p cap. A giant head swings for thirty, then thirty-five,
+    //! and stops climbing at sixty - where GrowsWithUse adds another hit
+    //! instead, which is a different thing entirely.
+    MonsterMove& GrowsDamageBy(int per, int cap);
+
     //! Only on the turns where the turn number leaves \p remainder when
     //! divided by \p every. A Chosen turns about between two pairs of moves,
     //! one pair on the odd turns and the other on the even ones, which is a
@@ -270,6 +281,9 @@ struct MonsterMove
     //! many it had to begin with.
     bool growsWithUse = false;
     int baseTimes = 0;
+    int growsDamageBy = 0;
+    int damageCap = 0;
+    int baseDamage = 0;
 
     //! Which turns it may be made on: the turn number divided by \p turnEvery
     //! has to leave \p turnLike. Nought asks nothing.
@@ -375,6 +389,10 @@ class Monster : public Creature
     //! Which phase of its fight this monster is in. A boss that changes its
     //! ways part way through moves itself on.
     int GetPhase() const;
+
+    //! How many moves this monster has made, which is how many turns of the
+    //! fight it has been standing for.
+    int GetMovesMade() const;
     //! Sets whether this is a plain fight, an elite or a boss. The same
     //! monster can be either: a Sentry is an elite when three of them are the
     //! room and a plain monster when one stands beside a Spheric Guardian, so

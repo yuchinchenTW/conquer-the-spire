@@ -991,7 +991,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                   MM::Debuff("Glare", PowerType::WEAK, 1)
                       .Chance(50, 2)
                       .InPhase(1),
-                  MM::Attack("It Is Time", 30).Chance(100).InPhase(2) });
+                  // Thirty, then thirty-five, and so on to sixty. It was
+                  // thirty for ever, and the phase it lives in was never
+                  // reached at all, so the count never ran out.
+                  MM::Attack("It Is Time", 30)
+                      .Chance(100)
+                      .InPhase(2)
+                      .GrowsDamageBy(5, 60) });
             monster.AddPower(PowerType::SLOW, 1);
             break;
         }
@@ -1044,7 +1050,10 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Awakened One", MonsterType::BOSS, 300,
-                { MM::Attack("Slash", 20).Chance(75, 2).InPhase(1),
+                // Always a slash to open. Without that it could open on a
+                // soul strike, which is a quarter of the fights starting on
+                // the harder of the two.
+                { MM::Attack("Slash", 20).Chance(75, 2).InPhase(1).Opener(),
                   MM::Attack("Soul Strike", 6, 4).Chance(25, 1).InPhase(1),
                   MM::Attack("Dark Echo", 40).Chance(0).InPhase(2),
                   MM::Attack("Tackle", 10, 3).Chance(50, 2).InPhase(2),
@@ -1073,7 +1082,10 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                            ME::Debuff(PowerType::VULNERABLE, 1),
                            ME::Debuff(PowerType::WEAK, 1) })
                       .Chance(20, 1),
-                  MM::Nothing("Haste", Intent::BUFF).Chance(0) });
+                  // It was doing nothing at all: the intent said buff and
+                  // the turn passed. Every debuff off and back up to half.
+                  MM::Of("Haste", Intent::BUFF, { ME::Recover(50) })
+                      .Chance(0) });
             monster.AddPower(PowerType::TIME_WARP, 12);
             break;
         }

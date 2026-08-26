@@ -151,6 +151,15 @@ MonsterEffect MonsterEffect::Drain(int amount)
     return effect;
 }
 
+MonsterEffect MonsterEffect::Recover(int percent)
+{
+    MonsterEffect effect;
+    effect.type = MonsterEffectType::RECOVER;
+    effect.amount = percent;
+
+    return effect;
+}
+
 MonsterEffect MonsterEffect::Stasis()
 {
     MonsterEffect effect;
@@ -298,6 +307,23 @@ MonsterMove& MonsterMove::NotFirst()
 MonsterMove& MonsterMove::Every(int turns)
 {
     everyTurns = turns;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::GrowsDamageBy(int per, int cap)
+{
+    growsDamageBy = per;
+    damageCap = cap;
+
+    for (const MonsterEffect& effect : effects)
+    {
+        if (effect.type == MonsterEffectType::DAMAGE)
+        {
+            baseDamage = effect.amount;
+            break;
+        }
+    }
 
     return *this;
 }
@@ -553,6 +579,11 @@ void Monster::AdvanceMove(std::mt19937& rng, const MoveContext& context)
     RefreshGrowingMove();
 }
 
+int Monster::GetMovesMade() const
+{
+    return m_movesMade;
+}
+
 int Monster::GetPhase() const
 {
     return m_phase;
@@ -663,6 +694,24 @@ void Monster::RefreshGrowingMove()
     }
 
     MonsterMove& move = m_moves[m_moveIndex];
+
+    if (move.growsDamageBy > 0)
+    {
+        // What it swung for to begin with, and a little more for every swing
+        // already made, and no more than the cap however long the fight runs.
+        for (MonsterEffect& effect : move.effects)
+        {
+            if (effect.type == MonsterEffectType::DAMAGE)
+            {
+                const int grown =
+                    move.baseDamage + move.growsDamageBy * move.used;
+
+                effect.amount = grown < move.damageCap ? grown
+                                                       : move.damageCap;
+                break;
+            }
+        }
+    }
 
     if (!move.growsWithUse)
     {

@@ -40,6 +40,23 @@ bool IsDebuff(PowerType power, int amount)
     }
 }
 
+//! Every debuff standing on \p creature, listed so that they can be taken
+//! off without walking the map being changed underfoot.
+std::vector<PowerType> DebuffsOn(const Creature& creature)
+{
+    std::vector<PowerType> found;
+
+    for (const auto& held : creature.GetPowers())
+    {
+        if (IsDebuff(held.first, held.second))
+        {
+            found.emplace_back(held.first);
+        }
+    }
+
+    return found;
+}
+
 //! Returns true when \p card is one of the cards \p filter allows.
 bool PassesFilter(const Card& card, CardFilter filter)
 {
@@ -3304,6 +3321,16 @@ void Battle::OnMonsterDied(Monster& monster)
         monster.SetHealth(monster.GetMaxHealth());
         monster.RemovePower(PowerType::CURIOSITY);
         monster.RemovePower(PowerType::REGENERATION);
+
+        // Whole means whole: the poison and the weakness that killed the
+        // first body do not carry into the second. They were carrying over,
+        // so a stack of poison went on ticking through a fresh three hundred
+        // health - which is most of a phase two the spire does not give.
+        for (const PowerType power : DebuffsOn(monster))
+        {
+            monster.RemovePower(power);
+        }
+
         monster.ForceMove("Dark Echo");
 
         return;
@@ -3313,6 +3340,23 @@ void Battle::OnMonsterDied(Monster& monster)
     {
         m_player.AddCardToPile(monster.ReleaseStasisCard(), CardPile::HAND,
                                m_rng);
+    }
+
+    // The cultists standing with an awakened one leave when it does. They
+    // are not its minions - a fight can feed on them, and marking them as
+    // minions would take that away - so this is said of them by name rather
+    // than through the minion rule below. Reaching here at all means the
+    // second body is down, because the first returns above.
+    if (monster.GetMonsterId() == MonsterId::AWAKENED_ONE)
+    {
+        for (auto& other : m_monsters)
+        {
+            if (!other.IsGone() && !other.IsDead() &&
+                other.GetMonsterId() == MonsterId::CULTIST)
+            {
+                other.MarkEscaped();
+            }
+        }
     }
 
     // Minions abandon combat without their leader. Whoever was not summoned
@@ -4700,6 +4744,26 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
             break;
         }
 
+        case MonsterEffectType::RECOVER:
+        {
+            // Every debuff off, and back up to its share of health - never
+            // down to it, because a thing that is already above that share
+            // is not made worse off by hurrying.
+            for (const PowerType power : DebuffsOn(monster))
+            {
+                monster.RemovePower(power);
+            }
+
+            const int wanted = monster.GetMaxHealth() * effect.amount / 100;
+
+            if (monster.GetHealth() < wanted)
+            {
+                monster.SetHealth(wanted);
+            }
+
+            break;
+        }
+
         case MonsterEffectType::SHAKE_OFF:
         {
             // Every debuff standing, and nothing else: the block and the
@@ -4750,6 +4814,17 @@ void Battle::CheckMonsterRules(Monster& monster)
     {
         monster.SetPhase(2);
         monster.ForceMove("Anger");
+    }
+
+    // The count runs out. Four turns of counting and glaring, and then it
+    // swings for everything for the rest of the fight. Without this the
+    // phase the swing lives in was never reached and the head counted for
+    // ever, which is a five-hundred-health elite that cannot kill anybody.
+    if (monster.GetMonsterId() == MonsterId::GIANT_HEAD &&
+        monster.GetPhase() == 1 && monster.GetMovesMade() >= 4)
+    {
+        monster.SetPhase(2);
+        monster.ForceMove("It Is Time");
     }
 
     // A parasite whose shell is gone is left standing there, once.

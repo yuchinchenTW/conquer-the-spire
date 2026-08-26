@@ -39,6 +39,8 @@ enum class MonsterEffectType
     ESCAPE,       //!< Leaves the fight.
     STASIS,       //!< Holds a card until the monster dies.
     DRAIN,        //!< Hits, and takes back what got through as health.
+    RECOVER,      //!< Shakes off every debuff and comes back up to a share
+                  //!< of its health.
     SHAKE_OFF     //!< Throws off every debuff standing on it.
 };
 

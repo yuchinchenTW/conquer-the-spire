@@ -2086,3 +2086,123 @@ TEST_CASE("A parasite is put in the deck, once, and not in any pile")
     // It does give them, so the limit above is not passing for want of any.
     CHECK(gave > 0);
 }
+
+TEST_CASE("An Awakened One opens with a slash and comes back whole")
+{
+    Battle battle = FightAgainst({ MonsterId::CULTIST,
+                                   MonsterId::AWAKENED_ONE,
+                                   MonsterId::CULTIST });
+
+    Monster& one = battle.GetMonsters()[1];
+
+    REQUIRE(one.GetMonsterId() == MonsterId::AWAKENED_ONE);
+
+    // A quarter of the fights were opening on the harder of the two.
+    CHECK(one.GetCurrentMove().name == "Slash");
+
+    // Whole means whole. Poison went on ticking through the second body,
+    // which is most of a phase two the spire does not give.
+    // Frail rather than vulnerable, because the card that finishes it off
+    // may be a Bash and would put vulnerable straight back on afterwards.
+    one.AddPower(PowerType::POISON, 20);
+    one.AddPower(PowerType::WEAK, 3);
+    one.AddPower(PowerType::FRAIL, 3);
+    one.SetHealth(1);
+
+    REQUIRE(Swing(battle, 1) == true);
+
+    REQUIRE(one.GetPhase() == 2);
+    CHECK(one.GetHealth() == one.GetMaxHealth());
+    CHECK(one.GetPower(PowerType::POISON) == 0);
+    CHECK(one.GetPower(PowerType::WEAK) == 0);
+    CHECK(one.GetPower(PowerType::FRAIL) == 0);
+    CHECK(one.GetPower(PowerType::CURIOSITY) == 0);
+
+    // And the second body down takes the cultists with it. They are not its
+    // minions - a fight can feed on them - so they leave by name.
+    one.SetHealth(1);
+
+    REQUIRE(Swing(battle, 1) == true);
+    REQUIRE(one.IsDead() == true);
+
+    for (const Monster& other : battle.GetMonsters())
+    {
+        if (other.GetMonsterId() == MonsterId::CULTIST)
+        {
+            CHECK(other.IsGone() == true);
+        }
+    }
+
+    CHECK(battle.GetPhase() == BattlePhase::WON);
+}
+
+TEST_CASE("Haste takes the debuffs off and puts the health back")
+{
+    Battle battle = FightAgainst({ MonsterId::TIME_EATER });
+
+    Monster& eater = battle.GetMonsters()[0];
+
+    eater.AddPower(PowerType::POISON, 15);
+    eater.AddPower(PowerType::VULNERABLE, 2);
+    eater.SetHealth(eater.GetMaxHealth() / 4);
+
+    REQUIRE(eater.ForceMove("Haste") == true);
+    REQUIRE(battle.EndTurn() == true);
+
+    // Half its health, and nothing on it. It was a turn of nothing at all.
+    CHECK(eater.GetHealth() >= eater.GetMaxHealth() / 2);
+    CHECK(eater.GetPower(PowerType::POISON) == 0);
+    CHECK(eater.GetPower(PowerType::VULNERABLE) == 0);
+}
+
+TEST_CASE("A Giant Head's count runs out and its swing climbs to sixty")
+{
+    Battle battle = FightAgainst({ MonsterId::GIANT_HEAD });
+
+    // Four turns of counting and glaring.
+    for (int turn = 0; turn < 4; ++turn)
+    {
+        const std::string& name = battle.GetMonsters()[0].GetCurrentMove().name;
+
+        CHECK((name == "Count" || name == "Glare"));
+        REQUIRE(battle.EndTurn() == true);
+    }
+
+    // And then it swings for everything, for the rest of the fight. It was
+    // counting for ever, which is a five-hundred-health elite that cannot
+    // kill anybody.
+    REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "It Is Time");
+
+    int swing = 0;
+
+    for (int again = 0; again < 8; ++again)
+    {
+        Monster& head = battle.GetMonsters()[0];
+
+        REQUIRE(head.GetCurrentMove().name == "It Is Time");
+
+        int hit = 0;
+
+        for (const MonsterEffect& effect : head.GetCurrentMove().effects)
+        {
+            if (effect.type == MonsterEffectType::DAMAGE)
+            {
+                hit = effect.amount;
+            }
+        }
+
+        // Thirty, then thirty-five, and up by five a swing to sixty.
+        CHECK(hit == (30 + 5 * again < 60 ? 30 + 5 * again : 60));
+        CHECK(hit >= swing);
+        swing = hit;
+
+        battle.GetPlayer().SetHealth(400);
+
+        if (!battle.EndTurn())
+        {
+            break;
+        }
+    }
+
+    CHECK(swing == 60);
+}
