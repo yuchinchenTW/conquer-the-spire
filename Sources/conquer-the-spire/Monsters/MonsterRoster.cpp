@@ -209,6 +209,11 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             monster = Patterned(id, "Looter", MonsterType::NORMAL,
                                 Roll(rng, 44, 48),
                                 std::move(walk), false);
+
+            // It steals as it mugs, the same as the bigger one does. Only the
+            // mugger was taking anything, so the left of the pair was mugging
+            // for nothing.
+            monster.AddPower(PowerType::THIEVERY, 15);
             break;
         }
 
@@ -216,27 +221,57 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Blue Slaver", MonsterType::NORMAL, Roll(rng, 46, 50),
-                { MM::Attack("Stab", 12).Chance(60),
+                // Sixty and forty, and neither of them three turns running.
+                // The stab had no limit at all, so it could go on for ever,
+                // and the rake could not come twice - both wrong, and between
+                // them they moved where the damage and the weakness fell.
+                { MM::Attack("Stab", 12).Chance(60, 2),
                   MM::Of("Rake", Intent::ATTACK,
                          { ME::Damage(7), ME::Debuff(PowerType::WEAK, 1) })
-                      .Chance(40, 1) });
+                      .Chance(40, 2) });
             break;
         }
 
         case MonsterId::RED_SLAVER:
         {
-            // The real Red Slaver only entangles once a fight; this one may
-            // come back to it, though never twice in a row.
+            // A stab to open. After that, a quarter chance of entangling
+            // every turn, and until it does it walks scrape, scrape, stab
+            // over and over. Once it has entangled - and it entangles once a
+            // fight - it draws scrape against stab at fifty-five to
+            // forty-five, and neither of them comes three turns running.
+            //
+            // The walk is counted off the turn: the second turn and the third
+            // scrape, the fourth stabs, and round again. Entangling does not
+            // step out of the count, it only interrupts it.
             monster = Thinking(
                 id, "Red Slaver", MonsterType::NORMAL, Roll(rng, 46, 50),
-                { MM::Attack("Stab", 13).Chance(55).Opener(),
+                { MM::Attack("Stab", 13).Chance(0).Opener(),
+                  MM::Attack("Stab", 13)
+                      .Chance(75)
+                      .BeforeMove("Entangle")
+                      .OnTurnsLike(3, 1),
                   MM::Of("Scrape", Intent::ATTACK,
                          { ME::Damage(8),
                            ME::Debuff(PowerType::VULNERABLE, 1) })
-                      .Chance(20, 1),
+                      .Chance(75)
+                      .BeforeMove("Entangle")
+                      .OnTurnsLike(3, 2),
+                  MM::Of("Scrape", Intent::ATTACK,
+                         { ME::Damage(8),
+                           ME::Debuff(PowerType::VULNERABLE, 1) })
+                      .Chance(75)
+                      .BeforeMove("Entangle")
+                      .OnTurnsLike(3, 0),
                   MM::Debuff("Entangle", PowerType::ENTANGLED, 1)
-                      .Chance(25, 1)
-                      .NotFirst() });
+                      .Chance(25)
+                      .BeforeMove("Entangle")
+                      .NotFirst(),
+                  MM::Of("Scrape", Intent::ATTACK,
+                         { ME::Damage(8),
+                           ME::Debuff(PowerType::VULNERABLE, 1) })
+                      .Chance(55, 2)
+                      .AfterMove("Entangle"),
+                  MM::Attack("Stab", 13).Chance(45, 2).AfterMove("Entangle") });
             break;
         }
 
@@ -422,10 +457,12 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                                          { ME::Damage(10), ME::Block(15) }) },
                                 true, 2);
 
-            // The block is what this fight is: it comes with a barricade, so
-            // what it puts up stays up. Clearing it at the top of every turn
-            // the way every other monster's block is cleared made a wall into
-            // a nuisance.
+            // Twenty health behind forty block, and a barricade so that what
+            // it puts up stays up. The forty is written into the health line
+            // of the page rather than the buffs line - "20 (+40 Block)" - and
+            // reading only the buffs line is how it came to start the fight
+            // bare.
+            monster.AddBlock(40);
             monster.AddPower(PowerType::BARRICADE, 1);
             monster.AddPower(PowerType::ARTIFACT, 3);
             break;
@@ -587,8 +624,15 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                                         MonsterId::SHIELD_GREMLIN,
                                         MonsterId::GREMLIN_WIZARD };
             std::uniform_int_distribution<std::size_t> pick(0, 4);
+            Monster called = Make(kinds[pick(rng)], rng);
 
-            return Make(kinds[pick(rng)], rng);
+            // One of a leader's own, whether it was called in during the
+            // fight or standing there when it started. Only the called ones
+            // were marked, so killing the leader left the two it opened with
+            // to be worked through - which is not what the buff says.
+            called.AddPower(PowerType::MINION, 1);
+
+            return called;
         }
 
         case MonsterId::GREMLIN_LEADER:

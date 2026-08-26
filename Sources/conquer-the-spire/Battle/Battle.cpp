@@ -4598,7 +4598,13 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
                 }
 
                 Monster called = MonsterRoster::Make(effect.summon, m_rng);
-                called.AddPower(PowerType::MINION, 1);
+
+                // Already marked, when what was called for is a kind that
+                // comes marked.
+                if (called.GetPower(PowerType::MINION) == 0)
+                {
+                    called.AddPower(PowerType::MINION, 1);
+                }
                 m_pendingSpawns.emplace_back(std::move(called));
                 ++about;
             }

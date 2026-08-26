@@ -185,6 +185,13 @@ struct MonsterMove
     //! gate on the turn rather than a move owed on it.
     MonsterMove& OnTurnsLike(int every, int remainder);
 
+    //! Only before, or only after, the move called \p other has been made
+    //! this fight. A red slaver walks one way until it entangles and another
+    //! way afterwards, and asking the move rather than a phase keeps it out of
+    //! the way of when the phase happens to be looked at.
+    MonsterMove& BeforeMove(const std::string& other);
+    MonsterMove& AfterMove(const std::string& other);
+
     //! Hands this move's share to \p other when it may not be repeated,
     //! rather than leaving it to be shared out among everything else.
     //!
@@ -244,6 +251,10 @@ struct MonsterMove
     //! has to leave \p turnLike. Nought asks nothing.
     int turnEvery = 0;
     int turnLike = 0;
+
+    //! A move this one waits for, or waits to be done with.
+    std::string afterMove;
+    std::string beforeMove;
 
     //! Who gets this move's share when it may not be repeated, and who it
     //! turns into once it has been used as often as it is allowed.
@@ -369,6 +380,10 @@ class Monster : public Creature
     //! Returns who ends up with the share of the move at \p at, following the
     //! redirects until one lands somewhere it can actually be drawn.
     std::size_t HeirOfMove(std::size_t at, const MoveContext& context) const;
+
+    //! Returns how many times the move called \p name has been made this
+    //! fight.
+    int UsesOfMove(const std::string& name) const;
 
     //! Returns where \p name sits in the list, or the size of it.
     std::size_t IndexOfMove(const std::string& name) const;

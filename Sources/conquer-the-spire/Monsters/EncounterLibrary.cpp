@@ -126,34 +126,39 @@ const std::vector<Encounter>& EncounterLibrary::GetAct2Strong()
     // byrd. Every group carrying the same one had the learner meeting the rare
     // rooms half again as often as the spire hands them out, and the common
     // ones half as often.
+    //
+    // Written as the ratios rather than as the percentages the page prints,
+    // because the percentages are those ratios rounded: two, three, two, six,
+    // four, six, three, three out of twenty-nine comes to seven, ten, seven,
+    // twenty-one, fourteen, twenty-one, ten, ten.
     static const std::vector<Encounter> groups = {
         { "Chosen and Byrd",
           MonsterType::NORMAL,
           { MonsterId::CHOSEN, MonsterId::BYRD },
-          7 },
+          2 },
         { "Sentry and Sphere",
           MonsterType::NORMAL,
           { MonsterId::SENTRY, MonsterId::SPHERIC_GUARDIAN },
-          7 },
+          2 },
         { "Snake Plant", MonsterType::NORMAL, { MonsterId::SNAKE_PLANT },
-          21 },
-        { "Snecko", MonsterType::NORMAL, { MonsterId::SNECKO }, 14 },
+          6 },
+        { "Snecko", MonsterType::NORMAL, { MonsterId::SNECKO }, 4 },
         { "Centurion and Healer",
           MonsterType::NORMAL,
           { MonsterId::CENTURION, MonsterId::MYSTIC },
-          21 },
+          6 },
         { "Cultist and Chosen",
           MonsterType::NORMAL,
           { MonsterId::CULTIST, MonsterId::CHOSEN },
-          10 },
+          3 },
         { "3 Cultists",
           MonsterType::NORMAL,
           { MonsterId::CULTIST, MonsterId::CULTIST, MonsterId::CULTIST },
-          10 },
+          3 },
         { "Shelled Parasite and Fungi",
           MonsterType::NORMAL,
           { MonsterId::SHELLED_PARASITE, MonsterId::FUNGI_BEAST },
-          10 }
+          3 }
     };
 
     return groups;

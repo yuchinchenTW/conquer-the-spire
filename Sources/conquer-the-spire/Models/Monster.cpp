@@ -331,6 +331,20 @@ MonsterMove& MonsterMove::OnTurnsLike(int every, int remainder)
     return *this;
 }
 
+MonsterMove& MonsterMove::BeforeMove(const std::string& other)
+{
+    beforeMove = other;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::AfterMove(const std::string& other)
+{
+    afterMove = other;
+
+    return *this;
+}
+
 MonsterMove& MonsterMove::SpillsTo(const std::string& other)
 {
     spillsTo = other;
@@ -718,6 +732,18 @@ std::size_t Monster::HeirOfMove(std::size_t at, const MoveContext& context)
     return m_moves.size();
 }
 
+int Monster::UsesOfMove(const std::string& name) const
+{
+    int made = 0;
+
+    for (const MonsterMove& move : m_moves)
+    {
+        made += move.name == name ? move.used : 0;
+    }
+
+    return made;
+}
+
 std::size_t Monster::IndexOfMove(const std::string& name) const
 {
     for (std::size_t i = 0; i < m_moves.size(); ++i)
@@ -754,6 +780,16 @@ bool Monster::MoveAllowed(const MonsterMove& move,
 
     if (move.turnEvery > 0 &&
         (context.turn + 1) % move.turnEvery != move.turnLike)
+    {
+        return false;
+    }
+
+    if (!move.beforeMove.empty() && UsesOfMove(move.beforeMove) > 0)
+    {
+        return false;
+    }
+
+    if (!move.afterMove.empty() && UsesOfMove(move.afterMove) == 0)
     {
         return false;
     }

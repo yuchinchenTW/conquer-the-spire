@@ -379,10 +379,8 @@ TEST_CASE("A guardian of the sphere sits behind its block")
     Battle battle = FightAgainst({ MonsterId::SPHERIC_GUARDIAN });
     const Monster& guardian = battle.GetMonsters().front();
 
-    // It starts behind a barricade rather than behind a wall someone
-    // stacked for it: nothing up yet, and Activate is what puts the
-    // twenty-five there on the first turn.
-    CHECK(guardian.GetBlock() == 0);
+    // Twenty health behind forty block from the first moment.
+    CHECK(guardian.GetBlock() == 40);
     CHECK(guardian.GetPower(PowerType::BARRICADE) > 0);
     CHECK(guardian.GetPower(PowerType::ARTIFACT) == 3);
     CHECK(guardian.GetCurrentMove().name == "Activate");
@@ -843,6 +841,121 @@ TEST_CASE("A champion executes from the turn he turned, not from the first")
     }
 }
 
+TEST_CASE("Both thieves steal, and a leader's own pack leaves with it")
+{
+    // Thievery fifteen on each of them. Only the mugger had it, so the left of
+    // the pair was mugging for nothing.
+    for (const MonsterId who : { MonsterId::LOOTER, MonsterId::MUGGER })
+    {
+        std::mt19937 rng(3u);
+
+        CHECK(MonsterRoster::Make(who, rng).GetPower(PowerType::THIEVERY) ==
+              15);
+    }
+
+    // And the two gremlins a leader is standing with when the fight opens are
+    // its own, the same as the ones it calls in later. Only the called ones
+    // were marked, so killing the leader left the opening pair to be worked
+    // through.
+    Battle battle = FightAgainst({ MonsterId::GREMLIN_LEADER,
+                                   MonsterId::RANDOM_GREMLIN,
+                                   MonsterId::RANDOM_GREMLIN });
+
+    REQUIRE(battle.GetMonsters().size() == 3u);
+
+    for (std::size_t at = 1; at < 3u; ++at)
+    {
+        CHECK(battle.GetMonsters()[at].GetPower(PowerType::MINION) > 0);
+    }
+
+    // Struck down rather than set to nothing: a death is only noticed where
+    // the damage lands.
+    battle.GetMonsters()[0].SetHealth(1);
+    battle.GetPlayer().GetHand().clear();
+    battle.GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::STRIKE_RED));
+
+    REQUIRE(battle.PlayCard(0, 0) == true);
+    REQUIRE(battle.GetMonsters()[0].IsDead() == true);
+
+    for (std::size_t at = 1; at < 3u; ++at)
+    {
+        CHECK(battle.GetMonsters()[at].IsGone() == true);
+    }
+}
+
+TEST_CASE("The slavers keep to their own patterns")
+{
+    // A blue slaver stabs three in five and rakes two, and neither of them
+    // comes three turns running. The stab had no limit at all and the rake
+    // could not come twice - both wrong, and between them they moved where the
+    // damage and the weakness fell.
+    for (unsigned int seed = 1; seed <= 30u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::BLUE_SLAVER }, seed);
+        std::string last;
+        int running = 0;
+
+        battle.GetMonsters().front().SetMaxHealth(9999);
+        battle.GetMonsters().front().SetHealth(9999);
+
+        for (int turn = 0; turn < 14 &&
+                           battle.GetPhase() == BattlePhase::PLAYER_TURN;
+             ++turn)
+        {
+            const std::string move =
+                battle.GetMonsters().front().GetCurrentMove().name;
+
+            running = move == last ? running + 1 : 1;
+            last = move;
+
+            CHECK(running <= 2);
+
+            REQUIRE(battle.EndTurn() == true);
+        }
+    }
+
+    // A red slaver opens with a stab, walks scrape, scrape, stab while it has
+    // not entangled, and entangles once a fight and no more.
+    for (unsigned int seed = 1; seed <= 30u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::RED_SLAVER }, seed);
+
+        battle.GetMonsters().front().SetMaxHealth(9999);
+        battle.GetMonsters().front().SetHealth(9999);
+
+        CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Stab");
+
+        int entangles = 0;
+
+        for (int turn = 1; turn <= 14 &&
+                           battle.GetPhase() == BattlePhase::PLAYER_TURN;
+             ++turn)
+        {
+            const std::string move =
+                battle.GetMonsters().front().GetCurrentMove().name;
+
+            entangles += move == "Entangle" ? 1 : 0;
+
+            // Before it has entangled, the turns it does not entangle on walk
+            // the scrape, scrape, stab round.
+            if (entangles == 0 && turn > 1)
+            {
+                // The round is counted off the turn itself: the first, the
+                // fourth, the seventh stab and the rest scrape.
+                const std::string owed =
+                    turn % 3 == 1 ? "Stab" : "Scrape";
+
+                CHECK(move == owed);
+            }
+
+            REQUIRE(battle.EndTurn() == true);
+        }
+
+        CHECK(entangles <= 1);
+    }
+}
+
 TEST_CASE("A thief tosses a coin on its third turn")
 {
     // Two mugs, and then a lunge and the smoke, or straight to the smoke.
@@ -899,24 +1012,36 @@ TEST_CASE("The second act deals its rooms out the way the spire does")
         total += one.weight;
     }
 
-    CHECK(total == 100);
+    // The ratios rather than the rounded percentages the page prints: two,
+    // three, two, six, four, six, three, three.
+    CHECK(total == 29);
 
-    // And the ones the page names outright.
+    // Asked as the shares they come out to, so that the numbers written down
+    // are checked against what the page actually says rather than against
+    // themselves.
     for (const Encounter& one : strong)
     {
+        const double share = 100.0 * one.weight / total;
+
         if (one.name == "Snake Plant" || one.name == "Centurion and Healer")
         {
-            CHECK(one.weight == 21);
+            CHECK(one.weight == 6);
+            CHECK(share > 20.0);
+            CHECK(share < 21.5);
         }
 
         if (one.name == "Chosen and Byrd" || one.name == "Sentry and Sphere")
         {
-            CHECK(one.weight == 7);
+            CHECK(one.weight == 2);
+            CHECK(share > 6.5);
+            CHECK(share < 7.5);
         }
 
         if (one.name == "Snecko")
         {
-            CHECK(one.weight == 14);
+            CHECK(one.weight == 4);
+            CHECK(share > 13.5);
+            CHECK(share < 14.5);
         }
     }
 
@@ -1230,14 +1355,15 @@ TEST_CASE("A guardian keeps what it puts up")
     Battle battle = FightAgainst({ MonsterId::SPHERIC_GUARDIAN });
 
     REQUIRE(battle.GetMonsters().front().GetPower(PowerType::BARRICADE) > 0);
-    CHECK(battle.GetMonsters().front().GetBlock() == 0);
+    CHECK(battle.GetMonsters().front().GetBlock() == 40);
 
-    // Activate puts twenty-five up on the first turn.
+    // Activate puts twenty-five more up on the first turn, on top of what it
+    // came with, because a barricade means nothing is swept away first.
     REQUIRE(battle.EndTurn() == true);
 
     const int raised = battle.GetMonsters().front().GetBlock();
 
-    CHECK(raised >= 25);
+    CHECK(raised >= 65);
 
     // And a turn later it is still there rather than swept away.
     REQUIRE(battle.EndTurn() == true);
