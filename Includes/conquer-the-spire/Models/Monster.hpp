@@ -142,6 +142,10 @@ struct MonsterEffect
 //!
 struct MoveContext
 {
+    //! The climber, for the moves that ask what is on them. Never held past
+    //! the one call that was given it.
+    const Creature* player = nullptr;
+
     int turn = 1;
     int allies = 0;
     int allyMissing = 0;
@@ -227,6 +231,23 @@ struct MonsterMove
     MonsterMove& BeforeMove(const std::string& other);
     MonsterMove& AfterMove(const std::string& other);
 
+    //! Only when the move made last turn was, or was not, \p other. This is
+    //! the turn before and not ever before: a maw's drool follows its nom nom
+    //! and nothing else, and after a drool it is back to choosing. Nothing
+    //! follows anything on the opening turn.
+    MonsterMove& Follows(const std::string& other);
+    MonsterMove& NotFollows(const std::string& other);
+
+    //! Only while the climber is, or is not, carrying \p power. A spire
+    //! growth smashes once the climber is constricted and goes back to
+    //! choosing if that ever comes off.
+    MonsterMove& WhenPlayerHas(PowerType power);
+    MonsterMove& WhenPlayerLacks(PowerType power);
+
+    //! Hits once for every \p every turns of the fight, rounded up: a maw
+    //! noms twice on the third turn and the fourth, three times on the fifth.
+    MonsterMove& HitsByTurn(int every);
+
     //! Hands this move's share to \p other when it may not be repeated,
     //! rather than leaving it to be shared out among everything else.
     //!
@@ -293,6 +314,11 @@ struct MonsterMove
     //! A move this one waits for, or waits to be done with.
     std::string afterMove;
     std::string beforeMove;
+    std::string followsMove;
+    std::string notFollowsMove;
+    PowerType playerHas = PowerType::INVALID;
+    PowerType playerLacks = PowerType::INVALID;
+    int hitsByTurn = 0;
 
     //! Who gets this move's share when it may not be repeated, and who it
     //! turns into once it has been used as often as it is allowed.
@@ -368,6 +394,11 @@ class Monster : public Creature
     //! usual choice. Returns false when there is no such move.
     bool ForceMove(const std::string& name);
 
+    //! Takes the move called \p name out of this monster's list. The middle
+    //! darkling of three is the same monster as the two beside it but for the
+    //! one thing it cannot do.
+    bool DropMove(const std::string& name);
+
     //! Whether this monster is down but not out, waiting to come back.
     bool IsRegrowing() const;
     void SetRegrowing(bool regrowing);
@@ -415,6 +446,14 @@ class Monster : public Creature
     //! move that grows. Called wherever the standing move changes, so that the
     //! intent the climber reads and the blow that lands are the same number.
     void RefreshGrowingMove();
+
+    //! The move standing now, by name, which while the next one is being
+    //! chosen is the move made last turn.
+    const std::string& LastMoveName() const;
+
+    //! Which turn of the fight the monster was last asked about, so that a
+    //! move whose hits are counted off the turn can be told.
+    int m_turnSeen = 1;
 
     //! Returns whether the move at \p at is the same move as the one
     //! standing, which is a question about its name and not about where it

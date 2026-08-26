@@ -847,7 +847,9 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Darkling", MonsterType::NORMAL, Roll(rng, 48, 56),
-                { MM::Attack("Nip", 9).Chance(30, 2),
+                // The nip is rolled once, when the fight starts, and stands
+                // for the fight. It was nine every time.
+                { MM::Attack("Nip", Roll(rng, 7, 11)).Chance(30, 2),
                   MM::Attack("Chomp", 8, 2).Chance(40, 1).NotFirst(),
                   MM::Defend("Harden", 12).Chance(30, 1),
                   MM::Of("Reincarnate", Intent::SUMMON,
@@ -915,13 +917,44 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "The Maw", MonsterType::NORMAL, 300,
+                // A roar, and then a walk that turns on what it just did
+                // rather than a draw from everything every turn:
+                //
+                //   after the roar  : slam or nom nom
+                //   after a slam    : nom nom or drool
+                //   after a nom nom : drool, always
+                //   after a drool   : slam or nom nom
+                //
+                // It was drawing from all three every turn, so a drool could
+                // follow the roar and a nom nom could go unanswered.
+                //
+                // And the nom noms are counted off the turn - one bite for
+                // every two turns of the fight, rounded up - where it was
+                // three bites for ever.
                 { MM::Of("Roar", Intent::DEBUFF,
                          { ME::Debuff(PowerType::WEAK, 3),
                            ME::Debuff(PowerType::FRAIL, 3) })
                       .Opener(),
-                  MM::Attack("Slam", 25).Chance(50, 1),
-                  MM::Attack("Nom Nom", 5, 3).Chance(50, 1),
-                  MM::Buff("Drool", PowerType::STRENGTH, 3).Chance(30, 1) });
+                  MM::Attack("Slam", 25).Chance(50).Follows("Roar"),
+                  MM::Attack("Nom Nom", 5)
+                      .Chance(50)
+                      .Follows("Roar")
+                      .HitsByTurn(2),
+                  MM::Attack("Nom Nom", 5)
+                      .Chance(50)
+                      .Follows("Slam")
+                      .HitsByTurn(2),
+                  MM::Buff("Drool", PowerType::STRENGTH, 3)
+                      .Chance(50)
+                      .Follows("Slam"),
+                  MM::Buff("Drool", PowerType::STRENGTH, 3)
+                      .Chance(100)
+                      .Follows("Nom Nom"),
+                  MM::Attack("Slam", 25).Chance(50).Follows("Drool"),
+                  MM::Attack("Nom Nom", 5)
+                      .Chance(50)
+                      .Follows("Drool")
+                      .HitsByTurn(2) });
             break;
         }
 
@@ -929,10 +962,30 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Spire Growth", MonsterType::NORMAL, 170,
-                { MM::Attack("Quick Tackle", 16).Chance(50, 2),
+                // Fifty-fifty between the tackle and the constrict, until
+                // the climber is constricted or it constricted last turn -
+                // and then it smashes, from there on. The smash had no weight
+                // at all and nothing that turned it on, so it never came.
+                //
+                // Constricted does not wear off, so in practice the first
+                // constrict settles the rest of the fight. The second smash
+                // entry is for the case where the climber's artifact ate the
+                // constrict: the spire still smashes the turn after using it.
+                { MM::Attack("Quick Tackle", 16)
+                      .Chance(50, 2)
+                      .WhenPlayerLacks(PowerType::CONSTRICTED)
+                      .NotFollows("Constrict"),
                   MM::Debuff("Constrict", PowerType::CONSTRICTED, 10)
-                      .Chance(50, 1),
-                  MM::Attack("Smash", 22).Chance(0) });
+                      .Chance(50, 1)
+                      .WhenPlayerLacks(PowerType::CONSTRICTED)
+                      .NotFollows("Constrict"),
+                  MM::Attack("Smash", 22)
+                      .Chance(100)
+                      .WhenPlayerHas(PowerType::CONSTRICTED),
+                  MM::Attack("Smash", 22)
+                      .Chance(100)
+                      .Follows("Constrict")
+                      .WhenPlayerLacks(PowerType::CONSTRICTED) });
             break;
         }
 
@@ -955,15 +1008,30 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Writhing Mass", MonsterType::NORMAL, 160,
-                { MM::Attack("Multi Hit", 7, 3).Chance(30, 1),
+                // The first turn is three ways, near enough even, and the
+                // block attack is not one of them. After that it is thirty
+                // the multi hit, thirty the block attack, twenty the debuff
+                // attack, ten the big hit and ten the parasite - which is not
+                // what the first turn's three are, and the two were being run
+                // together.
+                { MM::Attack("Multi Hit", 7, 3).Chance(33).OnTurn(1),
+                  MM::Attack("Big Hit", 32).Chance(33).OnTurn(1),
                   MM::Of("Debuff Attack", Intent::ATTACK_DEBUFF,
                          { ME::Damage(10), ME::Debuff(PowerType::WEAK, 2),
                            ME::Debuff(PowerType::VULNERABLE, 2) })
-                      .Chance(30, 1),
-                  MM::Attack("Big Hit", 32).Chance(20, 1),
+                      .Chance(34)
+                      .OnTurn(1),
+                  MM::Attack("Multi Hit", 7, 3).Chance(30, 1).NotFirst(),
+                  MM::Of("Debuff Attack", Intent::ATTACK_DEBUFF,
+                         { ME::Damage(10), ME::Debuff(PowerType::WEAK, 2),
+                           ME::Debuff(PowerType::VULNERABLE, 2) })
+                      .Chance(20, 1)
+                      .NotFirst(),
+                  MM::Attack("Big Hit", 32).Chance(10, 1).NotFirst(),
                   MM::Of("Block Attack", Intent::ATTACK_DEFEND,
                          { ME::Damage(15), ME::Block(16) })
-                      .Chance(10, 1),
+                      .Chance(30, 1)
+                      .NotFirst(),
                   // Into the deck itself and only the once: it does nothing
                   // to this fight and everything to the ones after it. A
                   // repeat limit let it come round again a few turns later,

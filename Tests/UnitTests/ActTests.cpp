@@ -2206,3 +2206,240 @@ TEST_CASE("A Giant Head's count runs out and its swing climbs to sixty")
 
     CHECK(swing == 60);
 }
+
+namespace
+{
+//! The hits the move standing on \p monster is about to make.
+int HitsOf(const Monster& monster)
+{
+    for (const MonsterEffect& effect : monster.GetCurrentMove().effects)
+    {
+        if (effect.type == MonsterEffectType::DAMAGE)
+        {
+            return effect.times;
+        }
+    }
+
+    return 0;
+}
+}  // namespace
+
+TEST_CASE("The Maw walks by what it just did")
+{
+    std::set<std::string> afterRoar;
+    std::set<std::string> afterSlam;
+    std::set<std::string> afterNom;
+    std::set<std::string> afterDrool;
+
+    for (unsigned int seed = 1; seed <= 60u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::THE_MAW }, seed);
+
+        REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "Roar");
+
+        std::string before = "Roar";
+
+        for (int turn = 2; turn <= 9; ++turn)
+        {
+            battle.GetPlayer().SetHealth(400);
+
+            if (!battle.EndTurn())
+            {
+                break;
+            }
+
+            const Monster& maw = battle.GetMonsters()[0];
+            const std::string now = maw.GetCurrentMove().name;
+
+            if (before == "Roar")
+            {
+                afterRoar.insert(now);
+            }
+            else if (before == "Slam")
+            {
+                afterSlam.insert(now);
+            }
+            else if (before == "Nom Nom")
+            {
+                afterNom.insert(now);
+            }
+            else
+            {
+                afterDrool.insert(now);
+            }
+
+            // One bite for every two turns of the fight, rounded up. It was
+            // three bites for ever.
+            if (now == "Nom Nom")
+            {
+                CHECK(HitsOf(maw) == (turn + 1) / 2);
+            }
+
+            before = now;
+        }
+    }
+
+    // A drool cannot follow the roar, and a nom nom is always answered by
+    // one. Both were possible when everything was drawn from every turn.
+    CHECK(afterRoar == std::set<std::string>{ "Nom Nom", "Slam" });
+    CHECK(afterSlam == std::set<std::string>{ "Drool", "Nom Nom" });
+    CHECK(afterNom == std::set<std::string>{ "Drool" });
+    CHECK(afterDrool == std::set<std::string>{ "Nom Nom", "Slam" });
+}
+
+TEST_CASE("A Writhing Mass opens three ways and not five")
+{
+    std::map<std::string, int> first;
+
+    for (unsigned int seed = 1; seed <= 120u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::WRITHING_MASS }, seed);
+
+        ++first[battle.GetMonsters()[0].GetCurrentMove().name];
+    }
+
+    // Three ways only: no block attack and no parasite on the first turn.
+    CHECK(first.count("Block Attack") == 0u);
+    CHECK(first.count("Implant") == 0u);
+
+    REQUIRE(first.count("Multi Hit") == 1u);
+    REQUIRE(first.count("Big Hit") == 1u);
+    REQUIRE(first.count("Debuff Attack") == 1u);
+    CHECK(first.size() == 3u);
+
+    // And near enough even, where the big hit used to come up at half the
+    // rate of the other two.
+    for (const auto& one : first)
+    {
+        CHECK(one.second > 20);
+        CHECK(one.second < 60);
+    }
+}
+
+TEST_CASE("A Spire Growth smashes once the climber is tied up")
+{
+    for (unsigned int seed = 1; seed <= 30u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::SPIRE_GROWTH }, seed);
+        const std::string opened =
+            battle.GetMonsters()[0].GetCurrentMove().name;
+
+        // Never the smash to start with: nothing has tied anybody up yet.
+        CHECK((opened == "Quick Tackle" || opened == "Constrict"));
+
+        bool tied = false;
+
+        for (int turn = 0; turn < 8; ++turn)
+        {
+            battle.GetPlayer().SetHealth(400);
+
+            if (!battle.EndTurn())
+            {
+                break;
+            }
+
+            if (tied)
+            {
+                // From there on it smashes, and nothing else. The smash had
+                // no weight and nothing to turn it on, so it never came at
+                // all.
+                CHECK(battle.GetMonsters()[0].GetCurrentMove().name ==
+                      "Smash");
+            }
+
+            tied = tied || battle.GetPlayer().GetPower(
+                               PowerType::CONSTRICTED) > 0;
+        }
+    }
+}
+
+TEST_CASE("A Darkling rolls its nip once and the middle one cannot chomp")
+{
+    std::set<int> nips;
+
+    for (unsigned int seed = 1; seed <= 40u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::DARKLING }, seed);
+        int found = 0;
+
+        for (const MonsterMove& move : battle.GetMonsters()[0].GetMoves())
+        {
+            if (move.name != "Nip")
+            {
+                continue;
+            }
+
+            for (const MonsterEffect& effect : move.effects)
+            {
+                if (effect.type == MonsterEffectType::DAMAGE)
+                {
+                    found = effect.amount;
+                }
+            }
+        }
+
+        // Seven to eleven, rolled once for the fight. It was nine every time.
+        CHECK(found >= 7);
+        CHECK(found <= 11);
+        nips.insert(found);
+    }
+
+    CHECK(nips.size() > 1u);
+
+    // The middle one of three is the same darkling but for the chomp.
+    std::vector<MonsterId> three;
+
+    for (const Encounter& one : EncounterLibrary::GetAct3Weak())
+    {
+        if (one.name == "3 Darklings")
+        {
+            three = one.monsters;
+        }
+    }
+
+    REQUIRE(three.size() == 3u);
+
+    std::mt19937 rng(7);
+    const std::vector<Monster> built = EncounterLibrary::Build(
+        { "3 Darklings", MonsterType::NORMAL, three }, rng);
+
+    REQUIRE(built.size() == 3u);
+
+    const auto chomps = [](const Monster& one) {
+        for (const MonsterMove& move : one.GetMoves())
+        {
+            if (move.name == "Chomp")
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    CHECK(chomps(built[0]) == true);
+    CHECK(chomps(built[1]) == false);
+    CHECK(chomps(built[2]) == true);
+}
+
+TEST_CASE("A Darkling sleeping one off cannot hold another one up")
+{
+    Battle battle = FightAgainst({ MonsterId::DARKLING, MonsterId::DARKLING });
+
+    // One of the two already sleeping a death off.
+    battle.GetMonsters()[0].SetRegrowing(true);
+
+    REQUIRE(battle.GetMonsters()[0].IsRegrowing() == true);
+    REQUIRE(battle.GetMonsters()[0].IsGone() == false);
+
+    // The other goes down while it is under. There is nothing standing to
+    // hold it up, so it stays down - and the fight can be finished. Counting
+    // the regrowing one meant a blow that took both at once put both into
+    // regrowing, over and over.
+    battle.GetMonsters()[1].SetHealth(1);
+
+    REQUIRE(Swing(battle, 1) == true);
+
+    CHECK(battle.GetMonsters()[1].IsRegrowing() == false);
+    CHECK(battle.GetMonsters()[1].IsDead() == true);
+}

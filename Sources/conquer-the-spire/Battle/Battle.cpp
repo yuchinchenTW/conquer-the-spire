@@ -3302,7 +3302,12 @@ void Battle::OnMonsterDied(Monster& monster)
     {
         for (const auto& other : m_monsters)
         {
+            // Standing, not sleeping one off: another darkling that is itself
+            // regrowing cannot hold this one up. Counting those meant a blow
+            // taking all three down at once put all three into regrowing, and
+            // the fight could not be finished.
             if (&other != &monster && !other.IsGone() &&
+                !other.IsRegrowing() &&
                 other.GetPower(PowerType::LIFE_LINK) > 0)
             {
                 monster.SetRegrowing(true);
@@ -4414,6 +4419,7 @@ MoveContext Battle::ReadMoveContext(const Monster& monster) const
 {
     MoveContext context;
 
+    context.player = &m_player;
     context.turn = m_turn;
     context.phase = monster.GetPhase();
 

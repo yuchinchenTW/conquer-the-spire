@@ -451,6 +451,14 @@ std::vector<Monster> EncounterLibrary::Build(const Encounter& encounter,
         monsters.back().SetMonsterType(encounter.type);
     }
 
+    // The middle darkling of three cannot chomp. It is the same monster as
+    // the two beside it in every other way, so it is that entry with the one
+    // move taken out rather than a second kind of darkling.
+    if (encounter.name == "3 Darklings" && monsters.size() == 3u)
+    {
+        monsters[1].DropMove("Chomp");
+    }
+
     // In the elite fight the middle Sentry opens the other way round.
     if (encounter.name == "3 Sentries" && monsters.size() == 3u)
     {

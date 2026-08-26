@@ -389,6 +389,41 @@ MonsterMove& MonsterMove::AfterMove(const std::string& other)
     return *this;
 }
 
+MonsterMove& MonsterMove::Follows(const std::string& other)
+{
+    followsMove = other;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::NotFollows(const std::string& other)
+{
+    notFollowsMove = other;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::WhenPlayerHas(PowerType power)
+{
+    playerHas = power;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::WhenPlayerLacks(PowerType power)
+{
+    playerLacks = power;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::HitsByTurn(int every)
+{
+    hitsByTurn = every;
+
+    return *this;
+}
+
 MonsterMove& MonsterMove::SpillsTo(const std::string& other)
 {
     spillsTo = other;
@@ -513,6 +548,8 @@ void Monster::ChooseOpeningMove(std::mt19937& rng, const MoveContext& context)
         return;
     }
 
+    m_turnSeen = context.turn + 1;
+
     // An opener beats the weights.
     for (std::size_t i = 0; i < m_moves.size(); ++i)
     {
@@ -538,6 +575,7 @@ void Monster::AdvanceMove(std::mt19937& rng)
 void Monster::AdvanceMove(std::mt19937& rng, const MoveContext& context)
 {
     ++m_movesMade;
+    m_turnSeen = context.turn + 1;
 
     if (m_moves.empty())
     {
@@ -686,6 +724,35 @@ void Monster::QueueMoves(std::vector<std::string> names)
     m_queued = std::move(names);
 }
 
+bool Monster::DropMove(const std::string& name)
+{
+    for (std::size_t i = 0; i < m_moves.size(); ++i)
+    {
+        if (m_moves[i].name != name)
+        {
+            continue;
+        }
+
+        m_moves.erase(m_moves.begin() + static_cast<std::ptrdiff_t>(i));
+
+        if (m_moveIndex >= m_moves.size() && !m_moves.empty())
+        {
+            m_moveIndex = 0;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+const std::string& Monster::LastMoveName() const
+{
+    static const std::string none;
+
+    return m_moveIndex < m_moves.size() ? m_moves[m_moveIndex].name : none;
+}
+
 void Monster::RefreshGrowingMove()
 {
     if (m_moveIndex >= m_moves.size())
@@ -694,6 +761,21 @@ void Monster::RefreshGrowingMove()
     }
 
     MonsterMove& move = m_moves[m_moveIndex];
+
+    if (move.hitsByTurn > 0)
+    {
+        // One hit for every so many turns of the fight, rounded up.
+        const int hits = (m_turnSeen + move.hitsByTurn - 1) / move.hitsByTurn;
+
+        for (MonsterEffect& effect : move.effects)
+        {
+            if (effect.type == MonsterEffectType::DAMAGE)
+            {
+                effect.times = hits > 1 ? hits : 1;
+                break;
+            }
+        }
+    }
 
     if (move.growsDamageBy > 0)
     {
@@ -857,6 +939,34 @@ bool Monster::MoveAllowed(const MonsterMove& move,
     }
 
     if (!move.beforeMove.empty() && UsesOfMove(move.beforeMove) > 0)
+    {
+        return false;
+    }
+
+    // The move made last turn, which is the one still standing as the next is
+    // chosen. Nothing follows anything before the first move is made, or the
+    // first entry of the list would look like the move that came before.
+    if (!move.followsMove.empty() &&
+        (m_movesMade == 0 || LastMoveName() != move.followsMove))
+    {
+        return false;
+    }
+
+    if (!move.notFollowsMove.empty() && m_movesMade > 0 &&
+        LastMoveName() == move.notFollowsMove)
+    {
+        return false;
+    }
+
+    if (move.playerHas != PowerType::INVALID &&
+        (context.player == nullptr ||
+         context.player->GetPower(move.playerHas) <= 0))
+    {
+        return false;
+    }
+
+    if (move.playerLacks != PowerType::INVALID && context.player != nullptr &&
+        context.player->GetPower(move.playerLacks) > 0)
     {
         return false;
     }
