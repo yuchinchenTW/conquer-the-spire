@@ -288,6 +288,20 @@ MonsterMove& MonsterMove::Alone()
     return *this;
 }
 
+MonsterMove& MonsterMove::WhenAlliesUnder(int many)
+{
+    alliesUnder = many;
+
+    return *this;
+}
+
+MonsterMove& MonsterMove::WhenAlliesAtLeast(int many)
+{
+    alliesAtLeast = many;
+
+    return *this;
+}
+
 MonsterMove& MonsterMove::WithAlly()
 {
     withAlly = true;
@@ -526,6 +540,16 @@ bool Monster::MoveAllowed(const MonsterMove& move,
     }
 
     if (move.withAlly && context.allies == 0)
+    {
+        return false;
+    }
+
+    if (move.alliesUnder > 0 && context.allies >= move.alliesUnder)
+    {
+        return false;
+    }
+
+    if (move.alliesAtLeast > 0 && context.allies < move.alliesAtLeast)
     {
         return false;
     }

@@ -169,6 +169,13 @@ struct MonsterMove
     MonsterMove& Alone();
     MonsterMove& WithAlly();
 
+    //! Only while fewer than \p many allies are standing, and only while at
+    //! least \p many are. What a Collector may do depends on how many of her
+    //! torch heads are alive, which is a count rather than the yes or no that
+    //! Alone and WithAlly ask.
+    MonsterMove& WhenAlliesUnder(int many);
+    MonsterMove& WhenAlliesAtLeast(int many);
+
     //! Makes this the move whenever one of the monsters is missing \p amount
     //! of health or more, which is what a healer waits for.
     MonsterMove& WhenAllyMissing(int amount);
@@ -185,6 +192,11 @@ struct MonsterMove
     int phase = 0;
     bool alone = false;
     bool withAlly = false;
+
+    //! How many allies standing this move wants, above and below. Nought
+    //! either way asks nothing.
+    int alliesUnder = 0;
+    int alliesAtLeast = 0;
     int allyMissing = 0;
 };
 

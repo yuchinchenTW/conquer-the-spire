@@ -523,6 +523,59 @@ TEST_CASE("An automaton opens by spawning two orbs")
     CHECK(battle.GetMonsters().front().GetCurrentMove().name == "Flail");
 }
 
+TEST_CASE("A collector does not call for heads she already has")
+{
+    // The wiki: with both torch heads standing the draw is a fireball and a
+    // buff, and calling for more is not in it. Leaving it in had her spending
+    // near a quarter of those turns summoning nothing, because the summon caps
+    // at two - a boss doing nothing every fourth turn.
+    int fullTurns = 0;
+    int wasted = 0;
+    int calledWhileShort = 0;
+
+    for (unsigned int seed = 1; seed <= 120u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::THE_COLLECTOR }, seed);
+
+        for (int turn = 0;
+             turn < 12 && battle.GetPhase() == BattlePhase::PLAYER_TURN;
+             ++turn)
+        {
+            int heads = 0;
+
+            for (const Monster& other : battle.GetMonsters())
+            {
+                heads += !other.IsGone() &&
+                                 other.GetMonsterId() == MonsterId::TORCH_HEAD
+                             ? 1
+                             : 0;
+            }
+
+            const bool calling =
+                battle.GetMonsters().front().GetCurrentMove().name == "Spawn";
+
+            if (heads >= 2)
+            {
+                ++fullTurns;
+                wasted += calling ? 1 : 0;
+            }
+            else
+            {
+                calledWhileShort += calling ? 1 : 0;
+            }
+
+            REQUIRE(battle.EndTurn() == true);
+        }
+    }
+
+    REQUIRE(fullTurns > 0);
+    CHECK(wasted == 0);
+
+    // And she does still call for them when she is short of one, or the fight
+    // would only ever have the two she opens with.
+    CHECK(calledWhileShort > 0);
+}
+
 TEST_CASE("A bronze orb holds a card in stasis until it dies")
 {
     Battle battle = FightAgainst({ MonsterId::BRONZE_ORB });

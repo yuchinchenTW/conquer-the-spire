@@ -638,13 +638,27 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::THE_COLLECTOR:
         {
+            // She opens by calling two heads and always turns to the
+            // debuff on the fourth turn. What she does the rest of the time
+            // depends on how many of them are standing: with both up she
+            // cannot call more, so the calling is out of the draw altogether
+            // and the fireball takes its share - which is why the fireball
+            // is written twice, once for each share. The two are never both
+            // on offer, so the rule about not throwing three in a row still
+            // counts them as the one move it is. Leaving the calling in the
+            // draw with both heads up had her spending near a quarter of
+            // those turns summoning nothing at all.
             monster = Thinking(
                 id, "The Collector", MonsterType::BOSS, 282,
                 { MM::Of("Spawn", Intent::SUMMON,
                          { ME::Summon(MonsterId::TORCH_HEAD, 2, 2) })
                       .Chance(25)
+                      .WhenAlliesUnder(2)
                       .Opener(),
-                  MM::Attack("Fireball", 18).Chance(70, 2),
+                  MM::Attack("Fireball", 18).Chance(70, 2)
+                      .WhenAlliesAtLeast(2),
+                  MM::Attack("Fireball", 18).Chance(45, 2)
+                      .WhenAlliesUnder(2),
                   MM::Of("Buff", Intent::BUFF,
                          { ME::BuffAll(PowerType::STRENGTH, 3),
                            ME::Block(15) })

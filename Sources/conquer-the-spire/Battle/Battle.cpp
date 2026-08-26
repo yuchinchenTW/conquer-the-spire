@@ -4342,6 +4342,18 @@ MoveContext Battle::ReadMoveContext(const Monster& monster) const
         context.allyMissing = std::max(context.allyMissing, missing);
     }
 
+    // The ones called for and not yet standing count too. The cap on calling
+    // for more counts them, so a monster deciding whether to call for more
+    // has to count them the same way - otherwise it looks around, sees an
+    // empty floor, calls again, and finds the floor full when the turn comes.
+    for (const auto& spawn : m_pendingSpawns)
+    {
+        if (spawn.GetMonsterId() != monster.GetMonsterId())
+        {
+            ++context.allies;
+        }
+    }
+
     return context;
 }
 
