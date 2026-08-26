@@ -843,6 +843,94 @@ TEST_CASE("A champion executes from the turn he turned, not from the first")
     }
 }
 
+TEST_CASE("A thief tosses a coin on its third turn")
+{
+    // Two mugs, and then a lunge and the smoke, or straight to the smoke.
+    // Always lunging first meant a thief always stayed the extra turn, which
+    // is a free turn of getting the gold back.
+    for (const MonsterId who : { MonsterId::LOOTER, MonsterId::MUGGER })
+    {
+        int lunged = 0;
+        const int rounds = 600;
+
+        for (int i = 0; i < rounds; ++i)
+        {
+            std::mt19937 rng(static_cast<unsigned int>(i) + 1u);
+            const Monster thief = MonsterRoster::Make(who, rng);
+            bool hasLunge = false;
+
+            for (const MonsterMove& move : thief.GetMoves())
+            {
+                hasLunge = hasLunge || move.name == "Lunge";
+            }
+
+            lunged += hasLunge ? 1 : 0;
+
+            // Whichever way the coin fell, it mugs twice and leaves by way of
+            // the smoke.
+            const std::vector<MonsterMove>& walk = thief.GetMoves();
+
+            REQUIRE(walk.size() >= 4u);
+            CHECK(walk[0].name == "Mug");
+            CHECK(walk[1].name == "Mug");
+            CHECK(walk[walk.size() - 2u].name == "Smoke Bomb");
+            CHECK(walk.back().name == "Escape");
+        }
+
+        const double share = 100.0 * lunged / rounds;
+
+        CHECK(share > 42.0);
+        CHECK(share < 58.0);
+    }
+}
+
+TEST_CASE("The second act deals its rooms out the way the spire does")
+{
+    // The chances are published for this act: a snake plant or a centurion
+    // three times as often as a chosen with a byrd. Weighing them all alike
+    // had the learner meeting the rare rooms half again as often as it should
+    // and the common ones half as often.
+    const std::vector<Encounter>& strong = EncounterLibrary::GetAct2Strong();
+    int total = 0;
+
+    for (const Encounter& one : strong)
+    {
+        CHECK(one.weight > 0);
+        total += one.weight;
+    }
+
+    CHECK(total == 100);
+
+    // And the ones the page names outright.
+    for (const Encounter& one : strong)
+    {
+        if (one.name == "Snake Plant" || one.name == "Centurion and Healer")
+        {
+            CHECK(one.weight == 21);
+        }
+
+        if (one.name == "Chosen and Byrd" || one.name == "Sentry and Sphere")
+        {
+            CHECK(one.weight == 7);
+        }
+
+        if (one.name == "Snecko")
+        {
+            CHECK(one.weight == 14);
+        }
+    }
+
+    // The weak rooms really are dealt alike, all five at a fifth.
+    const std::vector<Encounter>& weak = EncounterLibrary::GetAct2Weak();
+
+    REQUIRE(weak.size() == 5u);
+
+    for (const Encounter& one : weak)
+    {
+        CHECK(one.weight == weak.front().weight);
+    }
+}
+
 TEST_CASE("A gremlin leader brings a pack of whatever turns up")
 {
     // It does not stand alone: two gremlins are already there, and which kinds

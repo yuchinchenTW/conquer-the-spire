@@ -27,9 +27,10 @@ struct Encounter
     std::vector<MonsterId> monsters;
 
     //! How often this group comes up against the others of its pool. The
-    //! spire does not weigh them all alike, but it does not publish the
-    //! weights either, so every group here carries the same one until a
-    //! source for them turns up.
+    //! spire does not weigh them all alike. The second act's are published
+    //! and written down here; the pools that carry no source for theirs still
+    //! weigh every group alike, which is a thing to come back to rather than a
+    //! thing that is right.
     int weight = 1;
 };
 

@@ -185,14 +185,30 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::LOOTER:
         {
-            // The real Looter tosses a coin on its third turn between Lunge
-            // and Smoke Bomb; this one always lunges first.
-            monster = Patterned(
-                id, "Looter", MonsterType::NORMAL, Roll(rng, 44, 48),
-                { MM::Attack("Mug", 10), MM::Attack("Mug", 10),
-                  MM::Attack("Lunge", 12), MM::Defend("Smoke Bomb", 6),
-                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }) },
-                false);
+            // Two mugs, and then a coin: a lunge and then the smoke, or
+            // straight to the smoke. Always lunging first meant a thief always
+            // stayed the extra turn, which is a turn of getting the gold back
+            // that the climber was being given for nothing.
+            //
+            // Tossed here rather than on the third turn, because the intent is
+            // only ever shown one turn ahead - the climber learns of it at the
+            // same moment either way.
+            std::uniform_int_distribution<int> coin(0, 1);
+            std::vector<MonsterMove> walk = { MM::Attack("Mug", 10),
+                                              MM::Attack("Mug", 10) };
+
+            if (coin(rng) == 0)
+            {
+                walk.emplace_back(MM::Attack("Lunge", 12));
+            }
+
+            walk.emplace_back(MM::Defend("Smoke Bomb", 6));
+            walk.emplace_back(
+                MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }));
+
+            monster = Patterned(id, "Looter", MonsterType::NORMAL,
+                                Roll(rng, 44, 48),
+                                std::move(walk), false);
             break;
         }
 
@@ -480,14 +496,23 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::MUGGER:
         {
-            // The same walk as a Looter, for more: mug twice, lunge or throw
-            // down smoke, then away with whatever it took.
-            monster = Patterned(
-                id, "Mugger", MonsterType::NORMAL, Roll(rng, 48, 52),
-                { MM::Attack("Mug", 10), MM::Attack("Mug", 10),
-                  MM::Attack("Lunge", 16), MM::Defend("Smoke Bomb", 11),
-                  MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }) },
-                false);
+            // The same walk as a Looter, for more, and the same coin on the
+            // third turn.
+            std::uniform_int_distribution<int> coin(0, 1);
+            std::vector<MonsterMove> walk = { MM::Attack("Mug", 10),
+                                              MM::Attack("Mug", 10) };
+
+            if (coin(rng) == 0)
+            {
+                walk.emplace_back(MM::Attack("Lunge", 16));
+            }
+
+            walk.emplace_back(MM::Defend("Smoke Bomb", 11));
+            walk.emplace_back(
+                MM::Of("Escape", Intent::ESCAPE, { ME::Escape() }));
+
+            monster = Patterned(id, "Mugger", MonsterType::NORMAL,
+                                Roll(rng, 48, 52), std::move(walk), false);
             monster.AddPower(PowerType::THIEVERY, 15);
             break;
         }

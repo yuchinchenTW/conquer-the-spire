@@ -121,27 +121,39 @@ const std::vector<Encounter>& EncounterLibrary::GetAct2Weak()
 
 const std::vector<Encounter>& EncounterLibrary::GetAct2Strong()
 {
+    // The weights are published after all, for this act at least: a snake
+    // plant or a centurion turns up three times as often as a chosen with a
+    // byrd. Every group carrying the same one had the learner meeting the rare
+    // rooms half again as often as the spire hands them out, and the common
+    // ones half as often.
     static const std::vector<Encounter> groups = {
         { "Chosen and Byrd",
           MonsterType::NORMAL,
-          { MonsterId::CHOSEN, MonsterId::BYRD } },
+          { MonsterId::CHOSEN, MonsterId::BYRD },
+          7 },
         { "Sentry and Sphere",
           MonsterType::NORMAL,
-          { MonsterId::SENTRY, MonsterId::SPHERIC_GUARDIAN } },
-        { "Snake Plant", MonsterType::NORMAL, { MonsterId::SNAKE_PLANT } },
-        { "Snecko", MonsterType::NORMAL, { MonsterId::SNECKO } },
+          { MonsterId::SENTRY, MonsterId::SPHERIC_GUARDIAN },
+          7 },
+        { "Snake Plant", MonsterType::NORMAL, { MonsterId::SNAKE_PLANT },
+          21 },
+        { "Snecko", MonsterType::NORMAL, { MonsterId::SNECKO }, 14 },
         { "Centurion and Healer",
           MonsterType::NORMAL,
-          { MonsterId::CENTURION, MonsterId::MYSTIC } },
+          { MonsterId::CENTURION, MonsterId::MYSTIC },
+          21 },
         { "Cultist and Chosen",
           MonsterType::NORMAL,
-          { MonsterId::CULTIST, MonsterId::CHOSEN } },
+          { MonsterId::CULTIST, MonsterId::CHOSEN },
+          10 },
         { "3 Cultists",
           MonsterType::NORMAL,
-          { MonsterId::CULTIST, MonsterId::CULTIST, MonsterId::CULTIST } },
+          { MonsterId::CULTIST, MonsterId::CULTIST, MonsterId::CULTIST },
+          10 },
         { "Shelled Parasite and Fungi",
           MonsterType::NORMAL,
-          { MonsterId::SHELLED_PARASITE, MonsterId::FUNGI_BEAST } }
+          { MonsterId::SHELLED_PARASITE, MonsterId::FUNGI_BEAST },
+          10 }
     };
 
     return groups;
