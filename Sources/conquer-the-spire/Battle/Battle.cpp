@@ -855,6 +855,17 @@ bool Battle::CanPlay(std::size_t handIndex, std::size_t monsterIndex) const
 
 std::vector<std::size_t> Battle::GetLivingMonsterIndices() const
 {
+    // A thing at nothing health that is not finished with - an awakened one
+    // waiting to be reborn, a darkling waiting to be pulled back - is still
+    // standing in the room. It can be aimed at and the blow does nothing,
+    // which is what being invulnerable is; neither page says it cannot be
+    // aimed at, and one of them says invulnerable in as many words.
+    //
+    // Which means a climber can waste a swing on it. That is a thing the
+    // spire lets happen, and the learner is told enough to stop doing it:
+    // the slot says there is somebody there and says their health is
+    // nothing, in the same two numbers it reads for everybody else.
+
     std::vector<std::size_t> indices;
 
     for (std::size_t i = 0; i < m_monsters.size(); ++i)
@@ -3319,7 +3330,12 @@ void Battle::OnMonsterDied(Monster& monster)
                 !other.IsRegrowing() &&
                 other.GetPower(PowerType::LIFE_LINK) > 0)
             {
+                // Nothing, rather than however far past nothing the blow
+                // carried it. It stands there for two turns and what it is
+                // standing at is read by everything that looks at the fight,
+                // the learner included.
                 monster.SetRegrowing(true);
+                monster.SetHealth(0);
                 monster.ForceMove("Reincarnate");
 
                 return;

@@ -1125,15 +1125,15 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Reptomancer", MonsterType::ELITE, Roll(rng, 180, 190),
-                // Two daggers a time, four on the floor at most, and when
+                // One dagger a time, four on the floor at most, and when
                 // the floor is full the spawn's share goes to the snake
                 // strike rather than the turn being spent on a summon that
                 // makes nothing.
-                // One dagger a time. The page reads "Summons a Dagger.
-                // Summons 2 Ascension 18 Daggers", which is one at nought and
-                // two only high up - and reading the two as the ordinary
-                // number took the floor from two daggers to four on the
-                // opening turn.
+                //
+                // The page reads "Summons a Dagger. Summons 2 Ascension 18
+                // Daggers", which is one down here and two only high up -
+                // and reading the two as the ordinary number took the opening
+                // floor from three daggers to four.
                 { MM::Of("Summon", Intent::SUMMON,
                          { ME::Summon(MonsterId::DAGGER, 1, 4) })
                       .Chance(33, 2)

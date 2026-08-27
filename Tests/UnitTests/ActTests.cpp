@@ -2839,3 +2839,49 @@ TEST_CASE("A room of shapes never holds three alike, ever")
         }
     }
 }
+
+TEST_CASE("A thing waiting to get back up can be aimed at and shrugs it off")
+{
+    // The decision this pins: a monster at nothing health that is not
+    // finished with stays in the room and stays a target. It can be swung at
+    // and the swing does nothing, which is what invulnerable means - neither
+    // page says it cannot be aimed at, and one says invulnerable outright.
+    // Taking it out of the target list instead would be the other reading,
+    // and this is here so that is a decision and not an accident.
+    const auto waiting = [](std::vector<MonsterId> room, std::size_t at) {
+        Battle battle = FightAgainst(room);
+
+        battle.GetMonsters()[at].SetHealth(1);
+
+        REQUIRE(Swing(battle, at) == true);
+        REQUIRE(battle.GetMonsters()[at].IsRegrowing() == true);
+
+        const Monster& down = battle.GetMonsters()[at];
+
+        // Standing at nothing, not at some way past nothing: the learner
+        // reads that health against the maximum and a number below zero
+        // would read as something it never sees anywhere else.
+        CHECK(down.GetHealth() == 0);
+        CHECK(down.IsGone() == false);
+
+        // Still in the room, so still a target.
+        const std::vector<std::size_t> living =
+            battle.GetLivingMonsterIndices();
+
+        CHECK(std::find(living.begin(), living.end(), at) != living.end());
+
+        // And a swing at it is accepted and comes to nothing. Accepted
+        // matters on its own: an action offered and then refused is what
+        // sends the policy round in circles.
+        const bool swung = Swing(battle, at);
+
+        if (swung)
+        {
+            CHECK(battle.GetMonsters()[at].GetHealth() == 0);
+            CHECK(battle.GetMonsters()[at].IsRegrowing() == true);
+        }
+    };
+
+    waiting({ MonsterId::AWAKENED_ONE }, 0u);
+    waiting({ MonsterId::DARKLING, MonsterId::DARKLING }, 0u);
+}
