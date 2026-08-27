@@ -67,7 +67,7 @@ echo.
 echo     1. Act 1 only        - learns quickest, start here
 echo     2. Acts 1 to 2
 echo     3. Acts 1 to 3
-echo     4. The whole spire   - needs the three keys
+echo     4. As far as it can go - the third act's boss, for now
 echo.
 echo     B. Back
 echo.
@@ -269,8 +269,9 @@ echo.
 echo   Ctrl-C stops it. It saves first, and running this again carries on.
 echo.
 echo   floors is what moves first, then boss - the share of climbs that put
-echo   an act boss down. win stays at zero for a long while: that is the
-echo   game, not a fault.
+echo   an act boss down. win is the share that got as far as they were asked
+echo   to get, so with an act limit it starts moving early; asked for the
+echo   whole spire it waits on the third act's boss and takes much longer.
 echo.
 
 %PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --picks %FRESH% %EXTRA%

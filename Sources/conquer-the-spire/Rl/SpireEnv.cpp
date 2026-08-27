@@ -1102,9 +1102,21 @@ void SpireEnv::Settle()
 
         // As far as this climb was asked to go. The boss has already paid
         // out by the time this is reached, so the climb is over on a win.
-        m_phase = m_actLimit > 0 && m_run.GetAct() >= m_actLimit
-                      ? EnvPhase::OVER
-                      : EnvPhase::ACT_DONE;
+        const bool asFarAsAsked =
+            m_actLimit > 0 && m_run.GetAct() >= m_actLimit;
+
+        // And a climb that got as far as it was asked to get is finished,
+        // not merely stopped. The Run only knows about the spire's own top,
+        // so it cannot say this - and without it a climb trained on one act
+        // that put that act's boss down went into the table as neither a win
+        // nor a death, which is the whole of what such a run is trying to
+        // learn to do.
+        if (asFarAsAsked)
+        {
+            m_run.Note(LogEntry::SPIRE_DONE, m_run.GetAct());
+        }
+
+        m_phase = asFarAsAsked ? EnvPhase::OVER : EnvPhase::ACT_DONE;
 
         return;
     }

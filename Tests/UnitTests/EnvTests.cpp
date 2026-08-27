@@ -3,6 +3,7 @@
 #include <conquer-the-spire/Cards/CardRegistry.hpp>
 #include <conquer-the-spire/Relics/RelicRegistry.hpp>
 #include <conquer-the-spire/Rl/SpireEnv.hpp>
+#include <conquer-the-spire/Run/RunStats.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -501,4 +502,95 @@ TEST_CASE("Nothing that cannot be aimed at is offered as a target")
     }
 
     CHECK(offered > 0);
+}
+
+TEST_CASE("A climb asked for one act is finished when it clears that act")
+{
+    // A climb trained on a single act that puts that act's boss down was
+    // going into the table as neither a win nor a death, so the one thing
+    // such a run is trying to learn to do never showed in the win column at
+    // all. The Run cannot say this - it only knows about the spire's own top
+    // - so the env says it where the limit stops the climb.
+    //
+    // Driven rather than played: every monster met is put on one health, so
+    // the climb reaches the top of the act instead of dying somewhere in the
+    // middle the way random play does. What is under test is the accounting,
+    // not the fighting.
+    std::mt19937 rng(3);
+    SpireEnv env;
+
+    env.SetActLimit(1);
+    env.Reset(CardColor::RED, 11);
+
+    int walked = 0;
+
+    while (!env.IsDone() && walked < 4000)
+    {
+        env.GetRun().GetPlayer().SetHealth(
+            env.GetRun().GetPlayer().GetMaxHealth());
+
+        if (Battle* fight = env.GetBattle(); fight != nullptr)
+        {
+            fight->GetPlayer().SetHealth(fight->GetPlayer().GetMaxHealth());
+
+            for (Monster& one : fight->GetMonsters())
+            {
+                if (!one.IsGone())
+                {
+                    one.SetHealth(1);
+                }
+            }
+        }
+
+        const std::vector<Action> moves = env.LegalActions();
+
+        if (moves.empty())
+        {
+            break;
+        }
+
+        // An attack if there is one, so the fight ends; otherwise anything.
+        std::size_t chose = moves.size();
+
+        for (std::size_t at = 0; at < moves.size(); ++at)
+        {
+            if (moves[at].kind == ActionKind::PLAY_CARD)
+            {
+                chose = at;
+                break;
+            }
+        }
+
+        if (chose == moves.size())
+        {
+            std::uniform_int_distribution<std::size_t> pick(
+                0, moves.size() - 1);
+
+            chose = pick(rng);
+        }
+
+        if (!env.Step(moves[chose]).taken)
+        {
+            std::uniform_int_distribution<std::size_t> pick(
+                0, moves.size() - 1);
+
+            env.Step(moves[pick(rng)]);
+        }
+
+        ++walked;
+    }
+
+    REQUIRE(env.IsDone() == true);
+    REQUIRE(env.GetRun().GetPlayer().GetHealth() > 0);
+    REQUIRE(env.GetRun().GetAct() == 1);
+
+    RunStats stats;
+
+    stats.Ingest(env.GetRun().GetLog());
+
+    // It got as far as it was asked to get, so it is finished and not merely
+    // stopped: one climb, one win, no death.
+    CHECK(stats.GetRuns() == 1);
+    CHECK(stats.GetWins() == 1);
+    CHECK(stats.GetDeaths() == 0);
 }

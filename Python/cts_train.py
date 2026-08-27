@@ -780,7 +780,14 @@ class Trainer(object):
         # once it has seen a window's worth of them, so that a relic offered
         # once or twice a climb still has enough behind it to mean anything.
         counted = totals_of(self.vec)
-        picks = table_of(self.vec, least=self.args.pick_least)
+        # Every row, however thinly attended. The page sinks a rate that
+        # rests on far less than the rest of its table to the bottom and
+        # marks it, so a row seen twice is no longer misleading there - and
+        # dropping it outright meant the third act's bosses were missing from
+        # the page altogether rather than shown as the two sightings they
+        # are. What pick_least still gates is the tensorboard scalars below,
+        # where a rate off two climbs is a spike nobody can read past.
+        picks = table_of(self.vec, least=1)
 
         # Curses are counted from the first one: they are never offered
         # beside a real card, so a handful in a window is already the whole
@@ -843,8 +850,10 @@ def main(argv=None):
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--pick-least", type=int, default=10,
                         dest="pick_least",
-                        help="how many times a thing has to turn up in a "
-                             "window before its rates are written down")
+                        help="how many climbs a thing has to turn up in "
+                             "before its floors and win rate go to "
+                             "tensorboard; the page and the csv keep every "
+                             "row and mark the thin ones instead")
     parser.add_argument("--max-hp-weight", type=float, default=-1.0,
                         dest="max_hp_weight",
                         help="what a point of the health ceiling is worth, "
