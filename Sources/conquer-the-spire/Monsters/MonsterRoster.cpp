@@ -1047,18 +1047,32 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Writhing Mass", MonsterType::NORMAL, 160,
-                // The first turn is three ways, near enough even, and the
-                // block attack is not one of them. After that it is thirty
-                // the multi hit, thirty the block attack, twenty the debuff
-                // attack, ten the big hit and ten the parasite - which is not
-                // what the first turn's three are, and the two were being run
-                // together.
-                { MM::Attack("Multi Hit", 7, 3).Chance(33).OnTurn(1),
-                  MM::Attack("Big Hit", 32).Chance(33).OnTurn(1),
+                // The first turn is four ways, evenly, and the parasite is
+                // the one of the five left out of them. After that it is
+                // thirty the multi hit, thirty the block attack, twenty the
+                // debuff attack, ten the big hit and ten the parasite -
+                // which is not what the first turn's four are, and the two
+                // were being run together.
+                //
+                // Four rather than three, which is the one place the two
+                // wikis are read the other way round from usual. The one
+                // this project follows says three in its prose, but its own
+                // data module carries an editor's open question beside this
+                // monster - "Can use Defend Attack on first turn?" - so it
+                // is not telling us three, it is asking. The other says four
+                // at even odds and names them, and the two agree exactly on
+                // every later turn. A page that is sure beats a page that is
+                // wondering, whichever page it is.
+                { MM::Attack("Multi Hit", 7, 3).Chance(25).OnTurn(1),
+                  MM::Attack("Big Hit", 32).Chance(25).OnTurn(1),
+                  MM::Of("Block Attack", Intent::ATTACK_DEFEND,
+                         { ME::Damage(15), ME::Block(16) })
+                      .Chance(25)
+                      .OnTurn(1),
                   MM::Of("Debuff Attack", Intent::ATTACK_DEBUFF,
                          { ME::Damage(10), ME::Debuff(PowerType::WEAK, 2),
                            ME::Debuff(PowerType::VULNERABLE, 2) })
-                      .Chance(34)
+                      .Chance(25)
                       .OnTurn(1),
                   MM::Attack("Multi Hit", 7, 3).Chance(30, 1).NotFirst(),
                   MM::Of("Debuff Attack", Intent::ATTACK_DEBUFF,

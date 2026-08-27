@@ -2326,32 +2326,36 @@ TEST_CASE("The Maw walks by what it just did")
     CHECK(afterDrool == std::set<std::string>{ "Nom Nom", "Slam" });
 }
 
-TEST_CASE("A Writhing Mass opens three ways and not five")
+TEST_CASE("A Writhing Mass opens four ways and not five")
 {
     std::map<std::string, int> first;
+    const int rounds = 200;
 
-    for (unsigned int seed = 1; seed <= 120u; ++seed)
+    for (unsigned int seed = 1;
+         seed <= static_cast<unsigned int>(rounds); ++seed)
     {
         Battle battle = FightAgainst({ MonsterId::WRITHING_MASS }, seed);
 
         ++first[battle.GetMonsters()[0].GetCurrentMove().name];
     }
 
-    // Three ways only: no block attack and no parasite on the first turn.
-    CHECK(first.count("Block Attack") == 0u);
+    // Four of the five, evenly. The parasite is the one left out, and it is
+    // the only one left out - the page this project usually follows says
+    // three and leaves out the block attack too, but its own data module
+    // asks whether the block attack belongs here rather than saying, and the
+    // other page says four and names them.
     CHECK(first.count("Implant") == 0u);
 
     REQUIRE(first.count("Multi Hit") == 1u);
     REQUIRE(first.count("Big Hit") == 1u);
     REQUIRE(first.count("Debuff Attack") == 1u);
-    CHECK(first.size() == 3u);
+    REQUIRE(first.count("Block Attack") == 1u);
+    CHECK(first.size() == 4u);
 
-    // And near enough even, where the big hit used to come up at half the
-    // rate of the other two.
     for (const auto& one : first)
     {
-        CHECK(one.second > 20);
-        CHECK(one.second < 60);
+        CHECK(one.second > rounds / 8);
+        CHECK(one.second < rounds / 2);
     }
 }
 
