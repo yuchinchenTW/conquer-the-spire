@@ -3787,3 +3787,76 @@ TEST_CASE("Two act-one monsters were allowed a move one turn too often")
     CHECK(rowOf(MonsterId::FUNGI_BEAST, "Grow") == 1);
     CHECK(rowOf(MonsterId::FUNGI_BEAST, "Bite") == 2);
 }
+
+TEST_CASE("A Guardian puts twenty up the moment its wall comes down")
+{
+    // Only one of the two pages says so - the one this project usually
+    // follows describes the shift and does not mention it - and it is here
+    // on the user's word. Both roads into the shell go through the same
+    // place, so a blow and a tick of poison bring the same twenty.
+    {
+        Battle battle = FightAgainst({ MonsterId::THE_GUARDIAN });
+        Monster& guard = battle.GetMonsters().front();
+
+        REQUIRE(guard.GetPower(PowerType::MODE_SHIFT) == 30);
+        REQUIRE(guard.GetBlock() == 0);
+
+        guard.AddPower(PowerType::MODE_SHIFT, -29);
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::STRIKE_RED));
+        battle.GetPlayer().SetEnergy(3);
+
+        REQUIRE(Swing(battle, 0u) == true);
+
+        CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 0);
+        CHECK(guard.GetCurrentMove().name == "Defensive Mode");
+        CHECK(guard.GetBlock() == 20);
+    }
+
+    // And by poison, which is the other way the wall comes down.
+    {
+        Battle battle = FightAgainst({ MonsterId::THE_GUARDIAN });
+        Monster& guard = battle.GetMonsters().front();
+
+        guard.AddPower(PowerType::POISON, 30);
+        battle.GetPlayer().SetHealth(400);
+
+        REQUIRE(battle.EndTurn() == true);
+
+        CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 0);
+
+        // The shell is put on and acted on in the same turn, so what is left
+        // standing afterwards is the sharp hide it gives - and the twenty
+        // is under whatever the turn then did to it.
+        CHECK(guard.GetPower(PowerType::SHARP_HIDE) == 3);
+    }
+}
+
+TEST_CASE("A cultist's ritual counts the turn it was set up on")
+{
+    // Decided rather than found: both pages say only "at the end of its
+    // turn, gains X Strength", with nothing about skipping the turn the
+    // ritual was granted on. Read as it stands, the incantation turn counts
+    // - so the first dark strike lands for nine and not six. The other
+    // reading is a turn's delay and three points; this is the user's call,
+    // written down so it is not quietly flipped back.
+    Battle battle = FightAgainst({ MonsterId::CULTIST });
+    Monster& one = battle.GetMonsters().front();
+
+    REQUIRE(one.GetCurrentMove().name == "Incantation");
+    CHECK(one.GetPower(PowerType::STRENGTH) == 0);
+
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(one.GetPower(PowerType::RITUAL) == 3);
+    CHECK(one.GetPower(PowerType::STRENGTH) == 3);
+    CHECK(one.GetCurrentMove().name == "Dark Strike");
+
+    const int before = battle.GetPlayer().GetHealth();
+
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(before - battle.GetPlayer().GetHealth() == 9);
+}

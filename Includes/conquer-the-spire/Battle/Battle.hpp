@@ -338,6 +338,12 @@ class Battle
     //! whatever means. The page says upon losing HP, not upon being struck,
     //! so poison and an orb and a card that costs health all count.
     void NoteShifting(Creature& creature, int lost);
+
+    //! Turns \p monster into its shell: the wall it was holding is gone, it
+    //! puts up twenty on the spot, and whatever it meant to do is replaced.
+    //! Two things can bring the wall down - a blow and a tick of poison - so
+    //! what happens next is written once and asked for from both.
+    void ShiftIntoDefensiveMode(Monster& monster);
     void DealOrbDamageToTarget(int amount);
     Monster* LowestHealthMonster();
 

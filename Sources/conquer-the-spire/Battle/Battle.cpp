@@ -1492,8 +1492,7 @@ void Battle::RunMonsterTurn()
 
                 if (monster.GetPower(PowerType::MODE_SHIFT) == 0)
                 {
-                    monster.RemovePower(PowerType::MODE_SHIFT);
-                    monster.ForceMove("Defensive Mode");
+                    ShiftIntoDefensiveMode(monster);
                 }
             }
         }
@@ -4284,7 +4283,7 @@ void Battle::DealDamageToMonster(Monster& monster, int base, bool fromAttack)
 
         if (monster.GetPower(PowerType::MODE_SHIFT) == 0)
         {
-            monster.ForceMove("Defensive Mode");
+            ShiftIntoDefensiveMode(monster);
         }
     }
 
@@ -4553,6 +4552,18 @@ void Battle::ApplyPowerTo(Creature& creature, PowerType power, int amount)
     {
         DealFlatDamage(creature, sadistic);
     }
+}
+
+void Battle::ShiftIntoDefensiveMode(Monster& monster)
+{
+    monster.RemovePower(PowerType::MODE_SHIFT);
+
+    // Twenty on the spot, over and above whatever the shell does afterwards.
+    // Only one of the two pages says so; the one this project usually
+    // follows describes the shift and does not mention it. Taken on the
+    // user's word, which is what settles it where they disagree.
+    monster.AddBlock(monster.CalculateBlockGain(20));
+    monster.ForceMove("Defensive Mode");
 }
 
 void Battle::NoteShifting(Creature& creature, int lost)
