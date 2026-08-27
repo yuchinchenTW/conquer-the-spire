@@ -101,7 +101,7 @@ void Creature::ClearBlock()
     m_block = 0;
 }
 
-int Creature::TakeDamage(int amount)
+int Creature::TakeDamage(int amount, int soften)
 {
     if (amount <= 0)
     {
@@ -114,8 +114,17 @@ int Creature::TakeDamage(int amount)
         return 0;
     }
 
-    const int healthLost = amount - m_block;
+    int healthLost = amount - m_block;
     m_block = 0;
+
+    // Softened after the block and not before it: a rod takes a point off
+    // what actually reaches the climber, and a blow that the block swallowed
+    // whole was never going to reach them at all.
+    if (soften > 0)
+    {
+        healthLost = healthLost > soften ? healthLost - soften : 0;
+    }
+
     m_health -= healthLost;
 
     return healthLost;

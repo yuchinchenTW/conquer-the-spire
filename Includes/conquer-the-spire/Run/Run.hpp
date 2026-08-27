@@ -66,6 +66,12 @@ class Run
     //! with it.
     const RunLog& GetLog() const;
 
+    //! Takes \p amount off the climber's health, a point less if they are
+    //! carrying a tungsten rod. The rod takes a point off every loss of
+    //! health there is, and a toll at a bridge or a hand pushed into a pool
+    //! is a loss of health - those were taking the full amount.
+    void LoseHealth(int amount);
+
     //! Writes a line of the log, at wherever the climber is standing. This is
     //! open to whoever is driving the run, for the things only they see: a
     //! potion drunk in a fight, say.

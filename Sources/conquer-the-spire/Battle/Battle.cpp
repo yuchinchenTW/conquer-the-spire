@@ -4312,7 +4312,7 @@ void Battle::DealDamageToPlayer(int base, Monster& source)
         outgoing = 0;
     }
 
-    const int landed = m_player.TakeDamage(outgoing);
+    const int landed = m_player.TakeDamage(outgoing, Softening());
 
     // A thief helps itself while it is at it.
     if (landed > 0)
@@ -4383,7 +4383,11 @@ void Battle::DealFlatDamage(Creature& creature, int amount)
         taken = 1;
     }
 
-    NoteShifting(creature, creature.TakeDamage(taken));
+    // The rod is the climber's, so it only comes off what reaches them.
+    NoteShifting(creature,
+                 creature.TakeDamage(taken, &creature == &m_player
+                                                ? Softening()
+                                                : 0));
 }
 
 void Battle::DamageAllEnemies(int amount)
@@ -4409,6 +4413,11 @@ void Battle::DamageRandomEnemy(int amount)
     std::uniform_int_distribution<std::size_t> pick(0, living.size() - 1);
 
     DealDamageToMonster(m_monsters[living[pick(m_rng)]], amount, false);
+}
+
+int Battle::Softening() const
+{
+    return m_player.HasRelic(RelicId::TUNGSTEN_ROD) ? 1 : 0;
 }
 
 void Battle::HurtPlayer(int amount)
@@ -5054,8 +5063,14 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
             // sitting, and every one made from here on.
             m_burnsStoked = true;
 
-            std::vector<Card>* piles[] = { &m_player.GetHand(),
-                                           &m_player.GetDrawPile(),
+            // The draw pile and the discard, and not the hand. The Upgrade
+            // page says an inferno "will not Upgrade any Burn that is
+            // currently in hand", and reasons about how one comes to be
+            // there at all - burns cannot be retained in this fight, so it
+            // takes a card drawn after the turn has ended. The Burn page
+            // says all three piles, which is the looser of the two and does
+            // not know about the case.
+            std::vector<Card>* piles[] = { &m_player.GetDrawPile(),
                                            &m_player.GetDiscardPile() };
 
             for (std::vector<Card>* pile : piles)
@@ -5229,11 +5244,11 @@ void Battle::ResolveEndOfTurnHandCards()
         {
             case CardId::BURN:
                 // Burn is soaked by block but ignores Strength and Vulnerable.
-                m_player.TakeDamage(upgraded[i] ? 4 : 2);
+                m_player.TakeDamage(upgraded[i] ? 4 : 2, Softening());
                 break;
 
             case CardId::DECAY:
-                m_player.TakeDamage(2);
+                m_player.TakeDamage(2, Softening());
                 break;
 
             case CardId::DOUBT:

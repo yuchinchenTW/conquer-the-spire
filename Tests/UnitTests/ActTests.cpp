@@ -4026,3 +4026,132 @@ TEST_CASE("A Guardian only shells up when its wall is brought down")
         REQUIRE(battle.EndTurn() == true);
     }
 }
+
+TEST_CASE("An inferno sets fire to the piles and not to the hand")
+{
+    // The Upgrade page: an inferno "will not Upgrade any Burn that is
+    // currently in hand". The Burn page says all three piles; the Upgrade
+    // page is the one that knows why the distinction exists, and it reasons
+    // about how a burn comes to be in hand at that moment at all - they
+    // cannot be retained in this fight, so it takes a card drawn after the
+    // player's turn has ended.
+    //
+    // Which is why this test only checks the piles: in ordinary play the
+    // turn's end has already discarded the hand by the time an inferno goes
+    // off, so a burn is never sitting in one. Leaving the hand out of the
+    // sweep is the rule written down for the day something does draw into
+    // it, not a change anybody can see today.
+    Battle battle = FightAgainst({ MonsterId::HEXAGHOST });
+    Monster& ghost = battle.GetMonsters().front();
+
+    battle.GetPlayer().GetDrawPile().emplace_back(
+        CardRegistry::Get(CardId::BURN));
+    battle.GetPlayer().GetDiscardPile().emplace_back(
+        CardRegistry::Get(CardId::BURN));
+
+    REQUIRE(ghost.ForceMove("Inferno") == true);
+
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    int burns = 0;
+    int plain = 0;
+
+    for (const std::vector<Card>* pile :
+         { &battle.GetPlayer().GetHand(), &battle.GetPlayer().GetDrawPile(),
+           &battle.GetPlayer().GetDiscardPile() })
+    {
+        for (const Card& one : *pile)
+        {
+            if (one.GetId() == CardId::BURN)
+            {
+                ++burns;
+                plain += one.IsUpgraded() ? 0 : 1;
+            }
+        }
+    }
+
+    // Its own three and the two that were lying about, every one of them the
+    // worse kind.
+    CHECK(burns == 5);
+    CHECK(plain == 0);
+}
+
+TEST_CASE("A tungsten rod takes a point off everything that reaches the climber")
+{
+    // The page: "Tungsten Rod will reduce ALL HP loss by 1", damage that
+    // gets through block included. It was only being asked where health was
+    // taken off directly, so every blow a monster landed, every burn and
+    // every thorn was a point harsher than it should have been.
+    const auto tookFrom = [](bool rod) {
+        Battle battle = FightAgainst({ MonsterId::JAW_WORM });
+
+        if (rod)
+        {
+            battle.GetPlayer().AddRelic(
+                RelicRegistry::Get(RelicId::TUNGSTEN_ROD));
+        }
+
+        battle.GetPlayer().SetHealth(400);
+
+        const int before = battle.GetPlayer().GetHealth();
+
+        battle.EndTurn();
+
+        return before - battle.GetPlayer().GetHealth();
+    };
+
+    const int plain = tookFrom(false);
+
+    REQUIRE(plain > 1);
+    CHECK(tookFrom(true) == plain - 1);
+
+    // And a burn at the end of the turn, the same.
+    const auto burned = [](bool rod) {
+        Battle battle = FightAgainst({ MonsterId::HEXAGHOST });
+
+        if (rod)
+        {
+            battle.GetPlayer().AddRelic(
+                RelicRegistry::Get(RelicId::TUNGSTEN_ROD));
+        }
+
+        battle.GetMonsters().front().ForceMove("Activate");
+        battle.GetPlayer().GetHand().clear();
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::BURN));
+        battle.GetPlayer().SetHealth(400);
+
+        const int before = battle.GetPlayer().GetHealth();
+
+        battle.EndTurn();
+
+        return before - battle.GetPlayer().GetHealth();
+    };
+
+    CHECK(burned(false) == 2);
+    CHECK(burned(true) == 1);
+
+    // But nothing comes off what the block swallowed whole: a rod softens
+    // what reaches the climber, and a blow that never reached them was not
+    // going to.
+    {
+        Battle battle = FightAgainst({ MonsterId::HEXAGHOST });
+
+        battle.GetPlayer().AddRelic(
+            RelicRegistry::Get(RelicId::TUNGSTEN_ROD));
+        battle.GetMonsters().front().ForceMove("Activate");
+        battle.GetPlayer().GetHand().clear();
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::BURN));
+        battle.GetPlayer().SetHealth(400);
+        battle.GetPlayer().AddBlock(10);
+
+        const int before = battle.GetPlayer().GetHealth();
+
+        REQUIRE(battle.EndTurn() == true);
+
+        CHECK(before - battle.GetPlayer().GetHealth() == 0);
+    }
+}

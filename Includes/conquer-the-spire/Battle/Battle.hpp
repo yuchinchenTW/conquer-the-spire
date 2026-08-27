@@ -394,6 +394,15 @@ class Battle
     //! three off every attack played with nothing the climber could do about
     //! it.
     void HurtPlayer(int amount);
+
+    //! How much comes off anything that reaches the climber's health, which
+    //! is a point if they are carrying a tungsten rod.
+    //!
+    //! The rod takes a point off *all* loss of health, damage that gets
+    //! through block included - it was only being asked where health was
+    //! taken off directly, so every blow a monster landed, every burn and
+    //! every thorn was a point harsher than it should have been.
+    int Softening() const;
     void PutCardInStasis(Monster& monster);
     Card TakeStasisCardFrom(std::vector<Card>& pile);
     void ApplyPowerTo(Creature& creature, PowerType power, int amount);

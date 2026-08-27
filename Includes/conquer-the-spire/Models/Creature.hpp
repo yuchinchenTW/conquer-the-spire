@@ -69,7 +69,11 @@ class Creature
     void ClearBlock();
 
     //! Applies \p amount of damage, block first. Returns the health lost.
-    int TakeDamage(int amount);
+    //! Takes \p amount, block first. \p soften comes off whatever is left
+    //! after the block rather than off the blow itself, which is where a
+    //! tungsten rod sits: it makes the health lost one less and does nothing
+    //! to what the block soaked.
+    int TakeDamage(int amount, int soften = 0);
 
     //! Loses \p amount of health, ignoring block (poison, self damage).
     void LoseHealth(int amount);

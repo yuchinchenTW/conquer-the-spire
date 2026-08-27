@@ -84,6 +84,22 @@ const RunLog& Run::GetLog() const
     return m_log;
 }
 
+void Run::LoseHealth(int amount)
+{
+    if (amount <= 0)
+    {
+        return;
+    }
+
+    const int taken = m_player.HasRelic(RelicId::TUNGSTEN_ROD) ? amount - 1
+                                                               : amount;
+
+    if (taken > 0)
+    {
+        m_player.LoseHealth(taken);
+    }
+}
+
 void Run::Note(LogEntry entry, int id, int extra)
 {
     m_log.Add(entry, m_source, id, extra, m_act, m_floor,
@@ -745,16 +761,16 @@ void Run::ResolveEventEffect(const EventEffect& effect,
             break;
 
         case EventEffectType::LOSE_HEALTH:
-            m_player.LoseHealth(effect.amount);
+            LoseHealth(effect.amount);
             break;
 
         case EventEffectType::LOSE_HEALTH_PERCENT:
-            m_player.LoseHealth(maxHealth * effect.percent / 100);
+            LoseHealth(maxHealth * effect.percent / 100);
             break;
 
         case EventEffectType::LOSE_HEALTH_PERCENT_CURRENT:
             // Neow counts in tenths of what is left.
-            m_player.LoseHealth(m_player.GetHealth() / 10 *
+            LoseHealth(m_player.GetHealth() / 10 *
                                 (effect.percent / 10));
             break;
 
@@ -1222,7 +1238,7 @@ void Run::ResolveEventEffect(const EventEffect& effect,
             const int toll = std::max(6, m_player.GetMaxHealth() / 10) +
                              m_event.GetOptionTries(m_eventOption);
 
-            m_player.LoseHealth(toll);
+            LoseHealth(toll);
             break;
         }
 
@@ -1247,7 +1263,7 @@ void Run::ResolveEventEffect(const EventEffect& effect,
             switch (RollBetween(m_rng, 1, 6))
             {
                 case 1:
-                    m_player.LoseHealth(maxHealth * 10 / 100);
+                    LoseHealth(maxHealth * 10 / 100);
                     break;
 
                 case 2:
@@ -1298,7 +1314,7 @@ void Run::ResolveEventEffect(const EventEffect& effect,
             // often.
             const int tries = m_event.GetTries();
 
-            m_player.LoseHealth(3 + tries);
+            LoseHealth(3 + tries);
 
             if (Chance(m_rng, 25 + tries * 10))
             {
