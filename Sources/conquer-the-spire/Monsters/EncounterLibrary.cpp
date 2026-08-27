@@ -300,6 +300,16 @@ const std::vector<Encounter>& EncounterLibrary::GetAct3Bosses()
           { MonsterId::CULTIST, MonsterId::AWAKENED_ONE,
             MonsterId::CULTIST } },
         { "Time Eater", MonsterType::BOSS, { MonsterId::TIME_EATER } },
+        // Deca stands on the left and so moves first, which is the user's
+        // call: neither page says which of the two is where. The one hint
+        // either of them gives is a patch note - "Swapped Donu & Deca's
+        // positions so the attack order is left -> right" - which says the
+        // order follows the standing and not which way round the standing
+        // ended up.
+        //
+        // It matters: Donu's circle gives everything three of strength, so
+        // Donu first would have Deca's beam land the harder on the very
+        // first turn.
         { "Donu and Deca",
           MonsterType::BOSS,
           { MonsterId::DECA, MonsterId::DONU } }

@@ -327,9 +327,20 @@ void Run::FinishBoss()
     {
         m_bossDone = true;
 
-        // The last act has nothing above it: whoever puts its boss down is
-        // done with the spire.
-        if (m_act >= 4)
+        // A boss put down with nothing above it is the end of the spire.
+        // Asked of the same thing that decides whether the climber may walk
+        // on, so that what the climb is paid for and what the table writes
+        // down are one notion and not two: the fight was being paid a
+        // winner's reward for clearing the third act and then written down
+        // as neither a win nor anything else, because the writing asked for
+        // the fourth. Nobody could ever reach the fourth - there is no move
+        // in the climber's hands that takes a key - so that column could not
+        // leave nought however well the climbing went.
+        //
+        // Written this way rather than as "the third act", so that wiring
+        // the keys up later moves both answers together instead of leaving
+        // this one behind.
+        if (!CanClimbHigher())
         {
             Note(LogEntry::SPIRE_DONE, m_act);
         }
@@ -1770,23 +1781,23 @@ void Run::ResolveUnknownRoom()
     m_treasureChance += TREASURE_CHANCE;
 }
 
-bool Run::AdvanceAct()
+bool Run::CanClimbHigher() const
 {
-    if (!m_bossDone)
-    {
-        return false;
-    }
-
     // Act four is the top of the spire; there is nothing above it to walk
-    // into. Saying so here is what lets whoever puts its boss down be paid
-    // for the spire rather than started on a fifth act that does not exist.
+    // into. Saying so is what lets whoever puts its boss down be paid for
+    // the spire rather than started on a fifth act that does not exist.
     if (m_act >= 4)
     {
         return false;
     }
 
-    // The last act is behind a door with three locks.
-    if (m_act >= 3 && !HasAllKeys())
+    // And the last act is behind a door with three locks.
+    return m_act < 3 || HasAllKeys();
+}
+
+bool Run::AdvanceAct()
+{
+    if (!m_bossDone || !CanClimbHigher())
     {
         return false;
     }

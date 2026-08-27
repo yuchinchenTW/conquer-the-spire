@@ -174,6 +174,16 @@ class Run
     //! false when one is missing.
     bool AdvanceAct();
 
+    //! Whether there is an act above this one that the climber may walk into.
+    //! False at the top of the spire, and false at the third act's door
+    //! without the three keys to open it.
+    //!
+    //! This is what says a climb is finished rather than merely over, so the
+    //! answer has to be the same one AdvanceAct gives - a climb that is paid
+    //! for finishing the spire and not written down as having finished it is
+    //! two different notions of winning under one name.
+    bool CanClimbHigher() const;
+
     //! Gives up the relic waiting at \p index for the key \p key, which is
     //! the trade the last two elites and the last chest offer. Returns false
     //! when there is no relic there to give up.

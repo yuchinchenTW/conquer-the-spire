@@ -6,6 +6,7 @@
 #include <conquer-the-spire/Relics/RelicRegistry.hpp>
 #include <conquer-the-spire/Monsters/MonsterRoster.hpp>
 #include <conquer-the-spire/Run/Run.hpp>
+#include <conquer-the-spire/Run/RunStats.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -4219,4 +4220,121 @@ TEST_CASE("Poison does not hurry a slime to its half")
 
     // The split comes on the turn after, which is where the page puts it.
     CHECK(boss.GetCurrentMove().name == "Split");
+}
+
+TEST_CASE("A climb that can go no higher is written down as finished")
+{
+    // What the climb is paid for and what the table writes down have to be
+    // one notion. The reward pays a winner for putting a boss down with
+    // nowhere left to walk; the writing asked for the fourth act, which no
+    // climber can reach because there is no move in their hands that takes a
+    // key - so the win column could not leave nought however well the
+    // climbing went.
+    Run run(CardColor::RED, 5);
+
+    CHECK(run.CanClimbHigher() == true);
+
+    run.BeginAct(3);
+
+    while (!run.GetAvailableColumns().empty())
+    {
+        run.Travel(run.GetAvailableColumns().front());
+    }
+
+    REQUIRE(run.IsAtBoss() == true);
+    REQUIRE(run.HasAllKeys() == false);
+
+    // Nowhere above the third act's door without the keys, so putting its
+    // boss down is the end of the spire.
+    CHECK(run.CanClimbHigher() == false);
+
+    run.FinishBoss();
+
+    CHECK(run.AdvanceAct() == false);
+
+    RunStats stats;
+
+    stats.Ingest(run.GetLog());
+
+    CHECK(stats.GetRuns() == 1);
+    CHECK(stats.GetWins() == 1);
+    CHECK(stats.GetDeaths() == 0);
+}
+
+TEST_CASE("With the keys in hand the third act is not the end")
+{
+    // Written as "nowhere left to walk" rather than as "the third act", so
+    // that wiring the keys up later moves the reward and the writing
+    // together instead of leaving one behind.
+    Run run(CardColor::RED, 5);
+
+    run.BeginAct(3);
+    run.TakeKey(KeyType::RUBY);
+    run.TakeKey(KeyType::EMERALD);
+    run.TakeKey(KeyType::SAPPHIRE);
+
+    while (!run.GetAvailableColumns().empty())
+    {
+        run.Travel(run.GetAvailableColumns().front());
+    }
+
+    REQUIRE(run.HasAllKeys() == true);
+    CHECK(run.CanClimbHigher() == true);
+
+    run.FinishBoss();
+
+    REQUIRE(run.AdvanceAct() == true);
+    CHECK(run.GetAct() == 4);
+
+    RunStats onward;
+
+    onward.Ingest(run.GetLog());
+
+    // Not finished: there is an act above it now.
+    CHECK(onward.GetWins() == 0);
+
+    // And the fourth act is the top of it.
+    CHECK(run.CanClimbHigher() == false);
+}
+
+TEST_CASE("Deca stands on the left of Donu")
+{
+    // Decided rather than found: neither page says which of the two stands
+    // where, and the only hint is a patch note saying the attack order
+    // follows the standing without saying which way round the standing
+    // ended up. This is the user's call, written down so it is not quietly
+    // turned round.
+    //
+    // It matters because Donu's circle gives everything three of strength:
+    // with Donu first, Deca's beam lands the harder on the very first turn.
+    std::vector<MonsterId> pair;
+
+    for (const Encounter& one : EncounterLibrary::GetAct3Bosses())
+    {
+        if (one.name == "Donu and Deca")
+        {
+            pair = one.monsters;
+        }
+    }
+
+    REQUIRE(pair.size() == 2u);
+    CHECK(pair[0] == MonsterId::DECA);
+    CHECK(pair[1] == MonsterId::DONU);
+
+    // So the first turn's beam is ten twice and not thirteen twice.
+    Battle battle = FightAgainst(pair);
+
+    REQUIRE(battle.GetMonsters()[0].GetMonsterId() == MonsterId::DECA);
+    REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "Beam");
+    REQUIRE(battle.GetMonsters()[1].GetCurrentMove().name ==
+            "Circle of Power");
+
+    battle.GetPlayer().SetHealth(400);
+
+    const int before = battle.GetPlayer().GetHealth();
+
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(before - battle.GetPlayer().GetHealth() == 20);
+    CHECK(battle.GetMonsters()[0].GetPower(PowerType::STRENGTH) == 3);
 }
