@@ -16,6 +16,11 @@ namespace ConquerTheSpire
 {
 namespace
 {
+//! How many cards a thing that eats time lets go by before it cuts the turn
+//! short. The power itself holds how many of those are left, which is the
+//! number a climber is deciding against and so the number the state shows.
+constexpr int TIME_WARP_CARDS = 12;
+
 //! Returns true when applying \p amount of \p power counts as a debuff, which
 //! is what Artifact eats.
 bool IsDebuff(PowerType power, int amount)
@@ -2956,13 +2961,29 @@ void Battle::OnCardPlayed(const Card& card, const PlayTriggers& before)
         }
 
         // Play too many cards in front of something that eats time and the
-        // turn is over, and it is the stronger for it.
-        if (const int warp = monster.GetPower(PowerType::TIME_WARP);
-            warp > 0 && m_cardsPlayedThisTurn >= warp)
+        // turn is over, and it is the stronger for it. Twelve cards, and the
+        // count carries over between turns - the page says so in as many
+        // words - so seven this turn and five the next ends that one too.
+        //
+        // It was counting the cards of this turn alone, which is a different
+        // monster: the whole of what a climber does about a thing that eats
+        // time is spreading the count evenly rather than seven, four, one,
+        // and a count that starts again every turn takes that decision away.
+        //
+        // What is left of the twelve is the power's own value, so it is not
+        // kept in some second place the state cannot see. That is the number
+        // the climber is deciding against, and it reaches the learner through
+        // the same channel every other watched power does.
+        if (const int warp = monster.GetPower(PowerType::TIME_WARP); warp > 0)
         {
-            monster.AddPower(PowerType::STRENGTH, 2);
-            m_cardsPlayedThisTurn = 0;
-            m_turnCutShort = true;
+            monster.AddPower(PowerType::TIME_WARP, -1);
+
+            if (monster.GetPower(PowerType::TIME_WARP) <= 0)
+            {
+                monster.AddPower(PowerType::STRENGTH, 2);
+                monster.AddPower(PowerType::TIME_WARP, TIME_WARP_CARDS);
+                m_turnCutShort = true;
+            }
         }
 
         if (const int beat = monster.GetPower(PowerType::BEAT_OF_DEATH);

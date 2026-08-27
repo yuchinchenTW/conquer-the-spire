@@ -3226,3 +3226,85 @@ TEST_CASE("A room with nobody to aim at still lets through what aims at nobody")
     CHECK(battle.CanPlay(1u) == false);
     CHECK(battle.GetPlayableCardIndices().size() == 1u);
 }
+
+TEST_CASE("A count of cards in front of a time eater carries over turns")
+{
+    Battle battle = FightAgainst({ MonsterId::TIME_EATER });
+    Monster& eater = battle.GetMonsters().front();
+
+    REQUIRE(eater.GetPower(PowerType::TIME_WARP) == 12);
+
+    const int strength = eater.GetPower(PowerType::STRENGTH);
+
+    battle.GetPlayer().AddPower(PowerType::ENERGIZED, 80);
+
+    // Seven this turn.
+    const auto playOne = [&battle]() {
+        battle.GetPlayer().SetEnergy(3);
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::DEFEND_RED));
+
+        return battle.PlayCard(battle.GetPlayer().GetHand().size() - 1u, 0u);
+    };
+
+    for (int i = 0; i < 7; ++i)
+    {
+        REQUIRE(playOne() == true);
+    }
+
+    // Five left of the twelve, and the turn is not over.
+    CHECK(eater.GetPower(PowerType::TIME_WARP) == 5);
+    CHECK(eater.GetPower(PowerType::STRENGTH) == strength);
+
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // The count is where it was left. It was starting again every turn, so
+    // seven then five went by untouched - and spreading the count evenly
+    // instead of seven, four, one is the whole of what a climber does about
+    // a thing that eats time.
+    CHECK(eater.GetPower(PowerType::TIME_WARP) == 5);
+
+    // Five more the next turn ends it, and it is the stronger for it.
+    for (int i = 0; i < 5; ++i)
+    {
+        REQUIRE(playOne() == true);
+    }
+
+    CHECK(eater.GetPower(PowerType::STRENGTH) == strength + 2);
+    CHECK(eater.GetPower(PowerType::TIME_WARP) == 12);
+}
+
+TEST_CASE("A move owed to one turn does not come round on the others")
+{
+    // A writhing mass draws three ways on its first turn and five ways after,
+    // at different weights. The opening three were owed to turn one and also
+    // left sitting in the weighted draw for every turn after, so the later
+    // turns were the two sets run together.
+    std::map<std::string, int> later;
+
+    for (unsigned int seed = 1; seed <= 200u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::WRITHING_MASS }, seed);
+
+        battle.GetPlayer().SetHealth(400);
+
+        REQUIRE(battle.EndTurn() == true);
+
+        ++later[battle.GetMonsters()[0].GetCurrentMove().name];
+    }
+
+    // Thirty the multi hit, thirty the block attack, twenty the debuff
+    // attack, ten the big hit, ten the parasite - and the block attack is
+    // the tell, because it is not one of the opening three at all. Run
+    // together, its share was near enough halved.
+    const int block = later["Block Attack"];
+
+    CHECK(block > 40);
+    CHECK(block < 80);
+
+    // The big hit is a tenth here and a third of the opening. Run together
+    // it came up far too often.
+    CHECK(later["Big Hit"] < 40);
+}
