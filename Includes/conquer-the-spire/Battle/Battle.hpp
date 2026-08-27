@@ -382,6 +382,18 @@ class Battle
     void DamageAllEnemies(int amount);
     void DamageRandomEnemy(int amount);
     void PlayerLoseHealth(int amount, bool fromCard);
+
+    //! Deals \p amount to the climber as damage rather than as health taken
+    //! straight off: block soaks it, being out of reach cuts it to one, and
+    //! nothing about the monster it came from changes it.
+    //!
+    //! The four things that answer what the climber does - a thorn, a
+    //! guardian's hide, a constriction, a heart's beat - are all written on
+    //! their pages as damage, and were all going through the health-loss
+    //! path, which block cannot touch. A guardian in its shell was taking
+    //! three off every attack played with nothing the climber could do about
+    //! it.
+    void HurtPlayer(int amount);
     void PutCardInStasis(Monster& monster);
     Card TakeStasisCardFrom(std::vector<Card>& pile);
     void ApplyPowerTo(Creature& creature, PowerType power, int amount);

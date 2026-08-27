@@ -3860,3 +3860,57 @@ TEST_CASE("A cultist's ritual counts the turn it was set up on")
 
     CHECK(before - battle.GetPlayer().GetHealth() == 9);
 }
+
+TEST_CASE("What answers a played card is damage, so block soaks it")
+{
+    // All four of these are written on their pages as damage - a thorn
+    // "deals X damage back", a guardian's hide "deals damage after you play
+    // an Attack", a constriction and a heart's beat both "take X damage" -
+    // and all four were taking the health straight off, which block cannot
+    // touch. A guardian in its shell took three off every attack played with
+    // nothing the climber could do about it.
+    const auto through = [](MonsterId who, PowerType power, int amount,
+                            int block) {
+        Battle battle = FightAgainst({ who });
+
+        battle.GetMonsters().front().AddPower(power, amount);
+        battle.GetPlayer().SetHealth(400);
+        battle.GetPlayer().AddBlock(block);
+
+        const int before = battle.GetPlayer().GetHealth();
+
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::STRIKE_RED));
+        battle.GetPlayer().SetEnergy(3);
+
+        REQUIRE(Swing(battle, 0u) == true);
+
+        return before - battle.GetPlayer().GetHealth();
+    };
+
+    // Behind enough block, a thorn and a hide take nothing at all.
+    CHECK(through(MonsterId::SPIKER, PowerType::THORNS, 5, 20) == 0);
+    CHECK(through(MonsterId::THE_GUARDIAN, PowerType::SHARP_HIDE, 3, 20) == 0);
+
+    // And behind none, they take what they say.
+    CHECK(through(MonsterId::SPIKER, PowerType::THORNS, 5, 0) >= 5);
+    CHECK(through(MonsterId::THE_GUARDIAN, PowerType::SHARP_HIDE, 3, 0) == 3);
+
+    // A constriction is answered at the end of the turn, so block that is
+    // still standing soaks that too.
+    {
+        Battle battle = FightAgainst({ MonsterId::SPIRE_GROWTH });
+
+        battle.GetPlayer().AddPower(PowerType::CONSTRICTED, 10);
+        battle.GetPlayer().SetHealth(400);
+        battle.GetPlayer().AddBlock(40);
+
+        const int before = battle.GetPlayer().GetHealth();
+
+        REQUIRE(battle.EndTurn() == true);
+
+        // The growth's own swing gets through; the ten of the constriction
+        // does not, because forty of block was standing when it was asked.
+        CHECK(before - battle.GetPlayer().GetHealth() < 10);
+    }
+}

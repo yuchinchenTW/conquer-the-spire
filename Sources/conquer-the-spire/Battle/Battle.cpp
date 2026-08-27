@@ -1365,7 +1365,7 @@ void Battle::EndPlayerTurn()
     if (const int constricted = m_player.GetPower(PowerType::CONSTRICTED);
         constricted > 0)
     {
-        PlayerLoseHealth(constricted, false);
+        HurtPlayer(constricted);
     }
 
     // A codex leaves something in the draw pile at the end of every turn.
@@ -2999,7 +2999,7 @@ void Battle::OnCardPlayed(const Card& card, const PlayTriggers& before)
         if (const int beat = monster.GetPower(PowerType::BEAT_OF_DEATH);
             beat > 0)
         {
-            PlayerLoseHealth(beat, false);
+            HurtPlayer(beat);
         }
 
         if (card.GetCardType() == CardType::POWER)
@@ -3096,7 +3096,7 @@ void Battle::OnCardPlayed(const Card& card, const PlayTriggers& before)
                 if (const int hide = monster.GetPower(PowerType::SHARP_HIDE);
                     hide > 0)
                 {
-                    PlayerLoseHealth(hide, false);
+                    HurtPlayer(hide);
                 }
             }
             break;
@@ -4215,7 +4215,7 @@ void Battle::DealDamageToMonster(Monster& monster, int base, bool fromAttack)
     {
         if (const int thorns = monster.GetPower(PowerType::THORNS); thorns > 0)
         {
-            PlayerLoseHealth(thorns, false);
+            HurtPlayer(thorns);
         }
 
         // Curl Up answers the first hit and then is spent.
@@ -4409,6 +4409,21 @@ void Battle::DamageRandomEnemy(int amount)
     std::uniform_int_distribution<std::size_t> pick(0, living.size() - 1);
 
     DealDamageToMonster(m_monsters[living[pick(m_rng)]], amount, false);
+}
+
+void Battle::HurtPlayer(int amount)
+{
+    const int before = m_player.GetHealth();
+
+    DealFlatDamage(m_player, amount);
+
+    // Counted the way any other damage that gets through is counted, so a
+    // card priced off how often the climber has been hurt reads the same
+    // whether the hurt came from a monster's swing or from its thorns.
+    if (m_player.GetHealth() < before)
+    {
+        ++m_healthLossCount;
+    }
 }
 
 void Battle::PlayerLoseHealth(int amount, bool fromCard)
