@@ -2871,15 +2871,19 @@ TEST_CASE("A thing waiting to get back up can be aimed at and shrugs it off")
         CHECK(std::find(living.begin(), living.end(), at) != living.end());
 
         // And a swing at it is accepted and comes to nothing. Accepted
-        // matters on its own: an action offered and then refused is what
-        // sends the policy round in circles.
-        const bool swung = Swing(battle, at);
+        // matters on its own - an action offered and then refused is what
+        // sends the policy round in circles - so the strike and the energy
+        // to play it are put there rather than hoped for. Left to the draw,
+        // a hand with no attack in it made this pass without swinging at
+        // anything, which is the one thing it is here to check.
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::STRIKE_RED));
+        battle.GetPlayer().SetEnergy(3);
 
-        if (swung)
-        {
-            CHECK(battle.GetMonsters()[at].GetHealth() == 0);
-            CHECK(battle.GetMonsters()[at].IsRegrowing() == true);
-        }
+        REQUIRE(Swing(battle, at) == true);
+
+        CHECK(battle.GetMonsters()[at].GetHealth() == 0);
+        CHECK(battle.GetMonsters()[at].IsRegrowing() == true);
     };
 
     waiting({ MonsterId::AWAKENED_ONE }, 0u);
