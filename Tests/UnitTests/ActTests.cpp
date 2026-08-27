@@ -3,6 +3,7 @@
 #include <conquer-the-spire/Cards/CardRegistry.hpp>
 #include <conquer-the-spire/Monsters/EncounterLibrary.hpp>
 #include <conquer-the-spire/Potions/PotionRegistry.hpp>
+#include <conquer-the-spire/Relics/RelicRegistry.hpp>
 #include <conquer-the-spire/Monsters/MonsterRoster.hpp>
 #include <conquer-the-spire/Run/Run.hpp>
 
@@ -3307,4 +3308,51 @@ TEST_CASE("A move owed to one turn does not come round on the others")
     // The big hit is a tenth here and a third of the opening. Run together
     // it came up far too often.
     CHECK(later["Big Hit"] < 40);
+}
+
+TEST_CASE("An X cost played through Chemical X still ends the turn")
+{
+    // The twelfth card is the twelfth card whatever it costs. Chemical X had
+    // a path of its own that returned early, so a whirlwind played as the
+    // twelfth took the two strength and left the climber another card to
+    // play - and left whatever was waiting to be put on the floor waiting.
+    Battle battle = FightAgainst({ MonsterId::TIME_EATER });
+    Monster& eater = battle.GetMonsters().front();
+
+    battle.GetPlayer().AddRelic(RelicRegistry::Get(RelicId::CHEMICAL_X));
+    battle.GetPlayer().AddPower(PowerType::ENERGIZED, 80);
+
+    const int strength = eater.GetPower(PowerType::STRENGTH);
+
+    for (int i = 0; i < 11; ++i)
+    {
+        battle.GetPlayer().SetEnergy(3);
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::DEFEND_RED));
+
+        REQUIRE(battle.PlayCard(battle.GetPlayer().GetHand().size() - 1u,
+                                0u) == true);
+    }
+
+    REQUIRE(eater.GetPower(PowerType::TIME_WARP) == 1);
+    REQUIRE(battle.GetPhase() == BattlePhase::PLAYER_TURN);
+
+    const int turn = battle.GetTurn();
+
+    battle.GetPlayer().SetHealth(400);
+    battle.GetPlayer().SetEnergy(1);
+    battle.GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::WHIRLWIND));
+
+    REQUIRE(battle.PlayCard(battle.GetPlayer().GetHand().size() - 1u, 0u) ==
+            true);
+
+    // It took the strength, so it counted the card - and having counted it,
+    // the turn is over.
+    CHECK(eater.GetPower(PowerType::STRENGTH) == strength + 2);
+    CHECK(eater.GetPower(PowerType::TIME_WARP) == 12);
+
+    // The turn moved on. Not the phase: ending a turn runs the monster's and
+    // hands the climber a fresh one, so it reads PLAYER_TURN either way.
+    CHECK(battle.GetTurn() == turn + 1);
 }

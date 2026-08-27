@@ -293,22 +293,20 @@ bool Battle::PlayCard(std::size_t handIndex, std::size_t monsterIndex,
                           ? m_player.GetEnergy()
                           : GetEffectiveCost(card);
 
+    m_player.UseEnergy(energySpent);
+
+    // Chemical X counts two more without asking for them. Only the counting
+    // differs, so it goes on from here the same way everything else does:
+    // this used to be a path of its own that returned early, and it slipped
+    // past both the spawns waiting to be put on the floor and the thing that
+    // eats time taking the rest of the turn away. A whirlwind played as the
+    // twelfth card left the climber another card to play.
     if (card.GetCost() == Card::COST_X &&
         m_player.HasRelic(RelicId::CHEMICAL_X))
     {
-        // Chemical X counts two more without asking for them.
-        m_player.UseEnergy(energySpent);
         energySpent += 2;
-
-        hand.erase(hand.begin() + static_cast<std::ptrdiff_t>(handIndex));
-        ResolvePlayedCard(std::move(card), monsterIndex, choiceIndex,
-                          energySpent);
-        UpdatePhase();
-
-        return true;
     }
 
-    m_player.UseEnergy(energySpent);
     hand.erase(hand.begin() + static_cast<std::ptrdiff_t>(handIndex));
 
     ResolvePlayedCard(std::move(card), monsterIndex, choiceIndex, energySpent);
