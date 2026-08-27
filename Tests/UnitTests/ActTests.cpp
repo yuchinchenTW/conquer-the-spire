@@ -3365,3 +3365,137 @@ TEST_CASE("An X cost played through Chemical X still ends the turn")
     // hands the climber a fresh one, so it reads PLAYER_TURN either way.
     CHECK(battle.GetTurn() == turn + 1);
 }
+
+TEST_CASE("A Lagavulin left alone wakes up swinging")
+{
+    Battle battle = FightAgainst({ MonsterId::LAGAVULIN });
+    Monster& it = battle.GetMonsters().front();
+
+    REQUIRE(it.GetPower(PowerType::ASLEEP) == 3);
+    REQUIRE(it.GetPower(PowerType::METALLICIZE) == 8);
+
+    const int health = battle.GetPlayer().GetHealth();
+
+    for (int turn = 0; turn < 3; ++turn)
+    {
+        REQUIRE(battle.EndTurn() == true);
+    }
+
+    // Three turns and it is simply awake. It was taking a turn standing
+    // there stunned as well, which is a turn of nothing the spire does not
+    // give away - the stunned turn is what a blow buys, not the clock.
+    CHECK(it.GetPower(PowerType::ASLEEP) == 0);
+    CHECK(it.GetPower(PowerType::METALLICIZE) == 0);
+    CHECK(it.GetCurrentMove().name == "Attack");
+
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(battle.GetPlayer().GetHealth() < 400);
+    CHECK(health > 0);
+
+    // Woken by a blow instead, and it does stand there for the one turn.
+    Battle hit = FightAgainst({ MonsterId::LAGAVULIN });
+
+    hit.GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::STRIKE_RED));
+    hit.GetPlayer().SetEnergy(3);
+
+    REQUIRE(Swing(hit, 0u) == true);
+
+    CHECK(hit.GetMonsters().front().GetPower(PowerType::ASLEEP) == 0);
+    CHECK(hit.GetMonsters().front().GetPower(PowerType::METALLICIZE) == 0);
+    CHECK(hit.GetMonsters().front().GetCurrentMove().name == "Stunned");
+}
+
+TEST_CASE("A Guardian's wall goes back up higher, and it whirls on the way out")
+{
+    Battle battle = FightAgainst({ MonsterId::THE_GUARDIAN });
+    Monster& guard = battle.GetMonsters().front();
+
+    REQUIRE(guard.GetPower(PowerType::MODE_SHIFT) == 30);
+
+    const auto bringItDown = [&battle, &guard]() {
+        guard.RemovePower(PowerType::MODE_SHIFT);
+        guard.ForceMove("Defensive Mode");
+
+        // Defensive Mode, Roll Attack, Twin Slam, Whirlwind, and only then
+        // back round to the start. The whirlwind was missing, so it came out
+        // of the shape change a move short.
+        const char* walk[] = { "Defensive Mode", "Roll Attack", "Twin Slam",
+                               "Whirlwind", "Charging Up" };
+
+        for (const char* name : walk)
+        {
+            CHECK(guard.GetCurrentMove().name == name);
+            battle.GetPlayer().SetHealth(400);
+            battle.EndTurn();
+        }
+    };
+
+    bringItDown();
+
+    // Forty the first time it goes back up, not thirty.
+    CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 40);
+
+    bringItDown();
+
+    // And fifty the next. It was going back to forty for ever.
+    CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 50);
+}
+
+TEST_CASE("A hexaghost's inferno makes every burn a worse burn")
+{
+    Battle battle = FightAgainst({ MonsterId::HEXAGHOST });
+    Monster& ghost = battle.GetMonsters().front();
+
+    // A burn already in the discard from an earlier sear.
+    battle.GetPlayer().GetDiscardPile().emplace_back(
+        CardRegistry::Get(CardId::BURN));
+
+    REQUIRE(battle.GetPlayer().GetDiscardPile().back().IsUpgraded() == false);
+    REQUIRE(ghost.ForceMove("Inferno") == true);
+
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    int burns = 0;
+    int worse = 0;
+
+    for (const std::vector<Card>* pile :
+         { &battle.GetPlayer().GetHand(), &battle.GetPlayer().GetDrawPile(),
+           &battle.GetPlayer().GetDiscardPile() })
+    {
+        for (const Card& one : *pile)
+        {
+            if (one.GetId() == CardId::BURN)
+            {
+                ++burns;
+                worse += one.IsUpgraded() ? 1 : 0;
+            }
+        }
+    }
+
+    // Its own three and the one that was already there, and every one of
+    // them the worse kind. The three were coming out plain, because a status
+    // card was never allowed to carry the mark at all.
+    CHECK(burns == 4);
+    CHECK(worse == burns);
+
+    // And every burn made afterwards is the worse kind too.
+    REQUIRE(ghost.ForceMove("Sear") == true);
+
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    for (const Card& one : battle.GetPlayer().GetDiscardPile())
+    {
+        if (one.GetId() == CardId::BURN)
+        {
+            CHECK(one.IsUpgraded() == true);
+        }
+    }
+}

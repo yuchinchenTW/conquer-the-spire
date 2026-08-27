@@ -1512,6 +1512,19 @@ void Battle::RunMonsterTurn()
         if (monster.GetPower(PowerType::ASLEEP) > 0)
         {
             monster.AddPower(PowerType::ASLEEP, -1);
+
+            // And when the count runs out it is simply awake: the armour
+            // goes and it starts swinging. Being woken by a blow is the
+            // other thing, and only that one costs it a turn standing there
+            // stunned. It was taking the stunned turn either way, which is a
+            // turn of nothing the spire does not give away.
+            if (monster.GetPower(PowerType::ASLEEP) == 0)
+            {
+                monster.RemovePower(PowerType::ASLEEP);
+                monster.RemovePower(PowerType::METALLICIZE);
+                monster.ForceMove("Attack");
+            }
+
             DecayTimedPowers(monster);
             continue;
         }
@@ -4779,8 +4792,12 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
         case MonsterEffectType::ADD_CARD:
             for (int i = 0; i < effect.amount; ++i)
             {
-                Card made = CardRegistry::Get(effect.cardId,
-                                              effect.upgradedCard ? 1 : 0);
+                Card made = CardRegistry::Get(
+                    effect.cardId,
+                    effect.upgradedCard ||
+                            (m_burnsStoked && effect.cardId == CardId::BURN)
+                        ? 1
+                        : 0);
 
                 // The deck itself, for the ones that are not litter for this
                 // fight but a card owned from now on. A fight cannot reach
@@ -4986,6 +5003,44 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
             if (monster.GetHealth() < wanted)
             {
                 monster.SetHealth(wanted);
+            }
+
+            break;
+        }
+
+        case MonsterEffectType::RAISE_WALL:
+        {
+            // Higher by a step for every time it has already come down, and
+            // the number of times is the number of slams: one slam follows
+            // each shape change and nothing else brings one about. The count
+            // is put up before the move resolves, so the first slam finds
+            // one and puts the wall at forty.
+            const int done = monster.GetCurrentMove().used;
+
+            monster.AddPower(PowerType::MODE_SHIFT,
+                             effect.amount + effect.times * done);
+            break;
+        }
+
+        case MonsterEffectType::STOKE_BURNS:
+        {
+            // Every burn already in the climber's keeping, wherever it is
+            // sitting, and every one made from here on.
+            m_burnsStoked = true;
+
+            std::vector<Card>* piles[] = { &m_player.GetHand(),
+                                           &m_player.GetDrawPile(),
+                                           &m_player.GetDiscardPile() };
+
+            for (std::vector<Card>* pile : piles)
+            {
+                for (Card& one : *pile)
+                {
+                    if (one.GetId() == CardId::BURN && !one.IsUpgraded())
+                    {
+                        one = CardRegistry::Get(CardId::BURN, 1);
+                    }
+                }
             }
 
             break;

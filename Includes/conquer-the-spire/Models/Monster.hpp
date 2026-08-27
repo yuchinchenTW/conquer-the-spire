@@ -89,6 +89,15 @@ struct MonsterEffect
     //! is losing.
     static MonsterEffect Recover(int percent);
 
+    //! Puts the wall back up at \p base, and \p step higher for every time it
+    //! has already come down this fight. A guardian changes shape at thirty,
+    //! then at forty, then at fifty.
+    static MonsterEffect RaiseWall(int base, int step);
+
+    //! Upgrades every burn the climber is carrying, and every one made after
+    //! this. What an inferno does beyond the six blows.
+    static MonsterEffect StokeBurns();
+
     //! Stands a thing that has fallen once back up: whole, every debuff off,
     //! and into its second phase, with \p next owed on the turn after. This
     //! is a move made on the monster's own turn and not something that

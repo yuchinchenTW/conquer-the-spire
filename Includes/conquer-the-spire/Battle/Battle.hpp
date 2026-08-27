@@ -479,6 +479,10 @@ class Battle
     //! real one alone.
     std::map<CardId, int> m_playedCounts;
     std::vector<Card> m_kept;
+
+    //! Whether a hexaghost's inferno has been through: from then on every
+    //! burn the fight makes is the worse kind.
+    bool m_burnsStoked = false;
     std::map<CardId, int> m_strandedCounts;
     int m_cardsDiscardedThisTurn = 0;
     int m_attacksPlayedThisTurn = 0;

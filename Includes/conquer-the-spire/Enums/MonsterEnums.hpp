@@ -41,6 +41,10 @@ enum class MonsterEffectType
     DRAIN,        //!< Hits, and takes back what got through as health.
     RECOVER,      //!< Shakes off every debuff and comes back up to a share
                   //!< of its health.
+    RAISE_WALL,   //!< Puts the wall it changes shape at back up, higher than
+                  //!< it was.
+    STOKE_BURNS,  //!< Sets fire to what is already burning, and to whatever
+                  //!< catches after.
     REBIRTH,      //!< Stands the second body up whole, clean, and in the
                   //!< phase that goes with it.
     SHAKE_OFF     //!< Throws off every debuff standing on it.

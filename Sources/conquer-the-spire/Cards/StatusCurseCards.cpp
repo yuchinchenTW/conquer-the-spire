@@ -27,13 +27,15 @@ Card Clutter(CardId id, const char* name, CardColor color, CardType type,
 
 Card MakeStatusCard(CardId id, int upgradeCount)
 {
-    static_cast<void>(upgradeCount);  // Statuses cannot be upgraded.
-
     switch (id)
     {
         case CardId::BURN:
-            // Deals 2 damage at the end of the turn while it is in hand.
-            return Clutter(id, "Burn", CardColor::STATUS, CardType::STATUS,
+            // Deals 2 damage at the end of the turn while it is in hand, or
+            // 4 if a hexaghost has set fire to it. Burn is the one status
+            // with a worse form of itself, so it is the one that is allowed
+            // to carry the mark.
+            return Clutter(id, upgradeCount > 0 ? "Burn+" : "Burn",
+                           CardColor::STATUS, CardType::STATUS,
                            CardFlag::NONE);
 
         case CardId::DAZED:

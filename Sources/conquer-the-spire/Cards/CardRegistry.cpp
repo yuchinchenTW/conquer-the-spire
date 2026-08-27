@@ -633,9 +633,13 @@ Card CardRegistry::Get(CardId id, int upgradeCount)
         card = Detail::MakeCurseCard(id, upgradeCount);
     }
 
-    // Statuses and curses have no upgraded form, so they keep their name.
-    if (card.GetColor() != CardColor::STATUS &&
-        card.GetColor() != CardColor::CURSE)
+    // Statuses and curses have no upgraded form and keep their name, with
+    // the one exception of Burn, which a hexaghost's inferno turns into a
+    // worse burn. Without the mark the card came back plain and the inferno's
+    // three burns were three ordinary ones.
+    if ((card.GetColor() != CardColor::STATUS &&
+         card.GetColor() != CardColor::CURSE) ||
+        card.GetId() == CardId::BURN)
     {
         card.MarkUpgraded(upgradeCount);
     }

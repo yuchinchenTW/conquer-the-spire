@@ -169,6 +169,24 @@ MonsterEffect MonsterEffect::Rebirth(const std::string& next)
     return effect;
 }
 
+MonsterEffect MonsterEffect::RaiseWall(int base, int step)
+{
+    MonsterEffect effect;
+    effect.type = MonsterEffectType::RAISE_WALL;
+    effect.amount = base;
+    effect.times = step;
+
+    return effect;
+}
+
+MonsterEffect MonsterEffect::StokeBurns()
+{
+    MonsterEffect effect;
+    effect.type = MonsterEffectType::STOKE_BURNS;
+
+    return effect;
+}
+
 MonsterEffect MonsterEffect::Stasis()
 {
     MonsterEffect effect;

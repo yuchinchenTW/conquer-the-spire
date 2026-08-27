@@ -119,7 +119,11 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                          { ME::Damage(7), ME::AddCard(CardId::SLIMED) })
                       .Chance(30, 2),
                   MM::Attack("Tackle", 10).Chance(40, 2),
-                  MM::Debuff("Lick", PowerType::WEAK, 1).Chance(30, 1) });
+                  // The same walk as the large one but for the splitting,
+                  // which means no move three times running and the tackle
+                  // not twice. The lick was held to one in a row, which is
+                  // the rule from high up the spire and not this one.
+                  MM::Debuff("Lick", PowerType::WEAK, 1).Chance(30, 2) });
             break;
         }
 
@@ -388,9 +392,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
 
         case MonsterId::THE_GUARDIAN:
         {
-            // Once enough has been dealt to it, Mode Shift turns it round; the
-            // real fight raises the threshold by 10 every time, this one holds
-            // at 40 after the first turn.
+            // Once enough has been dealt to it, Mode Shift turns it round,
+            // and the wall goes back up ten higher every time: thirty, then
+            // forty, then fifty. It was going back to forty for ever.
+            //
+            // The walk after a shape change is roll, slam, whirlwind, and
+            // then back round to the start. The whirlwind was missing, so it
+            // came out of the shape change a move short.
             monster = Patterned(
                 id, "The Guardian", MonsterType::BOSS, 240,
                 { MM::Defend("Charging Up", 9),
@@ -405,7 +413,8 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                   MM::Of("Twin Slam", Intent::ATTACK,
                          { ME::Damage(8, 2),
                            ME::Buff(PowerType::SHARP_HIDE, -3),
-                           ME::Buff(PowerType::MODE_SHIFT, 40) }) });
+                           ME::RaiseWall(30, 10) }),
+                  MM::Attack("Whirlwind", 5, 4) });
             monster.AddPower(PowerType::MODE_SHIFT, 30);
             break;
         }
@@ -428,9 +437,12 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                   MM::Attack("Tackle", 5, 2),
                   MM::Of("Sear", Intent::ATTACK,
                          { ME::Damage(6), ME::AddCard(CardId::BURN) }),
+                  // Sets fire to every burn the climber is carrying and to
+                  // every one made after it, its own three included - which
+                  // is why the stoking comes before the making.
                   MM::Of("Inferno", Intent::ATTACK,
-                         { ME::Damage(2, 6),
-                           ME::AddCard(CardId::BURN, 3, true) }) },
+                         { ME::Damage(2, 6), ME::StokeBurns(),
+                           ME::AddCard(CardId::BURN, 3) }) },
                 true, 2);
             break;
         }

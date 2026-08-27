@@ -331,30 +331,38 @@ TEST_CASE("The same seed gives the same climb")
 TEST_CASE("A climb picked up from a save carries on the same way")
 {
     SpireEnv first;
-
-    first.Reset(CardColor::RED, 65);
-
-    // Walk until the environment is somewhere a save can be taken.
-    std::mt19937 rng(2);
     std::string save;
 
-    for (int i = 0; i < 200 && save.empty(); ++i)
+    // Walk until the environment is somewhere a save can be taken. Over
+    // several climbs rather than one: a climb that dies in its first fight
+    // never reaches a map to be saved from, and which climbs do that moves
+    // whenever anything about a monster changes. Pinning one seed made this
+    // fail for reasons that had nothing to do with saving.
+    for (unsigned int seed = 65; seed < 85u && save.empty(); ++seed)
     {
-        const std::vector<Action> moves = first.LegalActions();
+        first.Reset(CardColor::RED, seed);
 
-        if (moves.empty())
+        std::mt19937 rng(2);
+
+        for (int i = 0; i < 400 && save.empty(); ++i)
         {
-            break;
-        }
+            const std::vector<Action> moves = first.LegalActions();
 
-        std::uniform_int_distribution<std::size_t> pick(0,
-                                                        moves.size() - 1);
+            if (moves.empty())
+            {
+                break;
+            }
 
-        first.Step(moves[pick(rng)]);
+            std::uniform_int_distribution<std::size_t> pick(
+                0, moves.size() - 1);
 
-        if (first.GetPhase() == EnvPhase::MAP && first.GetRun().GetFloor() > 1)
-        {
-            save = first.Save();
+            first.Step(moves[pick(rng)]);
+
+            if (first.GetPhase() == EnvPhase::MAP &&
+                first.GetRun().GetFloor() > 1)
+            {
+                save = first.Save();
+            }
         }
     }
 
