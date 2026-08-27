@@ -3663,3 +3663,127 @@ TEST_CASE("The first hard fight of act one turns some rooms away")
 
     CHECK(later.count("3 Louses") == 1u);
 }
+
+TEST_CASE("A jaw worm draws from a table read off the move before it")
+{
+    // After a chomp  : bellow 59, thrash 41
+    // After a bellow : thrash 56, chomp 44
+    // After a thrash : bellow 45, thrash 30, chomp 25
+    //
+    // Flat weights with limits on repeating come out near this and exactly
+    // right after a single thrash, which is how it went unnoticed.
+    std::map<std::string, std::map<std::string, int>> after;
+
+    for (unsigned int seed = 1; seed <= 60u; ++seed)
+    {
+        std::mt19937 rng(seed);
+        Monster worm = MonsterRoster::Make(MonsterId::JAW_WORM, rng);
+
+        worm.ChooseOpeningMove(rng);
+
+        CHECK(worm.GetCurrentMove().name == "Chomp");
+
+        std::string before = worm.GetCurrentMove().name;
+
+        for (int turn = 0; turn < 60; ++turn)
+        {
+            worm.CountMoveUsed();
+            worm.AdvanceMove(rng);
+
+            const std::string now = worm.GetCurrentMove().name;
+
+            ++after[before][now];
+            before = now;
+        }
+    }
+
+    const auto share = [&after](const char* was, const char* now) {
+        int total = 0;
+
+        for (const auto& one : after[was])
+        {
+            total += one.second;
+        }
+
+        return total == 0 ? 0 : 100 * after[was][now] / total;
+    };
+
+    // Nothing follows itself except a thrash, and a thrash may follow a
+    // thrash however many there have been.
+    CHECK(after["Chomp"].count("Chomp") == 0u);
+    CHECK(after["Bellow"].count("Bellow") == 0u);
+    CHECK(after["Thrash"].count("Thrash") == 1u);
+
+    // And three thrashes running really do happen. This is the assertion
+    // that tells the table apart from the weights it replaced: those held a
+    // thrash to two in a row, and the bands below are wide enough that both
+    // ways of doing it sit inside them.
+    int longest = 0;
+
+    for (unsigned int seed = 1; seed <= 60u; ++seed)
+    {
+        std::mt19937 rng(seed);
+        Monster worm = MonsterRoster::Make(MonsterId::JAW_WORM, rng);
+
+        worm.ChooseOpeningMove(rng);
+
+        std::string last;
+        int run = 0;
+
+        for (int turn = 0; turn < 60; ++turn)
+        {
+            const std::string now = worm.GetCurrentMove().name;
+
+            run = now == last ? run + 1 : 1;
+            last = now;
+            longest = run > longest ? run : longest;
+
+            worm.CountMoveUsed();
+            worm.AdvanceMove(rng);
+        }
+    }
+
+    CHECK(longest >= 3);
+
+    CHECK(share("Chomp", "Bellow") > 53);
+    CHECK(share("Chomp", "Bellow") < 65);
+
+    CHECK(share("Bellow", "Thrash") > 50);
+    CHECK(share("Bellow", "Thrash") < 62);
+
+    CHECK(share("Thrash", "Bellow") > 39);
+    CHECK(share("Thrash", "Bellow") < 51);
+    CHECK(share("Thrash", "Chomp") > 19);
+    CHECK(share("Thrash", "Chomp") < 31);
+}
+
+TEST_CASE("Two act-one monsters were allowed a move one turn too often")
+{
+    // Both pages: an acid slime cannot tackle twice running, whatever size
+    // it is. The medium one was allowed it and the large one was not.
+    const auto rowOf = [](MonsterId id, const char* name) {
+        // Held in a local first: a range-for over the moves of a monster
+        // made on the spot walks a list whose owner is already gone.
+        const Monster one = Make(id);
+        int found = -1;
+
+        for (const MonsterMove& move : one.GetMoves())
+        {
+            if (move.name == name)
+            {
+                found = move.maxInARow;
+            }
+        }
+
+        return found;
+    };
+
+    CHECK(rowOf(MonsterId::ACID_SLIME_M, "Tackle") == 1);
+    CHECK(rowOf(MonsterId::ACID_SLIME_L, "Tackle") == 1);
+    CHECK(rowOf(MonsterId::ACID_SLIME_M, "Lick") == 2);
+
+    // And a fungi beast will not grow twice running, which is six of
+    // strength off two turns.
+    CHECK(rowOf(MonsterId::FUNGI_BEAST, "Grow") == 1);
+    CHECK(rowOf(MonsterId::FUNGI_BEAST, "Bite") == 2);
+}

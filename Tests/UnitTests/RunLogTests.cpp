@@ -469,13 +469,23 @@ TEST_CASE("A row of climbs counts every one that finishes")
 
 TEST_CASE("A die playing whole climbs counts them into the table")
 {
+    // Two hundred climbs rather than thirty, because what this catches turns
+    // up in about one climb in two hundred: a climb that ends outside a
+    // fight. A bridge toll and a hand pushed into a pool end one as surely
+    // as a monster does, and only the fight was being written down - so the
+    // deaths the table counted came out short of the climbs that ended.
+    //
+    // Two hundred is also what makes this tell the two apart. Thirty climbs
+    // happened to hold none of it, and a test aimed straight at one climb
+    // does not work either: setting the health to nothing and stepping walks
+    // into a fight, and a fight writes the death down the old way.
     VecSpireEnv row(1);
-    std::vector<float> returns(30, 0.0f);
+    std::vector<float> returns(200, 0.0f);
 
-    row.RollRandomHere(CardColor::RED, 1, 30, returns.data(), nullptr,
+    row.RollRandomHere(CardColor::RED, 1, 200, returns.data(), nullptr,
                        nullptr);
 
-    CHECK(row.GetStats().GetRuns() == 30);
+    CHECK(row.GetStats().GetRuns() == 200);
     CHECK(row.GetStats().GetRuns() ==
           row.GetStats().GetWins() + row.GetStats().GetDeaths());
     CHECK(row.GetStats().GetRowCount() > 5u);
@@ -904,3 +914,4 @@ TEST_CASE("Putting a card to the whetstone counts the ones left blunt")
     CHECK(Count(run, LogEntry::CARD_UPGRADED) == 1);
     CHECK(Count(run, LogEntry::CARD_NOT_UPGRADED) == 2);
 }
+

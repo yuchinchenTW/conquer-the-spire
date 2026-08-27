@@ -67,11 +67,38 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Jaw Worm", MonsterType::NORMAL, Roll(rng, 40, 44),
-                { MM::Attack("Chomp", 11).Chance(25, 1).Opener(),
+                // A table read off the move before it, not one set of
+                // weights with limits on repeating:
+                //
+                //   after a chomp  : bellow 59, thrash 41
+                //   after a bellow : thrash 56, chomp 44
+                //   after a thrash : bellow 45, thrash 30, chomp 25
+                //
+                // Flat weights of 25, 45 and 30 with a limit on repeating
+                // come out near this - sixty against fifty-nine after a
+                // chomp - and exactly right after a single thrash, which is
+                // how it went unnoticed. It is off by most where a move is
+                // held back for having just been made.
+                { MM::Attack("Chomp", 11).Opener(),
                   MM::Of("Bellow", Intent::BUFF,
                          { ME::Buff(PowerType::STRENGTH, 3), ME::Block(6) })
-                      .Chance(45, 1),
-                  MM::AttackAndDefend("Thrash", 7, 5).Chance(30, 2) });
+                      .Chance(59)
+                      .Follows("Chomp"),
+                  MM::AttackAndDefend("Thrash", 7, 5)
+                      .Chance(41)
+                      .Follows("Chomp"),
+                  MM::AttackAndDefend("Thrash", 7, 5)
+                      .Chance(56)
+                      .Follows("Bellow"),
+                  MM::Attack("Chomp", 11).Chance(44).Follows("Bellow"),
+                  MM::Of("Bellow", Intent::BUFF,
+                         { ME::Buff(PowerType::STRENGTH, 3), ME::Block(6) })
+                      .Chance(45)
+                      .Follows("Thrash"),
+                  MM::AttackAndDefend("Thrash", 7, 5)
+                      .Chance(30)
+                      .Follows("Thrash"),
+                  MM::Attack("Chomp", 11).Chance(25).Follows("Thrash") });
             break;
         }
 
@@ -118,7 +145,10 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 { MM::Of("Corrosive Spit", Intent::ATTACK,
                          { ME::Damage(7), ME::AddCard(CardId::SLIMED) })
                       .Chance(30, 2),
-                  MM::Attack("Tackle", 10).Chance(40, 2),
+                  // Not twice running, the same as the large one: both
+                  // pages say the tackle is the one held to a single turn
+                  // and everything else to two.
+                  MM::Attack("Tackle", 10).Chance(40, 1),
                   // The same walk as the large one but for the splitting,
                   // which means no move three times running and the tackle
                   // not twice. The lick was held to one in a row, which is
@@ -180,9 +210,12 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(id, "Fungi Beast", MonsterType::NORMAL,
                                Roll(rng, 22, 28),
+                               // No bite three times running and no grow
+                               // twice. The grow was allowed twice, which is
+                               // six of strength off two turns.
                                { MM::Attack("Bite", 6).Chance(60, 2),
                                  MM::Buff("Grow", PowerType::STRENGTH, 3)
-                                     .Chance(40, 2) });
+                                     .Chance(40, 1) });
             monster.AddPower(PowerType::SPORE_CLOUD, 2);
             break;
         }
@@ -706,11 +739,34 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             // twenty-five.
             monster = Thinking(
                 id, "Jaw Worm", MonsterType::NORMAL, Roll(rng, 40, 44),
-                { MM::Attack("Chomp", 11).Chance(25, 1),
+                // The same table as the first act's worm, and the same
+                // three moves; only the opening differs, which is drawn
+                // rather than always a chomp.
+                { MM::Of("Bellow", Intent::BUFF,
+                         { ME::Buff(PowerType::STRENGTH, 3), ME::Block(6) })
+                      .Chance(45)
+                      .OnTurn(1),
+                  MM::AttackAndDefend("Thrash", 7, 5).Chance(30).OnTurn(1),
+                  MM::Attack("Chomp", 11).Chance(25).OnTurn(1),
                   MM::Of("Bellow", Intent::BUFF,
                          { ME::Buff(PowerType::STRENGTH, 3), ME::Block(6) })
-                      .Chance(45, 1),
-                  MM::AttackAndDefend("Thrash", 7, 5).Chance(30, 2) });
+                      .Chance(59)
+                      .Follows("Chomp"),
+                  MM::AttackAndDefend("Thrash", 7, 5)
+                      .Chance(41)
+                      .Follows("Chomp"),
+                  MM::AttackAndDefend("Thrash", 7, 5)
+                      .Chance(56)
+                      .Follows("Bellow"),
+                  MM::Attack("Chomp", 11).Chance(44).Follows("Bellow"),
+                  MM::Of("Bellow", Intent::BUFF,
+                         { ME::Buff(PowerType::STRENGTH, 3), ME::Block(6) })
+                      .Chance(45)
+                      .Follows("Thrash"),
+                  MM::AttackAndDefend("Thrash", 7, 5)
+                      .Chance(30)
+                      .Follows("Thrash"),
+                  MM::Attack("Chomp", 11).Chance(25).Follows("Thrash") });
             monster.AddPower(PowerType::STRENGTH, 3);
             monster.AddBlock(6);
             break;

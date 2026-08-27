@@ -1051,6 +1051,14 @@ void SpireEnv::Settle()
 {
     if (m_run.GetPlayer().IsDead())
     {
+        // Written down wherever the climb ended, not only where a fight
+        // ended it. A toll at a bridge and a hand pushed into a pool can
+        // finish a climb too, and those were going into the table as neither
+        // a win nor a death - so the deaths a climb counts were short of the
+        // climbs that ended. A death outside a fight is marked as belonging
+        // to no fight; the log takes the first one it is told about, so
+        // saying it twice does no harm.
+        m_run.Note(LogEntry::DIED, static_cast<int>(MonsterType::INVALID));
         m_phase = EnvPhase::OVER;
 
         return;

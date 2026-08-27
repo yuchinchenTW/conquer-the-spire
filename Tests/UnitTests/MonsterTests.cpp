@@ -140,15 +140,15 @@ TEST_CASE("A Jaw Worm keeps to its own repeat limits")
             run = name == last ? run + 1 : 1;
             last = name;
 
-            // Chomp and Bellow never come twice in a row, Thrash never three
-            // times.
+            // Chomp and Bellow never come twice in a row: neither of them
+            // is in the list of what may follow itself. A thrash may follow
+            // a thrash, and there is nothing stopping a third - the table
+            // gives thrash thirty in a hundred after a thrash however many
+            // there have been, and holding it to two was an artefact of the
+            // weights this used to be written with.
             if (name == "Chomp" || name == "Bellow")
             {
                 CHECK(run <= 1);
-            }
-            else
-            {
-                CHECK(run <= 2);
             }
 
             worm.AdvanceMove(rng);
