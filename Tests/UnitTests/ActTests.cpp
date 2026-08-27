@@ -2,6 +2,7 @@
 
 #include <conquer-the-spire/Cards/CardRegistry.hpp>
 #include <conquer-the-spire/Monsters/EncounterLibrary.hpp>
+#include <conquer-the-spire/Potions/PotionRegistry.hpp>
 #include <conquer-the-spire/Monsters/MonsterRoster.hpp>
 #include <conquer-the-spire/Run/Run.hpp>
 
@@ -2884,6 +2885,15 @@ TEST_CASE("What can be aimed at while it is down is asked of each of them")
 
         CHECK(one.GetHealth() == 0);
         CHECK(one.IsRegrowing() == true);
+
+        // And a potion is aimed the same way a card is. It was asking
+        // whether they were dead, which turned a fire potion away from the
+        // very thing a strike could still be thrown at.
+        battle.GetPlayer().GetPotions().emplace_back(
+            PotionRegistry::Get(PotionId::FIRE_POTION));
+
+        CHECK(battle.CanUsePotion(
+                  battle.GetPlayer().GetPotions().size() - 1u, 0u) == true);
     }
 
     // A darkling is out of reach: out of what a card may be aimed at, out of
@@ -2932,6 +2942,16 @@ TEST_CASE("What can be aimed at while it is down is asked of each of them")
         CHECK(battle.CanPlay(battle.GetPlayer().GetHand().size() - 1u) ==
               true);
         CHECK(battle.GetPlayableCardIndices().empty() == false);
+
+        // A potion is turned away from it too, the same way.
+        battle.GetPlayer().GetPotions().emplace_back(
+            PotionRegistry::Get(PotionId::FIRE_POTION));
+
+        const std::size_t bottle =
+            battle.GetPlayer().GetPotions().size() - 1u;
+
+        CHECK(battle.CanUsePotion(bottle, 0u) == false);
+        CHECK(battle.CanUsePotion(bottle, 1u) == true);
 
         // And it comes back into reach once it is up again.
         battle.EndTurn();

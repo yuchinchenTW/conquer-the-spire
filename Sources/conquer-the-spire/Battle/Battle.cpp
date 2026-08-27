@@ -3694,10 +3694,17 @@ bool Battle::CanUsePotion(std::size_t index, std::size_t monsterIndex) const
         return false;
     }
 
-    // Something aimed at one monster needs that monster to be there.
+    // Something aimed at one monster needs that monster to be there, and to
+    // be somebody who may be aimed at - the same question a card asks. It
+    // asked whether they were dead, which turned a fire potion away from an
+    // awakened one lying there waiting to be reborn while a strike could
+    // still be thrown at it. The two are aimed the same way now: at the
+    // awakened one, and not at a darkling.
     if (potions[index].GetTarget() == CardTarget::SINGLE_ENEMY &&
         (monsterIndex >= m_monsters.size() ||
-         m_monsters[monsterIndex].IsDead()))
+         m_monsters[monsterIndex].IsGone() ||
+         (m_monsters[monsterIndex].IsRegrowing() &&
+          m_monsters[monsterIndex].IsHiddenWhenDown())))
     {
         return false;
     }

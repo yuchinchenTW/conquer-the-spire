@@ -405,3 +405,92 @@ TEST_CASE("Climbing pays and dying costs")
     CHECK(out.reward > -1000.0f);
     CHECK(out.reward < 1000.0f);
 }
+
+TEST_CASE("Nothing that cannot be aimed at is offered as a target")
+{
+    // The two lists have to agree at the edges. What is in the room is what
+    // the state is built from, and the ordinal a move names is an offset into
+    // that - so a monster that may not be aimed at keeps its place there and
+    // has to be left out of what is offered instead. Offering it and then
+    // turning the move away is what sends a policy round in circles.
+    //
+    // Done to whatever the first fight holds rather than to a darkling in
+    // particular: the rule is about the two lists, not about one monster.
+    SpireEnv env;
+    bool fought = false;
+
+    for (unsigned int seed = 1; seed <= 30u && !fought; ++seed)
+    {
+        env.Reset(CardColor::RED, seed);
+
+        for (int step = 0; step < 200 && !env.IsDone(); ++step)
+        {
+            if (env.GetPhase() == EnvPhase::BATTLE &&
+                env.GetBattle() != nullptr &&
+                env.GetBattle()->GetMonsters().size() >= 2u)
+            {
+                fought = true;
+                break;
+            }
+
+            const std::vector<Action> moves = env.LegalActions();
+
+            if (moves.empty() || !env.Step(moves.front()).taken)
+            {
+                break;
+            }
+        }
+    }
+
+    REQUIRE(fought == true);
+
+    Battle& battle = *env.GetBattle();
+
+    // Knocked down and out of reach, whoever it happens to be.
+    battle.GetMonsters()[0].SetHiddenWhenDown(true);
+    battle.GetMonsters()[0].SetRegrowing(true);
+    battle.GetMonsters()[0].SetHealth(0);
+
+    const std::vector<std::size_t> living = battle.GetLivingMonsterIndices();
+
+    // Still in the room, so the state still shows it and nobody behind it
+    // has shifted a place along.
+    REQUIRE(living.empty() == false);
+    CHECK(living.front() == 0u);
+    CHECK(battle.GetTargetableMonsterIndices().empty() == false);
+    CHECK(battle.GetTargetableMonsterIndices().front() != 0u);
+
+    int offered = 0;
+
+    for (const Action& move : env.LegalActions())
+    {
+        if (move.kind != ActionKind::PLAY_CARD &&
+            move.kind != ActionKind::USE_POTION)
+        {
+            continue;
+        }
+
+        ++offered;
+
+        // Never the one lying down.
+        CHECK(move.b != 0);
+
+        const std::size_t which =
+            static_cast<std::size_t>(move.b) < living.size()
+                ? living[static_cast<std::size_t>(move.b)]
+                : battle.GetMonsters().size();
+
+        if (move.kind == ActionKind::PLAY_CARD)
+        {
+            CHECK(battle.CanPlay(static_cast<std::size_t>(move.a), which) ==
+                  true);
+        }
+        else
+        {
+            CHECK(battle.CanUsePotion(static_cast<std::size_t>(move.a),
+                                      which) == true);
+        }
+    }
+
+    CHECK(offered > 0);
+}

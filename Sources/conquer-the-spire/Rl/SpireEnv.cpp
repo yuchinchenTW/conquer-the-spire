@@ -653,11 +653,38 @@ std::vector<Action> SpireEnv::LegalActions() const
                     continue;
                 }
 
+                // Asked of each of them, the way the potions below are.
+                // The ordinal is an offset into who is in the room, because
+                // that is what the state is built from and the two have to
+                // line up - so a monster that may not be aimed at keeps its
+                // place there and is left out here instead. A darkling lying
+                // down was being offered as a target and then turned away by
+                // the fight, and an offer that is turned away is what sends
+                // the policy round in circles.
+                bool anyTarget = false;
+
                 for (std::size_t target = 0; target < living; ++target)
                 {
+                    if (!m_battle->CanPlay(hand,
+                                           TargetOf(static_cast<int>(target))))
+                    {
+                        continue;
+                    }
+
+                    anyTarget = true;
+
                     moves.emplace_back(Action(ActionKind::PLAY_CARD,
                                               static_cast<int>(hand),
                                               static_cast<int>(target)));
+                }
+
+                // Nobody in the room may be aimed at, which a card that aims
+                // at nobody does not care about.
+                if (!anyTarget)
+                {
+                    moves.emplace_back(
+                        Action(ActionKind::PLAY_CARD,
+                               static_cast<int>(hand), 0));
                 }
             }
 
