@@ -50,6 +50,29 @@ PANELS = [
 FIRM = 30
 """How few sightings make a share not worth reading on its own."""
 
+def _share(value):
+    """Formats ``value`` (a share of one) as a percentage that can be read.
+
+    Whole percentages hid the thing this column is for. Eighteen climbs
+    finished the spire out of two thousand seven hundred that got past the
+    first act's boss, which is 0.29 per cent and printed as "0%" - the same
+    as a row where nothing has ever finished. The reader cannot tell "none"
+    from "a few", and a few is the whole news early on.
+    """
+    hundred = 100.0 * value
+
+    if hundred <= 0.0:
+        return "0%"
+
+    if hundred < 0.05:
+        return "&lt;0.1%"
+
+    if hundred < 9.95:
+        return "%.1f%%" % hundred
+
+    return "%.0f%%" % hundred
+
+
 THINNER_THAN = 20
 """And how far below the best-seen row of its own table a row may fall before
 its share stops being comparable with the others. A quarter of forty and a
@@ -427,12 +450,12 @@ def _table(rows, title, top=10, count=False, kind=""):
             '<td class="name">%s%s</td>'
             '<td class="bar"><span style="width:%.1f%%"></span></td>'
             '<td class="num">%s</td><td class="num">%d</td>'
-            '<td class="num">%.1f</td><td class="num">%.0f%%</td></tr>'
+            '<td class="num">%.1f</td><td class="num">%s</td></tr>'
             % (_art(row, kind), row["name"][:26], share,
                ("%d" % row["picks"]) if count
                else ("%.0f%%" % (100.0 * row["pick_rate"])),
                offered(row), row["avg_floors"],
-               100.0 * row["win_rate"]))
+               _share(row["win_rate"])))
 
     return (
         '<section><h2>%s <span class="count">%d different</span></h2>'
