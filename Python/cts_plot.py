@@ -47,6 +47,19 @@ PANELS = [
 ]
 
 
+FIRM = 30
+"""How few sightings make a share not worth reading on its own."""
+
+THINNER_THAN = 20
+"""And how far below the best-seen row of its own table a row may fall before
+its share stops being comparable with the others. A quarter of forty and a
+quarter of twelve thousand are not the same fact, and sorting them together
+ranks them as though they were: the second act's bosses are met a few dozen
+times because the climber dies in the first act, so their shares rest on
+three hundred times less than the first act's do and would otherwise sit
+interleaved with them looking broken."""
+
+
 def readPicks(folder):
     """Reads the choices of the last window out of ``picks.csv``.
 
@@ -364,13 +377,27 @@ def _table(rows, title, top=10, count=False, kind=""):
     # thing was seen, which buries a card taken every time it appeared under
     # the Strikes it was offered beside. A count of curses has no rate to
     # sort by, so those go by how many were taken.
+
+    # The best-attended row of this table, which is what the thin ones are
+    # thin against. Taken before the sort, because the sort asks.
+    firmest = max([int(one.get("offered", one.get("seen", 0)))
+                   for one in rows] + [0])
+
+    def thinly(row):
+        seen = int(row.get("offered", row.get("seen", 0)))
+
+        return seen < FIRM or seen * THINNER_THAN < firmest
+
     def order(row):
         seen = int(row.get("offered", row.get("seen", 0)))
 
         if count:
             return (-int(row["picks"]), -seen, row.get("name", ""))
 
-        return (-float(row.get("pick_rate", 0.0)), -seen,
+        # A share that rests on far less than the rest of its table goes to
+        # the bottom, however high it happens to be.
+        return (1 if thinly(row) else 0,
+                -float(row.get("pick_rate", 0.0)), -seen,
                 row.get("name", ""))
 
     rows = sorted(rows, key=order)
@@ -391,8 +418,13 @@ def _table(rows, title, top=10, count=False, kind=""):
         share = (100.0 * row["picks"] / most if count
                  else 100.0 * row["pick_rate"])
 
+        # Said out loud rather than left to be worked out from the count
+        # column: this row's share is not worth reading yet.
+        thin = not count and thinly(row)
+
         lines.append(
-            '<tr><td class="name">%s%s</td>'
+            ('<tr class="thin">' if thin else '<tr>') +
+            '<td class="name">%s%s</td>'
             '<td class="bar"><span style="width:%.1f%%"></span></td>'
             '<td class="num">%s</td><td class="num">%d</td>'
             '<td class="num">%.1f</td><td class="num">%.0f%%</td></tr>'
@@ -480,6 +512,8 @@ table.picks td.name { color: #e8e8e8; padding-left: 0;
              text-align: center; letter-spacing: 0.02em; }
 table.picks td.num { text-align: right; color: #9aa0a6;
                      font-variant-numeric: tabular-nums; }
+table.picks tr.thin td { opacity: 0.45; }
+table.picks tr.thin td.num:nth-of-type(2)::after { content: " ?"; }
 table.picks td.bar { width: 96px; }
 table.picks td.bar span { display: block; height: 8px; border-radius: 4px;
                           background: #4c9f70; min-width: 1px; }
