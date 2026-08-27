@@ -463,18 +463,58 @@ TEST_CASE("Something in the air takes half of what an attack does")
     CHECK(byrd.GetPower(PowerType::FLIGHT) == 2);
 }
 
-TEST_CASE("Enough separate hits bring a flier down")
+TEST_CASE("A flier's charges come back every turn unless they all went")
 {
+    // The page: "Removed when attacked X times in a single turn. Charges are
+    // refilled back to X at the start of each turn if not fully removed."
+    // So two hits a turn never bring one down, however many turns it takes -
+    // charges that carried over would mean any two hits eventually did.
+    //
+    // This used to take the charges off by hand and check they reached zero,
+    // which is a test of subtraction rather than of the bird.
     Battle battle = FightAgainst({ MonsterId::BYRD });
+
+    battle.GetMonsters().front().SetMaxHealth(4000);
+    battle.GetMonsters().front().SetHealth(4000);
+
+    for (int turn = 0; turn < 4; ++turn)
+    {
+        Monster& byrd = battle.GetMonsters().front();
+
+        CHECK(byrd.GetPower(PowerType::FLIGHT) == 3);
+
+        for (int hit = 0; hit < 2; ++hit)
+        {
+            battle.GetPlayer().GetHand().emplace_back(
+                CardRegistry::Get(CardId::STRIKE_RED));
+            battle.GetPlayer().SetEnergy(3);
+
+            REQUIRE(battle.PlayCard(
+                        battle.GetPlayer().GetHand().size() - 1u, 0) == true);
+        }
+
+        // One left, and never nought, so it is never brought down.
+        CHECK(byrd.GetPower(PowerType::FLIGHT) == 1);
+        CHECK(byrd.GetCurrentMove().name != "Stunned");
+
+        battle.GetPlayer().SetHealth(400);
+
+        REQUIRE(battle.EndTurn() == true);
+    }
+
+    // And the third hit in one turn does bring it down.
     Monster& byrd = battle.GetMonsters().front();
 
-    // Three hits knock the flight out of it, whatever they were.
-    for (int i = 0; i < 3; ++i)
+    for (int hit = 0; hit < 3; ++hit)
     {
-        byrd.AddPower(PowerType::FLIGHT, -1);
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::STRIKE_RED));
+        battle.GetPlayer().SetEnergy(3);
+        battle.PlayCard(battle.GetPlayer().GetHand().size() - 1u, 0);
     }
 
     CHECK(byrd.GetPower(PowerType::FLIGHT) == 0);
+    CHECK(byrd.GetCurrentMove().name == "Stunned");
 }
 
 TEST_CASE("Malleable armour answers every hit and by more each time")
