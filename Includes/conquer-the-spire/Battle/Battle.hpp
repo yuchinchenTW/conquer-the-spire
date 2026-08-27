@@ -318,6 +318,11 @@ class Battle
     void TriggerOrbPassives();
     void TriggerPlasmaPassives();
     void DealOrbDamage(Monster& monster, int amount);
+
+    //! What a thing that shifts gives up when it loses \p lost health, by
+    //! whatever means. The page says upon losing HP, not upon being struck,
+    //! so poison and an orb and a card that costs health all count.
+    void NoteShifting(Creature& creature, int lost);
     void DealOrbDamageToTarget(int amount);
     Monster* LowestHealthMonster();
 

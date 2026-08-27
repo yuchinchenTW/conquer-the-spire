@@ -449,23 +449,34 @@ std::vector<Monster> EncounterLibrary::Build(const Encounter& encounter,
     // No more than two shapes alike in a room, which the draw for each of
     // them cannot know on its own. Counted as they are made, and a third of a
     // kind is drawn again until it is not a third of that kind.
-    std::map<std::string, int> shapes;
+    std::map<int, int> shapes;
 
     for (const MonsterId id : encounter.monsters)
     {
         if (id == MonsterId::RANDOM_SHAPE)
         {
-            Monster shape = MonsterRoster::Make(id, rng);
+            // Drawn from the kinds that are still allowed rather than drawn
+            // over and over until an allowed one turns up. Drawing again is
+            // only nearly a guarantee, and the rule is a rule.
+            std::vector<MonsterId> open;
 
-            for (int again = 0; again < 8 && shapes[shape.GetName()] >= 2;
-                 ++again)
+            for (const MonsterId kind : { MonsterId::REPULSOR,
+                                          MonsterId::EXPLODER,
+                                          MonsterId::SPIKER })
             {
-                shape = MonsterRoster::Make(id, rng);
+                if (shapes[static_cast<int>(kind)] < 2)
+                {
+                    open.emplace_back(kind);
+                }
             }
 
-            ++shapes[shape.GetName()];
-            shape.SetMonsterType(encounter.type);
-            monsters.emplace_back(std::move(shape));
+            std::uniform_int_distribution<std::size_t> pick(
+                0, open.size() - 1);
+            const MonsterId kind = open[pick(rng)];
+
+            ++shapes[static_cast<int>(kind)];
+            monsters.emplace_back(MonsterRoster::Make(kind, rng));
+            monsters.back().SetMonsterType(encounter.type);
             continue;
         }
 

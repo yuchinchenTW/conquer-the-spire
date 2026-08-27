@@ -913,8 +913,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
         {
             monster = Thinking(
                 id, "Spiker", MonsterType::NORMAL, Roll(rng, 42, 56),
+                // Six spikes and no more, and it cuts from then on. It
+                // could spike for ever, and a fight it cannot lose is a
+                // fight that can be waited out from the other side.
                 { MM::Attack("Cut", 7).Chance(50, 1),
-                  MM::Buff("Spike", PowerType::THORNS, 2).Chance(50) });
+                  MM::Buff("Spike", PowerType::THORNS, 2)
+                      .Chance(50)
+                      .AtMost(6, "Cut") });
             monster.AddPower(PowerType::THORNS, 3);
             break;
         }
@@ -1124,8 +1129,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 // the floor is full the spawn's share goes to the snake
                 // strike rather than the turn being spent on a summon that
                 // makes nothing.
+                // One dagger a time. The page reads "Summons a Dagger.
+                // Summons 2 Ascension 18 Daggers", which is one at nought and
+                // two only high up - and reading the two as the ordinary
+                // number took the floor from two daggers to four on the
+                // opening turn.
                 { MM::Of("Summon", Intent::SUMMON,
-                         { ME::Summon(MonsterId::DAGGER, 2, 4) })
+                         { ME::Summon(MonsterId::DAGGER, 1, 4) })
                       .Chance(33, 2)
                       .Opener()
                       .WhenAlliesUnder(4)
@@ -1161,6 +1171,13 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 // the harder of the two.
                 { MM::Attack("Slash", 20).Chance(75, 2).InPhase(1).Opener(),
                   MM::Attack("Soul Strike", 6, 4).Chance(25, 1).InPhase(1),
+                  // Made on its own turn, from where it fell. Standing the
+                  // second body up the moment the first went down let a
+                  // climber carry on into it with the cards still in hand,
+                  // which is a whole extra turn of a boss it does not have.
+                  MM::Of("Rebirth", Intent::BUFF,
+                         { ME::Rebirth("Dark Echo") })
+                      .Chance(0),
                   MM::Attack("Dark Echo", 40).Chance(0).InPhase(2),
                   MM::Attack("Tackle", 10, 3).Chance(50, 2).InPhase(2),
                   MM::Of("Sludge", Intent::ATTACK_DEBUFF,

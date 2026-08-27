@@ -1907,7 +1907,7 @@ TEST_CASE("What eats time makes itself whole when it is losing")
     CHECK(eater.GetCurrentMove().name == "Haste");
 }
 
-TEST_CASE("The awakened one gets back up the first time")
+TEST_CASE("The awakened one gets back up, but on its own turn")
 {
     Battle battle = FightAgainst({ MonsterId::AWAKENED_ONE });
     Monster& one = battle.GetMonsters().front();
@@ -1918,10 +1918,33 @@ TEST_CASE("The awakened one gets back up the first time")
 
     REQUIRE(Swing(battle) == true);
 
+    // It lies where it fell, at nothing, and what it means to do is stand
+    // back up. Standing it up the moment the first body went down handed the
+    // climber the whole of the turn it had left to spend on the second.
     CHECK(battle.IsDone() == false);
+    CHECK(one.GetPhase() == 1);
+    CHECK(one.GetHealth() == 0);
+    CHECK(one.IsRegrowing() == true);
+    CHECK(one.GetPower(PowerType::CURIOSITY) == 0);
+    CHECK(one.GetCurrentMove().name == "Rebirth");
+
+    // And nothing more can be done to it in the meantime.
+    const bool again = Swing(battle);
+
+    CHECK(one.GetHealth() == 0);
+    CHECK(one.GetPhase() == 1);
+
+    if (!again)
+    {
+        CHECK(one.GetPower(PowerType::CURIOSITY) == 0);
+    }
+
+    // Its own turn is where it stands up.
+    REQUIRE(battle.EndTurn() == true);
+
     CHECK(one.GetPhase() == 2);
     CHECK(one.GetHealth() == one.GetMaxHealth());
-    CHECK(one.GetPower(PowerType::CURIOSITY) == 0);
+    CHECK(one.IsRegrowing() == false);
     CHECK(one.GetCurrentMove().name == "Dark Echo");
 }
 
@@ -2110,6 +2133,10 @@ TEST_CASE("An Awakened One opens with a slash and comes back whole")
     one.SetHealth(1);
 
     REQUIRE(Swing(battle, 1) == true);
+
+    // Down, and standing back up on its own turn rather than where it fell.
+    REQUIRE(one.IsRegrowing() == true);
+    REQUIRE(battle.EndTurn() == true);
 
     REQUIRE(one.GetPhase() == 2);
     CHECK(one.GetHealth() == one.GetMaxHealth());
@@ -2639,4 +2666,176 @@ TEST_CASE("The monster ids are only ever appended to")
           static_cast<int>(MonsterId::RANDOM_SHAPE));
     CHECK(static_cast<int>(MonsterId::RANDOM_SHAPE) + 1 ==
           static_cast<int>(MonsterId::JAW_WORM_HARD));
+}
+
+TEST_CASE("A Reptomancer summons one dagger at a time")
+{
+    Battle battle = FightAgainst({ MonsterId::REPTOMANCER, MonsterId::DAGGER,
+                                   MonsterId::DAGGER });
+
+    REQUIRE(battle.GetMonsters()[0].GetCurrentMove().name == "Summon");
+
+    int before = 0;
+
+    for (const Monster& one : battle.GetMonsters())
+    {
+        before += one.GetMonsterId() == MonsterId::DAGGER ? 1 : 0;
+    }
+
+    REQUIRE(before == 2);
+
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    int after = 0;
+
+    for (const Monster& one : battle.GetMonsters())
+    {
+        after += one.GetMonsterId() == MonsterId::DAGGER && !one.IsGone()
+                     ? 1
+                     : 0;
+    }
+
+    // One. Two is the ascension-eighteen number, and reading it as the
+    // ordinary one took the opening floor from three daggers to four.
+    CHECK(after == 3);
+}
+
+TEST_CASE("A Spiker spikes six times and then only cuts")
+{
+    for (unsigned int seed = 1; seed <= 20u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::SPIKER }, seed);
+        int spiked = 0;
+
+        for (int turn = 0; turn < 30; ++turn)
+        {
+            const std::string now =
+                battle.GetMonsters()[0].GetCurrentMove().name;
+
+            if (now == "Spike")
+            {
+                ++spiked;
+            }
+            else if (spiked >= 6)
+            {
+                CHECK(now == "Cut");
+            }
+
+            battle.GetPlayer().SetHealth(400);
+
+            if (!battle.EndTurn())
+            {
+                break;
+            }
+        }
+
+        // Six and no more. It could spike for ever, and a monster whose
+        // thorns keep climbing is a fight the other side can wait out.
+        CHECK(spiked <= 6);
+        CHECK(battle.GetMonsters()[0].GetPower(PowerType::THORNS) <= 3 + 12);
+    }
+}
+
+TEST_CASE("A Transient gives up strength for any hurt, not only a swing")
+{
+    // What the loss is worth is the damage it does not do that turn: the
+    // strength comes off when the health does and goes back at the end of
+    // its own turn, after it has swung.
+    const auto swung = [](int poison) {
+        Battle battle = FightAgainst({ MonsterId::TRANSIENT });
+
+        battle.GetPlayer().SetHealth(400);
+
+        if (poison > 0)
+        {
+            battle.GetMonsters().front().AddPower(PowerType::POISON, poison);
+        }
+
+        const int before = battle.GetPlayer().GetHealth();
+
+        battle.EndTurn();
+
+        return before - battle.GetPlayer().GetHealth();
+    };
+
+    const int clean = swung(0);
+    const int poisoned = swung(9);
+
+    REQUIRE(clean > 0);
+
+    // Poison is not a swing, and the page says upon losing HP. It was only
+    // giving strength up when it was struck, so poison, an orb and a card
+    // that costs health all left it hitting at full weight.
+    CHECK(poisoned == clean - 9);
+}
+
+TEST_CASE("A Nemesis is out of reach every other turn, and it lasts")
+{
+    Battle battle = FightAgainst({ MonsterId::NEMESIS });
+    Monster& one = battle.GetMonsters().front();
+
+    // Out of reach on the first turn.
+    CHECK(one.GetPower(PowerType::INTANGIBLE) > 0);
+
+    std::vector<bool> reach;
+
+    for (int turn = 1; turn <= 6; ++turn)
+    {
+        reach.emplace_back(one.GetPower(PowerType::INTANGIBLE) > 0);
+        battle.GetPlayer().SetHealth(400);
+
+        if (!battle.EndTurn())
+        {
+            break;
+        }
+    }
+
+    REQUIRE(reach.size() == 6u);
+
+    // Turn about, and the stack survives to the turn it was raised for. It
+    // was being raised before the wearing-off took it straight back, so past
+    // the opening one it was never out of reach on a turn anybody could see.
+    for (std::size_t at = 0; at < reach.size(); ++at)
+    {
+        CHECK(reach[at] == (at % 2 == 0));
+    }
+}
+
+TEST_CASE("A room of shapes never holds three alike, ever")
+{
+    std::vector<MonsterId> four;
+
+    for (const Encounter& one : EncounterLibrary::GetAct3Strong())
+    {
+        if (one.name == "4 Shapes")
+        {
+            four = one.monsters;
+        }
+    }
+
+    REQUIRE(four.size() == 4u);
+
+    // Drawing again until an allowed one turns up is only nearly a
+    // guarantee. Two thousand rooms, and never a third of a kind.
+    for (unsigned int seed = 1; seed <= 2000u; ++seed)
+    {
+        std::mt19937 rng(seed);
+        const std::vector<Monster> built = EncounterLibrary::Build(
+            { "4 Shapes", MonsterType::NORMAL, four }, rng);
+        std::map<MonsterId, int> alike;
+
+        REQUIRE(built.size() == 4u);
+
+        for (const Monster& one : built)
+        {
+            ++alike[one.GetMonsterId()];
+        }
+
+        for (const auto& counted : alike)
+        {
+            REQUIRE(counted.second <= 2);
+        }
+    }
 }

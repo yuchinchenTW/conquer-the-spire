@@ -41,6 +41,8 @@ enum class MonsterEffectType
     DRAIN,        //!< Hits, and takes back what got through as health.
     RECOVER,      //!< Shakes off every debuff and comes back up to a share
                   //!< of its health.
+    REBIRTH,      //!< Stands the second body up whole, clean, and in the
+                  //!< phase that goes with it.
     SHAKE_OFF     //!< Throws off every debuff standing on it.
 };
 

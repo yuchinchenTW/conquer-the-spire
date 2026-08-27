@@ -1460,13 +1460,6 @@ void Battle::RunMonsterTurn()
                 monster.RemovePower(PowerType::SHIFTING_LOSS);
             }
 
-            // Something that slips out of reach does so turn about.
-            if (monster.GetPower(PowerType::INTANGIBLE_CYCLE) > 0 &&
-                m_turn % 2 == 1)
-            {
-                monster.AddPower(PowerType::INTANGIBLE, 1);
-            }
-
             // And what is fading fades.
             if (monster.GetPower(PowerType::FADING) > 0)
             {
@@ -1481,6 +1474,22 @@ void Battle::RunMonsterTurn()
         }
 
         DecayTimedPowers(monster);
+
+        // Something that slips out of reach does so turn about, and it is
+        // raised after the wearing-off and not before. Raised before, the
+        // wearing-off took the same stack straight back off again, so beyond
+        // the one it started the fight with it was never out of reach on a
+        // turn the climber could see.
+        //
+        // Turns one, three, five: it starts the fight out of reach and every
+        // other turn after. The page says every other turn without saying
+        // which, and the opening stack is what settles it.
+        if (!monster.IsGone() &&
+            monster.GetPower(PowerType::INTANGIBLE_CYCLE) > 0 &&
+            m_turn % 2 == 0)
+        {
+            monster.AddPower(PowerType::INTANGIBLE, 1);
+        }
 
         if (m_player.IsDead())
         {
@@ -3322,21 +3331,26 @@ void Battle::OnMonsterDied(Monster& monster)
     if (monster.GetMonsterId() == MonsterId::AWAKENED_ONE &&
         monster.GetPhase() == 1)
     {
-        monster.SetPhase(2);
-        monster.SetHealth(monster.GetMaxHealth());
+        // It stays where it fell, at nothing, and what it means to do
+        // becomes Rebirth. The standing up happens on its own turn, the way
+        // the page has it - "its intent changes to Rebirth" - and until then
+        // nothing more can be done to it, because a thing at nothing health
+        // takes no more damage. Standing it up here instead handed the
+        // climber the whole of the turn it had left to spend on the second
+        // body.
+        //
+        // Curiosity goes now, with the first body; the strength it already
+        // gave is kept. Regeneration goes with it, or the healing at the end
+        // of the turn would lift it off nothing and it would never be reborn
+        // at all.
+        // Nothing, rather than however far past nothing the blow carried
+        // it: it is standing there for a turn and what it is standing at is
+        // read by everything that looks at the fight.
+        monster.SetRegrowing(true);
+        monster.SetHealth(0);
         monster.RemovePower(PowerType::CURIOSITY);
         monster.RemovePower(PowerType::REGENERATION);
-
-        // Whole means whole: the poison and the weakness that killed the
-        // first body do not carry into the second. They were carrying over,
-        // so a stack of poison went on ticking through a fresh three hundred
-        // health - which is most of a phase two the spire does not give.
-        for (const PowerType power : DebuffsOn(monster))
-        {
-            monster.RemovePower(power);
-        }
-
-        monster.ForceMove("Dark Echo");
+        monster.ForceMove("Rebirth");
 
         return;
     }
@@ -3863,7 +3877,7 @@ void Battle::DealOrbDamage(Monster& monster, int amount)
         outgoing = 1;
     }
 
-    monster.TakeDamage(outgoing);
+    NoteShifting(monster, monster.TakeDamage(outgoing));
 
     if (monster.IsDead())
     {
@@ -3985,6 +3999,9 @@ void Battle::DealDamageToMonster(Monster& monster, int base, bool fromAttack)
     const int lost = monster.TakeDamage(outgoing);
     m_unblockedDamageThisPlay += lost;
 
+    // Whatever took the health off it, not only a swing.
+    NoteShifting(monster, lost);
+
     if (blockBefore > 0 && monster.GetBlock() == 0 &&
         m_player.HasRelic(RelicId::HAND_DRILL))
     {
@@ -4023,13 +4040,6 @@ void Battle::DealDamageToMonster(Monster& monster, int base, bool fromAttack)
         if (const int angry = monster.GetPower(PowerType::ANGRY); angry > 0)
         {
             monster.AddPower(PowerType::STRENGTH, angry);
-        }
-
-        // What shifts gives up as much strength as the hit took off it.
-        if (lost > 0 && monster.GetPower(PowerType::SHIFTING) > 0)
-        {
-            monster.AddPower(PowerType::STRENGTH, -lost);
-            monster.AddPower(PowerType::SHIFTING_LOSS, lost);
         }
 
         // Something reactive thinks again about what it was going to do.
@@ -4356,6 +4366,17 @@ void Battle::ApplyPowerTo(Creature& creature, PowerType power, int amount)
     }
 }
 
+void Battle::NoteShifting(Creature& creature, int lost)
+{
+    if (lost <= 0 || creature.GetPower(PowerType::SHIFTING) <= 0)
+    {
+        return;
+    }
+
+    creature.AddPower(PowerType::STRENGTH, -lost);
+    creature.AddPower(PowerType::SHIFTING_LOSS, lost);
+}
+
 void Battle::TickPoison(Creature& creature)
 {
     const int poison = creature.GetPower(PowerType::POISON);
@@ -4366,6 +4387,7 @@ void Battle::TickPoison(Creature& creature)
     }
 
     creature.LoseHealth(poison);
+    NoteShifting(creature, poison);
     creature.AddPower(PowerType::POISON, -1);
 }
 
@@ -4713,6 +4735,29 @@ void Battle::ResolveMonsterEffect(const MonsterEffect& effect,
                 MonsterRoster::Make(effect.splitSecond, m_rng, health));
 
             monster.SetHealth(0);
+            break;
+        }
+
+        case MonsterEffectType::REBIRTH:
+        {
+            monster.SetRegrowing(false);
+            monster.SetPhase(2);
+            monster.SetHealth(monster.GetMaxHealth());
+
+            // Whole means whole: the poison and the weakness that took the
+            // first body do not carry into the second. They were carrying
+            // over, so a stack of poison went on ticking through a fresh
+            // three hundred health.
+            for (const PowerType power : DebuffsOn(monster))
+            {
+                monster.RemovePower(power);
+            }
+
+            if (!effect.summonName.empty())
+            {
+                monster.QueueMoves({ effect.summonName });
+            }
+
             break;
         }
 

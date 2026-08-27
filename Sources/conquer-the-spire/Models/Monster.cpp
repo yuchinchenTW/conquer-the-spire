@@ -160,6 +160,15 @@ MonsterEffect MonsterEffect::Recover(int percent)
     return effect;
 }
 
+MonsterEffect MonsterEffect::Rebirth(const std::string& next)
+{
+    MonsterEffect effect;
+    effect.type = MonsterEffectType::REBIRTH;
+    effect.summonName = next;
+
+    return effect;
+}
+
 MonsterEffect MonsterEffect::Stasis()
 {
     MonsterEffect effect;

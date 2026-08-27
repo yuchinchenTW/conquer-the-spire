@@ -89,6 +89,14 @@ struct MonsterEffect
     //! is losing.
     static MonsterEffect Recover(int percent);
 
+    //! Stands a thing that has fallen once back up: whole, every debuff off,
+    //! and into its second phase, with \p next owed on the turn after. This
+    //! is a move made on the monster's own turn and not something that
+    //! happens where it fell - which is the difference between a climber
+    //! getting to hit the second body on the turn it killed the first and
+    //! having to wait for it.
+    static MonsterEffect Rebirth(const std::string& next);
+
     static MonsterEffect Stasis();
 
     //! Throws off every debuff standing on the monster. What a Champ does
@@ -126,6 +134,9 @@ struct MonsterEffect
 
     //! What a summon calls in, and how many of them there may be at once.
     MonsterId summon = MonsterId::INVALID;
+
+    //! A move owed after this one, by name.
+    std::string summonName;
 
     //! Who a block is owed to, when it is owed to one kind in particular.
     //! Anything else, and it goes to whichever ally comes up.
