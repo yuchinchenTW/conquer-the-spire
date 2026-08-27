@@ -784,7 +784,14 @@ bool Battle::CanPlay(std::size_t handIndex, std::size_t monsterIndex) const
         const std::vector<std::size_t> aimable =
             GetTargetableMonsterIndices();
 
-        monsterIndex = aimable.empty() ? 0u : aimable.front();
+        // Nobody at all, rather than whoever stands first: falling back on
+        // the first in the room hands the question a monster that may not be
+        // aimed at, and the answer comes back no for every card in hand -
+        // including the ones that aim at nobody. Naming somebody who is not
+        // there turns away exactly the cards that need a target and lets the
+        // rest through.
+        monsterIndex =
+            aimable.empty() ? m_monsters.size() : aimable.front();
     }
 
     // A darkling lying there cannot be aimed at, so a card aimed at one is
@@ -942,8 +949,13 @@ std::vector<std::size_t> Battle::GetPlayableCardIndices() const
         return indices;
     }
 
+    // Nobody at all when there is nobody who may be aimed at, rather than
+    // whoever stands first: naming a monster that may not be aimed at
+    // answered no for every card in hand, the ones that aim at nobody
+    // included. The same fallback CanPlay uses, for the same reason.
     const std::vector<std::size_t> aimable = GetTargetableMonsterIndices();
-    const std::size_t firstTarget = aimable.empty() ? 0 : aimable.front();
+    const std::size_t firstTarget =
+        aimable.empty() ? m_monsters.size() : aimable.front();
 
     for (std::size_t i = 0; i < m_player.GetHand().size(); ++i)
     {
@@ -3416,6 +3428,26 @@ void Battle::OnMonsterDied(Monster& monster)
                 monster.QueueMoves({ "Reincarnate" });
 
                 return;
+            }
+        }
+
+        // Nobody left to hold it up, so it is going down for good - and so
+        // are the ones already lying there waiting to be pulled back. The
+        // link works only while another of them is standing, and once this
+        // one falls there is nobody to do the pulling.
+        //
+        // Only the last of them was being stopped from lying down. The ones
+        // that went first stayed on the floor with the fight unfinished,
+        // waiting for a turn that would stand them up again with nothing
+        // alive to link to - and a room holding nothing but those has nobody
+        // who may be aimed at, which is its own trouble upstream.
+        for (auto& other : m_monsters)
+        {
+            if (&other != &monster && other.IsRegrowing() &&
+                other.GetPower(PowerType::LIFE_LINK) > 0)
+            {
+                other.SetRegrowing(false);
+                other.SetHealth(0);
             }
         }
     }

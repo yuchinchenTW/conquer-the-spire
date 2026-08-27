@@ -3160,3 +3160,66 @@ TEST_CASE("A reptomancer with a full floor gives the summon's share away")
     CHECK(strike > bite);
     CHECK(strike > 110);
 }
+
+TEST_CASE("A pack of darklings goes down together")
+{
+    // The link works only while another of them is standing. Once the last
+    // one on its feet falls there is nobody to do the pulling, so the ones
+    // already lying there go with it and the fight is over.
+    Battle battle =
+        FightAgainst({ MonsterId::DARKLING, MonsterId::DARKLING });
+    Monster& first = battle.GetMonsters()[0];
+    Monster& second = battle.GetMonsters()[1];
+
+    first.SetHealth(1);
+
+    REQUIRE(Swing(battle, 0u) == true);
+    REQUIRE(first.IsRegrowing() == true);
+    REQUIRE(battle.IsDone() == false);
+
+    // The last one standing falls while the first is still on the floor.
+    second.SetHealth(1);
+    battle.GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::STRIKE_RED));
+    battle.GetPlayer().SetEnergy(3);
+
+    REQUIRE(Swing(battle, 1u) == true);
+
+    // Only the last of them was being stopped from lying down. The first
+    // stayed on the floor with the fight unfinished, waiting for a turn that
+    // would stand it up with nothing alive to link to.
+    CHECK(second.IsRegrowing() == false);
+    CHECK(first.IsRegrowing() == false);
+    CHECK(first.IsGone() == true);
+    CHECK(second.IsGone() == true);
+    CHECK(battle.GetPhase() == BattlePhase::WON);
+}
+
+TEST_CASE("A room with nobody to aim at still lets through what aims at nobody")
+{
+    // The belt to the same braces: even with the pack finished off properly,
+    // a room can hold nothing but somebody who may not be aimed at, and the
+    // question asked without naming anybody must not answer no for the cards
+    // that never wanted a target.
+    Battle battle = FightAgainst({ MonsterId::DARKLING });
+    Monster& one = battle.GetMonsters().front();
+
+    one.SetHiddenWhenDown(true);
+    one.SetRegrowing(true);
+    one.SetHealth(0);
+
+    REQUIRE(battle.GetTargetableMonsterIndices().empty() == true);
+    REQUIRE(battle.GetLivingMonsterIndices().size() == 1u);
+
+    battle.GetPlayer().GetHand().clear();
+    battle.GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::DEFEND_RED));
+    battle.GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::STRIKE_RED));
+    battle.GetPlayer().SetEnergy(3);
+
+    // A defend aims at nobody and goes; a strike wants somebody and does not.
+    CHECK(battle.CanPlay(0u) == true);
+    CHECK(battle.CanPlay(1u) == false);
+    CHECK(battle.GetPlayableCardIndices().size() == 1u);
+}
