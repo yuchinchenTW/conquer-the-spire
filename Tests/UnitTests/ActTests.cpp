@@ -4155,3 +4155,68 @@ TEST_CASE("A tungsten rod takes a point off everything that reaches the climber"
         CHECK(before - battle.GetPlayer().GetHealth() == 0);
     }
 }
+
+TEST_CASE("Poison wakes what is sleeping, and spends the stunned turn doing it")
+{
+    // The Poison page: "Poison damage causes Lagavulin to wake up, consuming
+    // its Stunned turn in the process." The poison lands at the top of the
+    // monster's own turn, so the turn it would have spent standing there is
+    // the turn already beginning. It was not waking it at all - a lagavulin
+    // slept through poison behind its armour for the whole three turns, which
+    // is eight points harder to hurt and three free turns.
+    Battle battle = FightAgainst({ MonsterId::LAGAVULIN });
+    Monster& it = battle.GetMonsters().front();
+
+    REQUIRE(it.GetPower(PowerType::ASLEEP) == 3);
+    REQUIRE(it.GetPower(PowerType::METALLICIZE) == 8);
+
+    it.AddPower(PowerType::POISON, 5);
+    battle.GetPlayer().SetHealth(400);
+
+    const int before = battle.GetPlayer().GetHealth();
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // Awake, unarmoured, and the turn it just spent was the stunned one.
+    CHECK(it.GetPower(PowerType::ASLEEP) == 0);
+    CHECK(it.GetPower(PowerType::METALLICIZE) == 0);
+    CHECK(before - battle.GetPlayer().GetHealth() == 0);
+    CHECK(it.GetCurrentMove().name == "Attack");
+
+    // So it swings on the very next turn rather than standing there again.
+    battle.GetPlayer().SetHealth(400);
+
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(battle.GetPlayer().GetHealth() < 400);
+}
+
+TEST_CASE("Poison does not hurry a slime to its half")
+{
+    // The Poison page names the Guardian as the one threshold poison brings
+    // forward, and then says of the rest: "in other cases where HP thresholds
+    // affect enemy Intent (such as The Champ and Time Eater), this happens on
+    // a subsequent turn, and will not be affected." A slime splitting at half
+    // is such a case - "such as" names two of them, it does not list them
+    // all - so poison carrying it under half does not interrupt the slam it
+    // was about to throw.
+    Battle battle = FightAgainst({ MonsterId::SLIME_BOSS });
+    Monster& boss = battle.GetMonsters().front();
+
+    REQUIRE(boss.ForceMove("Slam") == true);
+
+    boss.SetHealth(boss.GetMaxHealth() / 2 + 3);
+    boss.AddPower(PowerType::POISON, 9);
+    battle.GetPlayer().SetHealth(400);
+
+    const int before = battle.GetPlayer().GetHealth();
+
+    REQUIRE(battle.EndTurn() == true);
+
+    // Under half from the poison, and the slam landed anyway.
+    CHECK(boss.GetHealth() < boss.GetMaxHealth() / 2);
+    CHECK(before - battle.GetPlayer().GetHealth() >= 35);
+
+    // The split comes on the turn after, which is where the page puts it.
+    CHECK(boss.GetCurrentMove().name == "Split");
+}

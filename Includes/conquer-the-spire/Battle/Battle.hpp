@@ -344,6 +344,12 @@ class Battle
     //! Two things can bring the wall down - a blow and a tick of poison - so
     //! what happens next is written once and asked for from both.
     void ShiftIntoDefensiveMode(Monster& monster);
+
+    //! Wakes \p monster where it lies: the armour it slept behind goes and it
+    //! stands there for the turn before it starts swinging. A blow does this
+    //! and so does a tick of poison, and the two were doing different things
+    //! - the poison was doing nothing at all - so it is written once.
+    void WakeMonster(Monster& monster);
     void DealOrbDamageToTarget(int amount);
     Monster* LowestHealthMonster();
 

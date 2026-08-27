@@ -1475,6 +1475,39 @@ void Battle::RunMonsterTurn()
             {
                 OnMonsterDied(monster);
             }
+            else if (const int taken = standing - monster.GetHealth();
+                     taken > 0)
+            {
+                // It wakes what is sleeping, the page says, "consuming its
+                // Stunned turn in the process" - the poison lands at the top
+                // of the monster's own turn, so the turn it would have spent
+                // standing there is the turn already beginning. It was not
+                // waking it at all: a lagavulin slept through poison behind
+                // its armour for the full three turns.
+                WakeMonster(monster);
+
+                // And it counts against the wall a guardian changes shape
+                // at, which changes there and then. That is the one threshold
+                // poison brings forward: for the others - a champ, a thing
+                // that eats time, a slime at half - the page says the turning
+                // happens on a later turn and poison does not hurry it.
+                //
+                // The block from the shape change is kept until its next
+                // turn, because the clearing of block has already happened
+                // by the time the poison lands. That falls out of the order
+                // here and the page says it in as many words.
+                if (const int shift = monster.GetPower(PowerType::MODE_SHIFT);
+                    shift > 0)
+                {
+                    monster.AddPower(PowerType::MODE_SHIFT,
+                                     -(taken < shift ? taken : shift));
+
+                    if (monster.GetPower(PowerType::MODE_SHIFT) == 0)
+                    {
+                        ShiftIntoDefensiveMode(monster);
+                    }
+                }
+            }
             else if (const int shift = monster.GetPower(PowerType::MODE_SHIFT);
                      shift > 0 && monster.GetHealth() < standing)
             {
@@ -4268,12 +4301,7 @@ void Battle::DealDamageToMonster(Monster& monster, int base, bool fromAttack)
         }
 
         // A sleeping monster wakes when it is hit.
-        if (monster.GetPower(PowerType::ASLEEP) > 0)
-        {
-            monster.RemovePower(PowerType::ASLEEP);
-            monster.RemovePower(PowerType::METALLICIZE);
-            monster.ForceMove("Stunned");
-        }
+        WakeMonster(monster);
     }
 
     if (lost > 0 && monster.GetPower(PowerType::MODE_SHIFT) > 0)
@@ -4576,6 +4604,18 @@ void Battle::ApplyPowerTo(Creature& creature, PowerType power, int amount)
     {
         DealFlatDamage(creature, sadistic);
     }
+}
+
+void Battle::WakeMonster(Monster& monster)
+{
+    if (monster.GetPower(PowerType::ASLEEP) == 0)
+    {
+        return;
+    }
+
+    monster.RemovePower(PowerType::ASLEEP);
+    monster.RemovePower(PowerType::METALLICIZE);
+    monster.ForceMove("Stunned");
 }
 
 void Battle::ShiftIntoDefensiveMode(Monster& monster)
