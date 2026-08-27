@@ -3283,13 +3283,17 @@ TEST_CASE("A count of cards in front of a time eater carries over turns")
 
 TEST_CASE("A move owed to one turn does not come round on the others")
 {
-    // A writhing mass draws three ways on its first turn and five ways after,
-    // at different weights. The opening three were owed to turn one and also
-    // left sitting in the weighted draw for every turn after, so the later
-    // turns were the two sets run together.
+    // A writhing mass draws four ways on its first turn, evenly, and five
+    // ways after at thirty the multi hit, thirty the block attack, twenty
+    // the debuff attack, ten the big hit and ten the parasite. The opening
+    // four were owed to turn one and also left sitting in the weighted draw
+    // for every turn after, so the later turns were the two sets run
+    // together and every later weight was near enough halved against them.
     std::map<std::string, int> later;
+    const int rounds = 400;
 
-    for (unsigned int seed = 1; seed <= 200u; ++seed)
+    for (unsigned int seed = 1;
+         seed <= static_cast<unsigned int>(rounds); ++seed)
     {
         Battle battle = FightAgainst({ MonsterId::WRITHING_MASS }, seed);
 
@@ -3300,18 +3304,19 @@ TEST_CASE("A move owed to one turn does not come round on the others")
         ++later[battle.GetMonsters()[0].GetCurrentMove().name];
     }
 
-    // Thirty the multi hit, thirty the block attack, twenty the debuff
-    // attack, ten the big hit, ten the parasite - and the block attack is
-    // the tell, because it is not one of the opening three at all. Run
-    // together, its share was near enough halved.
-    const int block = later["Block Attack"];
+    // The big hit is the tell. It is a tenth of the later draw and a quarter
+    // of the opening, which is the widest the two sets differ - a tenth of
+    // four hundred is forty, and run together it would be nearer seventy.
+    //
+    // The block attack used to be the tell, when it was not one of the
+    // opening moves at all. Now that it is one of them its two weights are
+    // thirty and twenty-five, which are near enough alike to tell nothing.
+    CHECK(later["Big Hit"] > 20);
+    CHECK(later["Big Hit"] < 56);
 
-    CHECK(block > 40);
-    CHECK(block < 80);
-
-    // The big hit is a tenth here and a third of the opening. Run together
-    // it came up far too often.
-    CHECK(later["Big Hit"] < 40);
+    // And the parasite is only in the later draw, so running the two sets
+    // together halves its share as well.
+    CHECK(later["Implant"] > 20);
 }
 
 TEST_CASE("An X cost played through Chemical X still ends the turn")

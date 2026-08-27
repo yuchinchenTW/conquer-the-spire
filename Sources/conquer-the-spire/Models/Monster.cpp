@@ -980,7 +980,7 @@ bool Monster::MoveAllowed(const MonsterMove& move,
     // A move owed to a certain turn belongs to that turn and to no other. It
     // is picked out by name up above when the turn comes round; without this
     // it sat in the weighted draw on every turn after as well, so a writhing
-    // mass went on drawing its opening three at their opening weights on top
+    // mass went on drawing its opening four at their opening weights on top
     // of the ones it is meant to draw from later.
     if (move.onTurn > 0 && move.onTurn != context.turn + 1)
     {
