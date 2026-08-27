@@ -3499,3 +3499,167 @@ TEST_CASE("A hexaghost's inferno makes every burn a worse burn")
         }
     }
 }
+
+TEST_CASE("The first act's rooms are drawn, not fixed")
+{
+    std::mt19937 rng(19);
+    std::set<std::vector<MonsterId>> louses;
+    std::set<std::vector<MonsterId>> smalls;
+    std::set<std::vector<MonsterId>> gangs;
+    std::set<std::vector<MonsterId>> thugs;
+    std::set<std::vector<MonsterId>> wild;
+    std::set<MonsterId> larges;
+
+    const auto find = [](const std::vector<Encounter>& pool,
+                         const char* name) {
+        for (const Encounter& one : pool)
+        {
+            if (one.name == name)
+            {
+                return one;
+            }
+        }
+
+        return Encounter();
+    };
+
+    const Encounter twoLouse = find(EncounterLibrary::GetAct1Weak(),
+                                    "2 Louses");
+    const Encounter small = find(EncounterLibrary::GetAct1Weak(),
+                                 "Small Slimes");
+    const Encounter gang = find(EncounterLibrary::GetAct1Strong(),
+                                "Gremlin Gang");
+    const Encounter large = find(EncounterLibrary::GetAct1Strong(),
+                                 "Large Slime");
+    const Encounter thug = find(EncounterLibrary::GetAct1Strong(),
+                                "Exordium Thugs");
+    const Encounter beast = find(EncounterLibrary::GetAct1Strong(),
+                                 "Exordium Wildlife");
+    const Encounter lots = find(EncounterLibrary::GetAct1Strong(),
+                                "Lots of Slimes");
+
+    REQUIRE(gang.monsters.size() == 4u);
+
+    const auto idsOf = [](const std::vector<Monster>& built) {
+        std::vector<MonsterId> out;
+
+        for (const Monster& one : built)
+        {
+            out.emplace_back(one.GetMonsterId());
+        }
+
+        return out;
+    };
+
+    for (int i = 0; i < 400; ++i)
+    {
+        louses.insert(idsOf(EncounterLibrary::Build(twoLouse, rng)));
+        smalls.insert(idsOf(EncounterLibrary::Build(small, rng)));
+        thugs.insert(idsOf(EncounterLibrary::Build(thug, rng)));
+        wild.insert(idsOf(EncounterLibrary::Build(beast, rng)));
+        larges.insert(
+            EncounterLibrary::Build(large, rng).front().GetMonsterId());
+
+        const std::vector<Monster> four = EncounterLibrary::Build(gang, rng);
+
+        REQUIRE(four.size() == 4u);
+
+        std::map<MonsterId, int> alike;
+
+        for (const Monster& one : four)
+        {
+            ++alike[one.GetMonsterId()];
+        }
+
+        // Four out of a bag holding two fats, two sneakies, two mads, one
+        // shield and one wizard - so never three of a kind, and never two
+        // shields or two wizards.
+        for (const auto& counted : alike)
+        {
+            REQUIRE(counted.second <= 2);
+
+            if (counted.first == MonsterId::SHIELD_GREMLIN ||
+                counted.first == MonsterId::GREMLIN_WIZARD)
+            {
+                REQUIRE(counted.second == 1);
+            }
+        }
+
+        std::vector<MonsterId> sorted = idsOf(four);
+
+        std::sort(sorted.begin(), sorted.end());
+        gangs.insert(sorted);
+    }
+
+    // Each louse its own colour, so all four pairings turn up.
+    CHECK(louses.size() == 4u);
+
+    // A medium of one kind beside a small of the other, either way round.
+    CHECK(smalls.size() == 2u);
+
+    // A large slime of either kind, one room rather than two.
+    CHECK(larges.size() == 2u);
+
+    // And the mixed rooms and the gang really are drawn.
+    CHECK(gangs.size() > 4u);
+    CHECK(thugs.size() > 4u);
+    CHECK(wild.size() > 3u);
+
+    // Three spike and two acid, which was the other way round.
+    int spike = 0;
+
+    for (const MonsterId id : lots.monsters)
+    {
+        spike += id == MonsterId::SPIKE_SLIME_S ? 1 : 0;
+    }
+
+    CHECK(lots.monsters.size() == 5u);
+    CHECK(spike == 3);
+}
+
+TEST_CASE("The first hard fight of act one turns some rooms away")
+{
+    std::mt19937 rng(23);
+
+    // Three louses cannot follow two of them into the harder list, nor a
+    // large slime or a swarm follow the small ones.
+    for (const char* had : { "2 Louses", "Small Slimes" })
+    {
+        std::set<std::string> drawn;
+
+        for (int i = 0; i < 400; ++i)
+        {
+            drawn.insert(
+                EncounterLibrary::Pick(1, MapNodeType::MONSTER,
+                                       EncounterLibrary::WeakFightsOf(1), rng,
+                                       { had })
+                    .name);
+        }
+
+        REQUIRE(drawn.empty() == false);
+
+        if (std::string(had) == "2 Louses")
+        {
+            CHECK(drawn.count("3 Louses") == 0u);
+        }
+        else
+        {
+            CHECK(drawn.count("Large Slime") == 0u);
+            CHECK(drawn.count("Lots of Slimes") == 0u);
+        }
+    }
+
+    // And only the first one: by the next hard fight they are back.
+    std::set<std::string> later;
+
+    for (int i = 0; i < 400; ++i)
+    {
+        later.insert(EncounterLibrary::Pick(
+                         1, MapNodeType::MONSTER,
+                         EncounterLibrary::WeakFightsOf(1) + 1, rng,
+                         { "2 Louses" })
+                         .name);
+    }
+
+    CHECK(later.count("3 Louses") == 1u);
+}

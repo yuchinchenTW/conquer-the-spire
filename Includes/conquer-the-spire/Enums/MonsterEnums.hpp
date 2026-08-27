@@ -162,7 +162,15 @@ enum class MonsterId
 
     //! A jaw worm of the third act, which is the same worm that has already
     //! bellowed once before the fight starts.
-    JAW_WORM_HARD
+    JAW_WORM_HARD,
+
+    //! Not monsters of their own: a louse of either colour, a medium slime of
+    //! either kind, a large slime of either kind. The spire writes several of
+    //! its rooms as "a louse" and "a slime" and settles the colour when the
+    //! room is built, so the rooms say that too.
+    RANDOM_LOUSE,
+    RANDOM_MEDIUM_SLIME,
+    RANDOM_LARGE_SLIME
 };
 }  // namespace ConquerTheSpire
 

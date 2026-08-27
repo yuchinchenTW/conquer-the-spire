@@ -657,6 +657,33 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             return called;
         }
 
+        case MonsterId::RANDOM_LOUSE:
+        {
+            std::uniform_int_distribution<int> coin(0, 1);
+
+            return Make(coin(rng) == 0 ? MonsterId::RED_LOUSE
+                                       : MonsterId::GREEN_LOUSE,
+                        rng);
+        }
+
+        case MonsterId::RANDOM_MEDIUM_SLIME:
+        {
+            std::uniform_int_distribution<int> coin(0, 1);
+
+            return Make(coin(rng) == 0 ? MonsterId::SPIKE_SLIME_M
+                                       : MonsterId::ACID_SLIME_M,
+                        rng);
+        }
+
+        case MonsterId::RANDOM_LARGE_SLIME:
+        {
+            std::uniform_int_distribution<int> coin(0, 1);
+
+            return Make(coin(rng) == 0 ? MonsterId::SPIKE_SLIME_L
+                                       : MonsterId::ACID_SLIME_L,
+                        rng);
+        }
+
         case MonsterId::RANDOM_SHAPE:
         {
             // One of the three. Which of them turn up is what a room of
@@ -1400,7 +1427,10 @@ const std::vector<MonsterId>& MonsterRoster::GetAll()
             // is. Everything that walks this list expects the monster it gets
             // back to be the one it asked for.
             if (id == MonsterId::RANDOM_GREMLIN ||
-                id == MonsterId::RANDOM_SHAPE)
+                id == MonsterId::RANDOM_SHAPE ||
+                id == MonsterId::RANDOM_LOUSE ||
+                id == MonsterId::RANDOM_MEDIUM_SLIME ||
+                id == MonsterId::RANDOM_LARGE_SLIME)
             {
                 continue;
             }

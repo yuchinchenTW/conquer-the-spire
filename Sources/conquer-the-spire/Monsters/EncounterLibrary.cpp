@@ -13,12 +13,13 @@ namespace ConquerTheSpire
 namespace
 {
 Encounter Group(const char* name, MonsterType type,
-                std::vector<MonsterId> monsters)
+                std::vector<MonsterId> monsters, int weight = 1)
 {
     Encounter encounter;
     encounter.name = name;
     encounter.type = type;
     encounter.monsters = std::move(monsters);
+    encounter.weight = weight;
 
     return encounter;
 }
@@ -27,12 +28,18 @@ Encounter Group(const char* name, MonsterType type,
 const std::vector<Encounter>& EncounterLibrary::GetAct1Weak()
 {
     static const std::vector<Encounter> groups = {
-        Group("Cultist", MonsterType::NORMAL, { MonsterId::CULTIST }),
-        Group("Jaw Worm", MonsterType::NORMAL, { MonsterId::JAW_WORM }),
+        // Two apiece, so the four come up alike. The louses are a colour
+        // each, drawn as the room is built rather than one of each every
+        // time.
+        Group("Cultist", MonsterType::NORMAL, { MonsterId::CULTIST }, 2),
+        Group("Jaw Worm", MonsterType::NORMAL, { MonsterId::JAW_WORM }, 2),
         Group("2 Louses", MonsterType::NORMAL,
-              { MonsterId::RED_LOUSE, MonsterId::GREEN_LOUSE }),
+              { MonsterId::RANDOM_LOUSE, MonsterId::RANDOM_LOUSE }, 2),
+
+        // A medium of one kind beside a small of the other, either way
+        // round. It was a small spike beside a medium acid, always.
         Group("Small Slimes", MonsterType::NORMAL,
-              { MonsterId::SPIKE_SLIME_S, MonsterId::ACID_SLIME_M })
+              { MonsterId::SPIKE_SLIME_M, MonsterId::ACID_SLIME_S }, 2)
     };
 
     return groups;
@@ -41,31 +48,41 @@ const std::vector<Encounter>& EncounterLibrary::GetAct1Weak()
 const std::vector<Encounter>& EncounterLibrary::GetAct1Strong()
 {
     static const std::vector<Encounter> groups = {
+        // The weights doubled, because two of the eleven are worth one and
+        // a half against the others and there are no halves here. Two of the
+        // rooms had been split in two - a large acid slime and a large spike
+        // slime standing as separate rooms - which handed that one room twice
+        // the share the spire gives it.
         Group("Gremlin Gang", MonsterType::NORMAL,
-              { MonsterId::MAD_GREMLIN, MonsterId::SNEAKY_GREMLIN,
-                MonsterId::FAT_GREMLIN, MonsterId::SHIELD_GREMLIN,
-                MonsterId::GREMLIN_WIZARD }),
-        Group("Large Acid Slime", MonsterType::NORMAL,
-              { MonsterId::ACID_SLIME_L }),
-        Group("Large Spike Slime", MonsterType::NORMAL,
-              { MonsterId::SPIKE_SLIME_L }),
+              { MonsterId::RANDOM_GREMLIN, MonsterId::RANDOM_GREMLIN,
+                MonsterId::RANDOM_GREMLIN, MonsterId::RANDOM_GREMLIN }, 2),
+        Group("Large Slime", MonsterType::NORMAL,
+              { MonsterId::RANDOM_LARGE_SLIME }, 4),
         Group("Blue Slaver", MonsterType::NORMAL,
-              { MonsterId::BLUE_SLAVER }),
-        Group("Red Slaver", MonsterType::NORMAL, { MonsterId::RED_SLAVER }),
+              { MonsterId::BLUE_SLAVER }, 4),
+        Group("Red Slaver", MonsterType::NORMAL,
+              { MonsterId::RED_SLAVER }, 2),
         Group("3 Louses", MonsterType::NORMAL,
-              { MonsterId::RED_LOUSE, MonsterId::GREEN_LOUSE,
-                MonsterId::RED_LOUSE }),
+              { MonsterId::RANDOM_LOUSE, MonsterId::RANDOM_LOUSE,
+                MonsterId::RANDOM_LOUSE }, 4),
         Group("2 Fungi Beasts", MonsterType::NORMAL,
-              { MonsterId::FUNGI_BEAST, MonsterId::FUNGI_BEAST }),
+              { MonsterId::FUNGI_BEAST, MonsterId::FUNGI_BEAST }, 4),
+
+        // A louse or a medium slime, and then a slaver, a cultist or a
+        // looter. It was a looter beside a blue slaver, always.
         Group("Exordium Thugs", MonsterType::NORMAL,
-              { MonsterId::LOOTER, MonsterId::BLUE_SLAVER }),
+              { MonsterId::RANDOM_LOUSE, MonsterId::LOOTER }, 3),
+
+        // A fungi beast or a jaw worm, and then a louse or a medium slime.
         Group("Exordium Wildlife", MonsterType::NORMAL,
-              { MonsterId::FUNGI_BEAST, MonsterId::JAW_WORM }),
-        Group("Looter", MonsterType::NORMAL, { MonsterId::LOOTER }),
+              { MonsterId::FUNGI_BEAST, MonsterId::RANDOM_LOUSE }, 3),
+        Group("Looter", MonsterType::NORMAL, { MonsterId::LOOTER }, 4),
+
+        // Three spike and two acid, which was the other way round.
         Group("Lots of Slimes", MonsterType::NORMAL,
               { MonsterId::SPIKE_SLIME_S, MonsterId::SPIKE_SLIME_S,
-                MonsterId::ACID_SLIME_S, MonsterId::ACID_SLIME_S,
-                MonsterId::ACID_SLIME_S })
+                MonsterId::SPIKE_SLIME_S, MonsterId::ACID_SLIME_S,
+                MonsterId::ACID_SLIME_S }, 2)
     };
 
     return groups;
@@ -372,14 +389,59 @@ Encounter EncounterLibrary::Pick(int act, MapNodeType node, int fightsSoFar,
             break;
     }
 
+    // The first fight out of the harder list cannot be certain rooms, going
+    // by the last of the easy ones. Written as the page writes it:
+    //
+    //   3 Louses after 2 Louses
+    //   Lots of Slimes or Large Slime after Small Slimes
+    //   Exordium Thugs after Looter
+    //   Red Slaver or Exordium Thugs after Blue Slaver
+    //
+    // The last two clauses cannot come up in the first act, because a looter
+    // and a blue slaver are rooms of the harder list and so can never be the
+    // easy fight before it. They are kept because the page keeps them, and
+    // they cost nothing standing there.
+    const bool firstHard =
+        node == MapNodeType::MONSTER && fightsSoFar == WeakFightsOf(act);
+    const std::string before = lately.empty() ? std::string() : lately.front();
+    const auto barredAfter = [&before](const std::string& name) {
+        if (before == "2 Louses")
+        {
+            return name == "3 Louses";
+        }
+
+        if (before == "Small Slimes")
+        {
+            return name == "Lots of Slimes" || name == "Large Slime";
+        }
+
+        if (before == "Looter")
+        {
+            return name == "Exordium Thugs";
+        }
+
+        if (before == "Blue Slaver")
+        {
+            return name == "Red Slaver" || name == "Exordium Thugs";
+        }
+
+        return false;
+    };
+
     // The two just had are out of the draw, so that no three fights running
     // hold two alike. Elites and bosses come from pools of a few and the rule
     // is written about monster rooms, so it is only asked there.
     const bool ruled = node == MapNodeType::MONSTER;
-    const auto barred = [&lately, ruled](const std::string& name) {
+    const auto barred = [&lately, ruled, firstHard,
+                        &barredAfter](const std::string& name) {
         if (!ruled)
         {
             return false;
+        }
+
+        if (firstHard && barredAfter(name))
+        {
+            return true;
         }
 
         const std::size_t deep = lately.size() < 2u ? lately.size() : 2u;
@@ -492,6 +554,87 @@ std::vector<Monster> EncounterLibrary::Build(const Encounter& encounter,
         // A minion called in later keeps whatever the roster gave it, which
         // for the ones that matter is plain.
         monsters.back().SetMonsterType(encounter.type);
+    }
+
+    // The rooms whose parts are drawn together rather than one at a time.
+    // A small slimes room is a medium of one kind beside a small of the
+    // other, either way round, which is one draw and not two; a gremlin gang
+    // is four out of a bag holding two fats, two sneakies, two mads, one
+    // shield and one wizard, so what has already been taken changes what is
+    // left; and the two mixed rooms draw each place from its own list.
+    if (encounter.name == "Small Slimes" && monsters.size() == 2u)
+    {
+        std::uniform_int_distribution<int> coin(0, 1);
+
+        if (coin(rng) == 0)
+        {
+            monsters[0] = MonsterRoster::Make(MonsterId::ACID_SLIME_M, rng);
+            monsters[1] = MonsterRoster::Make(MonsterId::SPIKE_SLIME_S, rng);
+            monsters[0].SetMonsterType(encounter.type);
+            monsters[1].SetMonsterType(encounter.type);
+        }
+    }
+
+    if (encounter.name == "Gremlin Gang" && monsters.size() == 4u)
+    {
+        std::vector<MonsterId> bag = {
+            MonsterId::FAT_GREMLIN,    MonsterId::FAT_GREMLIN,
+            MonsterId::SNEAKY_GREMLIN, MonsterId::SNEAKY_GREMLIN,
+            MonsterId::MAD_GREMLIN,    MonsterId::MAD_GREMLIN,
+            MonsterId::SHIELD_GREMLIN, MonsterId::GREMLIN_WIZARD
+        };
+
+        for (std::size_t at = 0; at < monsters.size(); ++at)
+        {
+            std::uniform_int_distribution<std::size_t> pick(
+                0, bag.size() - 1);
+            const std::size_t which = pick(rng);
+
+            monsters[at] = MonsterRoster::Make(bag[which], rng);
+            monsters[at].SetMonsterType(encounter.type);
+            bag.erase(bag.begin() + static_cast<std::ptrdiff_t>(which));
+        }
+    }
+
+    if (encounter.name == "Exordium Thugs" && monsters.size() == 2u)
+    {
+        std::uniform_int_distribution<int> coin(0, 1);
+        std::uniform_int_distribution<int> three(0, 2);
+        const MonsterId second[] = { MonsterId::BLUE_SLAVER,
+                                     MonsterId::RED_SLAVER,
+                                     MonsterId::CULTIST,
+                                     MonsterId::LOOTER };
+
+        monsters[0] = MonsterRoster::Make(
+            coin(rng) == 0 ? MonsterId::RANDOM_LOUSE
+                           : MonsterId::RANDOM_MEDIUM_SLIME,
+            rng);
+
+        // A slaver of either colour counts as one of the three.
+        const int which = three(rng);
+
+        monsters[1] = MonsterRoster::Make(
+            which == 0 ? second[coin(rng)] : second[which + 1], rng);
+
+        monsters[0].SetMonsterType(encounter.type);
+        monsters[1].SetMonsterType(encounter.type);
+    }
+
+    if (encounter.name == "Exordium Wildlife" && monsters.size() == 2u)
+    {
+        std::uniform_int_distribution<int> coin(0, 1);
+
+        monsters[0] = MonsterRoster::Make(coin(rng) == 0
+                                              ? MonsterId::FUNGI_BEAST
+                                              : MonsterId::JAW_WORM,
+                                          rng);
+        monsters[1] = MonsterRoster::Make(
+            coin(rng) == 0 ? MonsterId::RANDOM_LOUSE
+                           : MonsterId::RANDOM_MEDIUM_SLIME,
+            rng);
+
+        monsters[0].SetMonsterType(encounter.type);
+        monsters[1].SetMonsterType(encounter.type);
     }
 
     // The middle darkling of three cannot chomp. It is the same monster as

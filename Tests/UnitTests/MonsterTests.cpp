@@ -693,7 +693,10 @@ TEST_CASE("Hexaghost opens with Activate and Divider")
 TEST_CASE("The act one encounters hold what they should")
 {
     CHECK(EncounterLibrary::GetAct1Weak().size() == 4u);
-    CHECK(EncounterLibrary::GetAct1Strong().size() == 11u);
+    // Ten, not eleven: the large slime is one room where a large acid slime
+    // and a large spike slime had been written as two, which handed that one
+    // room twice the share the spire gives it.
+    CHECK(EncounterLibrary::GetAct1Strong().size() == 10u);
     CHECK(EncounterLibrary::GetAct1Elites().size() == 3u);
     CHECK(EncounterLibrary::GetAct1Bosses().size() == 3u);
 
