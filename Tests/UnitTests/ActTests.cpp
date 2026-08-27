@@ -3914,3 +3914,75 @@ TEST_CASE("What answers a played card is damage, so block soaks it")
         CHECK(before - battle.GetPlayer().GetHealth() < 10);
     }
 }
+
+TEST_CASE("A Guardian only shells up when its wall is brought down")
+{
+    Battle battle = FightAgainst({ MonsterId::THE_GUARDIAN });
+    Monster& guard = battle.GetMonsters().front();
+
+    // Four moves round and round, and nothing else, for as long as the wall
+    // stands. Written as one scripted list of eight it walked into the shell
+    // every eighth turn whether the climber had broken the wall or not - and
+    // each of those free shells put another ten on the wall through the
+    // slam, so the wall grew without anybody ever breaking it.
+    const char* walk[] = { "Charging Up", "Fierce Bash", "Vent Steam",
+                           "Whirlwind" };
+
+    for (int turn = 0; turn < 12; ++turn)
+    {
+        CHECK(guard.GetCurrentMove().name == walk[turn % 4]);
+        CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 30);
+
+        battle.GetPlayer().SetHealth(400);
+
+        REQUIRE(battle.EndTurn() == true);
+    }
+
+    // Bring it down with one left, so the blow overshoots - which is the
+    // ordinary way it happens and not a special case.
+    guard.AddPower(PowerType::MODE_SHIFT, -29);
+
+    REQUIRE(guard.GetPower(PowerType::MODE_SHIFT) == 1);
+
+    battle.GetPlayer().GetHand().emplace_back(
+        CardRegistry::Get(CardId::STRIKE_RED));
+    battle.GetPlayer().SetEnergy(3);
+
+    const std::string meant = guard.GetCurrentMove().name;
+
+    REQUIRE(Swing(battle, 0u) == true);
+
+    // Whatever it meant to do is dropped, and twenty goes up on the spot.
+    CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 0);
+    CHECK(guard.GetCurrentMove().name == "Defensive Mode");
+    CHECK(guard.GetCurrentMove().name != meant);
+    CHECK(guard.GetBlock() == 20);
+
+    // The shell, and then back onto the walk at the top of it.
+    const char* shell[] = { "Defensive Mode", "Roll Attack", "Twin Slam",
+                            "Whirlwind", "Charging Up", "Fierce Bash" };
+
+    for (const char* name : shell)
+    {
+        CHECK(guard.GetCurrentMove().name == name);
+
+        battle.GetPlayer().SetHealth(400);
+
+        REQUIRE(battle.EndTurn() == true);
+    }
+
+    // And the wall it stood back up is ten higher, once, for the one time it
+    // was broken.
+    CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 40);
+
+    // Round again with the wall standing, and it stays on the walk.
+    for (int turn = 0; turn < 8; ++turn)
+    {
+        CHECK(guard.GetCurrentMove().name != "Defensive Mode");
+        CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 40);
+
+        battle.GetPlayer().SetHealth(400);
+
+        REQUIRE(battle.EndTurn() == true);
+    }
+}

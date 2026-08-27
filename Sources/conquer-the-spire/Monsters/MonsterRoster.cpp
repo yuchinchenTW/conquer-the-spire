@@ -432,22 +432,52 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
             // The walk after a shape change is roll, slam, whirlwind, and
             // then back round to the start. The whirlwind was missing, so it
             // came out of the shape change a move short.
-            monster = Patterned(
+            // Four moves round and round, and the shell is an interruption
+            // rather than a stop on the way: charge, bash, steam, whirl, and
+            // back to the charge. Written as one scripted list of eight it
+            // walked into the shell every eighth turn whether the climber
+            // had brought the wall down or not - and each of those free
+            // shells put another ten on the wall through the slam, so the
+            // wall grew without anybody ever breaking it.
+            //
+            // Each move says what it follows, so the walk closes on itself
+            // and the shell hangs off the side of it, reachable only by
+            // being told to. Both whirlwinds lead back to the charge, which
+            // is what makes the way out of the shell rejoin the walk.
+            monster = Thinking(
                 id, "The Guardian", MonsterType::BOSS, 240,
-                { MM::Defend("Charging Up", 9),
-                  MM::Attack("Fierce Bash", 32),
+                { MM::Defend("Charging Up", 9).Opener(),
+                  MM::Defend("Charging Up", 9)
+                      .Chance(100)
+                      .Follows("Whirlwind"),
+                  MM::Attack("Fierce Bash", 32)
+                      .Chance(100)
+                      .Follows("Charging Up"),
                   MM::Of("Vent Steam", Intent::DEBUFF,
                          { ME::Debuff(PowerType::WEAK, 2),
-                           ME::Debuff(PowerType::VULNERABLE, 2) }),
-                  MM::Attack("Whirlwind", 5, 4),
+                           ME::Debuff(PowerType::VULNERABLE, 2) })
+                      .Chance(100)
+                      .Follows("Fierce Bash"),
+                  MM::Attack("Whirlwind", 5, 4)
+                      .Chance(100)
+                      .Follows("Vent Steam"),
+
+                  // The shell. Nothing draws these; the wall coming down
+                  // names the first and the rest follow it.
                   MM::Of("Defensive Mode", Intent::BUFF,
                          { ME::Buff(PowerType::SHARP_HIDE, 3) }),
-                  MM::Attack("Roll Attack", 9),
+                  MM::Attack("Roll Attack", 9)
+                      .Chance(100)
+                      .Follows("Defensive Mode"),
                   MM::Of("Twin Slam", Intent::ATTACK,
                          { ME::Damage(8, 2),
                            ME::Buff(PowerType::SHARP_HIDE, -3),
-                           ME::RaiseWall(30, 10) }),
-                  MM::Attack("Whirlwind", 5, 4) });
+                           ME::RaiseWall(30, 10) })
+                      .Chance(100)
+                      .Follows("Roll Attack"),
+                  MM::Attack("Whirlwind", 5, 4)
+                      .Chance(100)
+                      .Follows("Twin Slam") });
             monster.AddPower(PowerType::MODE_SHIFT, 30);
             break;
         }
