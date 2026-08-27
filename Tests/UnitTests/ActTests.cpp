@@ -2896,8 +2896,11 @@ TEST_CASE("What can be aimed at while it is down is asked of each of them")
                   battle.GetPlayer().GetPotions().size() - 1u, 0u) == true);
     }
 
-    // A darkling is out of reach: out of what a card may be aimed at, out of
-    // what a random blow may land on, and out of what the learner is shown.
+    // A darkling is out of reach: out of what a card may be aimed at and out
+    // of what a blow thrown at random may land on. Not out of what the
+    // learner is shown - it stays in the room, where the climber can see it
+    // lying there and see the intent that says it is coming back, and the
+    // assertions below say so.
     {
         Battle battle =
             FightAgainst({ MonsterId::DARKLING, MonsterId::DARKLING });
