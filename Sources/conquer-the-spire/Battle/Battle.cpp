@@ -779,11 +779,16 @@ bool Battle::CanPlay(std::size_t handIndex, std::size_t monsterIndex) const
         return false;
     }
 
+    if (monsterIndex == ANY_MONSTER)
+    {
+        const std::vector<std::size_t> aimable =
+            GetTargetableMonsterIndices();
+
+        monsterIndex = aimable.empty() ? 0u : aimable.front();
+    }
+
     // A darkling lying there cannot be aimed at, so a card aimed at one is
-    // not playable. The list of who is standing already leaves it out and
-    // the learner is only ever offered targets from that list, so nothing
-    // asks this in the ordinary way - but the two answers have to agree, or
-    // an action offered somewhere would be refused here.
+    // not playable.
     if (monsterIndex < m_monsters.size() &&
         m_monsters[monsterIndex].IsRegrowing() &&
         m_monsters[monsterIndex].IsHiddenWhenDown())
@@ -867,22 +872,36 @@ bool Battle::CanPlay(std::size_t handIndex, std::size_t monsterIndex) const
 
 std::vector<std::size_t> Battle::GetLivingMonsterIndices() const
 {
-    // A thing at nothing health that is not finished with is still standing
-    // in the room, and whether it can be aimed at is not the same answer for
-    // all of them.
-    //
-    // A darkling cannot: its page says the intent changes to Regrowing "and
-    // cannot be targeted", so while it is down it is out of this list - out
-    // of what a card may be aimed at, out of what a random blow may land on,
-    // and out of what the learner is shown.
-    //
-    // An awakened one can: its page says nothing about aiming and the other
-    // wiki says invulnerable, which means the blow may be thrown and comes to
-    // nothing. So a climber can waste a swing on it, the way the spire lets
-    // them, and the learner is told enough to stop doing it - the slot says
-    // somebody is there and says their health is nothing, in the same two
-    // numbers it reads for everybody else.
+    // Who is in the room, which is not the same question as who may be
+    // aimed at. A darkling lying there cannot be aimed at, but a climber can
+    // see it lying there and can see the intent that says it is coming back,
+    // so it stays in this list: this is what the state is built from, and
+    // the ordinal a move names is an offset into it. Taking it out here hid
+    // a monster the spire shows and shifted everybody behind it a place
+    // along for two turns.
+    std::vector<std::size_t> indices;
 
+    for (std::size_t i = 0; i < m_monsters.size(); ++i)
+    {
+        if (!m_monsters[i].IsGone())
+        {
+            indices.emplace_back(i);
+        }
+    }
+
+    return indices;
+}
+
+std::vector<std::size_t> Battle::GetTargetableMonsterIndices() const
+{
+    // And who may be aimed at. A darkling's page says that once its health
+    // reaches nothing its intent changes to Regrowing "and cannot be
+    // targeted", so it is out of this one - out of what a card may be aimed
+    // at and out of what a blow thrown at random may land on.
+    //
+    // An awakened one is not: its page says nothing about aiming and the
+    // other wiki says invulnerable, which means the blow may be thrown and
+    // comes to nothing.
     std::vector<std::size_t> indices;
 
     for (std::size_t i = 0; i < m_monsters.size(); ++i)
@@ -923,8 +942,8 @@ std::vector<std::size_t> Battle::GetPlayableCardIndices() const
         return indices;
     }
 
-    const std::vector<std::size_t> living = GetLivingMonsterIndices();
-    const std::size_t firstTarget = living.empty() ? 0 : living.front();
+    const std::vector<std::size_t> aimable = GetTargetableMonsterIndices();
+    const std::size_t firstTarget = aimable.empty() ? 0 : aimable.front();
 
     for (std::size_t i = 0; i < m_player.GetHand().size(); ++i)
     {
@@ -1441,18 +1460,26 @@ void Battle::RunMonsterTurn()
             {
                 OnMonsterDied(monster);
             }
-            else if (monster.GetHealth() < standing)
+            else if (const int shift = monster.GetPower(PowerType::MODE_SHIFT);
+                     shift > 0 && monster.GetHealth() < standing)
             {
-                // And short of that it can carry something past the line it
-                // changes at. The rules were only ever asked after the
-                // climber's own damage or after a monster had moved, so a
-                // time eater poisoned under half here hurried a turn late.
-                //
-                // Only when the poison actually took something. Asking for
-                // everybody every turn moves when every other rule in there
-                // fires, which is a far larger change than this is - it had
-                // a slime splitting at the top of its turn instead of on it.
-                CheckMonsterRules(monster);
+                // A guardian counts poison against the wall it changes shape
+                // at, and changes there and then. It is the one thing that
+                // does: for the others that turn at a share of their health -
+                // a champ, a thing that eats time - the page says the turning
+                // happens on a later turn and poison does not bring it
+                // forward. Asking the rules for everybody here is what that
+                // sentence rules out, and asking them was wrong.
+                const int taken = standing - monster.GetHealth();
+
+                monster.AddPower(PowerType::MODE_SHIFT,
+                                 -(taken < shift ? taken : shift));
+
+                if (monster.GetPower(PowerType::MODE_SHIFT) == 0)
+                {
+                    monster.RemovePower(PowerType::MODE_SHIFT);
+                    monster.ForceMove("Defensive Mode");
+                }
             }
         }
     }
@@ -1771,8 +1798,13 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
                                         card.GetCardType() ==
                                             CardType::ATTACK);
 
+                    // The same reckoning a Feed uses, and for the same
+                    // reason: an awakened one on its first body and a
+                    // darkling with a brother still standing both get back
+                    // up, so neither is a kill. This is the second place that
+                    // asks, and it was asking a shorter question.
                     if (effect.goldIfFatal > 0 && standing &&
-                        monster->IsDead() &&
+                        monster->IsDead() && !monster->IsRegrowing() &&
                         monster->GetPower(PowerType::MINION) == 0)
                     {
                         m_goldFound += effect.goldIfFatal;
@@ -2825,7 +2857,8 @@ std::vector<Monster*> Battle::GetEffectTargets(const CardEffect& effect,
 
         case EffectTarget::RANDOM_ENEMY:
         {
-            const std::vector<std::size_t> living = GetLivingMonsterIndices();
+            const std::vector<std::size_t> living =
+                GetTargetableMonsterIndices();
 
             if (!living.empty())
             {
@@ -3970,7 +4003,7 @@ void Battle::DealOrbDamageToTarget(int amount)
         return;
     }
 
-    const std::vector<std::size_t> living = GetLivingMonsterIndices();
+    const std::vector<std::size_t> living = GetTargetableMonsterIndices();
 
     if (living.empty())
     {
@@ -4296,7 +4329,7 @@ void Battle::DamageAllEnemies(int amount)
 
 void Battle::DamageRandomEnemy(int amount)
 {
-    const std::vector<std::size_t> living = GetLivingMonsterIndices();
+    const std::vector<std::size_t> living = GetTargetableMonsterIndices();
 
     if (living.empty())
     {

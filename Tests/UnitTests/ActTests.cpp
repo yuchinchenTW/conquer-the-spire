@@ -2900,11 +2900,22 @@ TEST_CASE("What can be aimed at while it is down is asked of each of them")
         CHECK(first.GetHealth() == 0);
         CHECK(first.IsGone() == false);
 
+        // Still in the room, and the climber can see it lying there - the
+        // state is built from this list and the ordinal a move names is an
+        // offset into it, so taking it out here would hide a monster the
+        // spire shows and shift the one behind it a place along.
         const std::vector<std::size_t> living =
             battle.GetLivingMonsterIndices();
 
-        CHECK(std::find(living.begin(), living.end(), 0u) == living.end());
-        CHECK(living.size() == 1u);
+        CHECK(std::find(living.begin(), living.end(), 0u) != living.end());
+        CHECK(living.size() == 2u);
+
+        // But not aimable at, which is the other question.
+        const std::vector<std::size_t> aimable =
+            battle.GetTargetableMonsterIndices();
+
+        CHECK(std::find(aimable.begin(), aimable.end(), 0u) == aimable.end());
+        CHECK(aimable.size() == 1u);
 
         battle.GetPlayer().GetHand().emplace_back(
             CardRegistry::Get(CardId::STRIKE_RED));
@@ -2912,6 +2923,15 @@ TEST_CASE("What can be aimed at while it is down is asked of each of them")
 
         CHECK(battle.CanPlay(battle.GetPlayer().GetHand().size() - 1u, 0u) ==
               false);
+
+        // And asking without naming anybody asks about the first one that
+        // may be aimed at, not about whoever stands first. Asking about
+        // whoever stands first answered no for every card in hand while a
+        // darkling lay at the front of the room - and that answer is written
+        // into the state the learner reads.
+        CHECK(battle.CanPlay(battle.GetPlayer().GetHand().size() - 1u) ==
+              true);
+        CHECK(battle.GetPlayableCardIndices().empty() == false);
 
         // And it comes back into reach once it is up again.
         battle.EndTurn();
@@ -3012,23 +3032,111 @@ TEST_CASE("A Transient gives up strength for a flat blow too")
     CHECK(lost(5) == plain + 5);
 }
 
-TEST_CASE("Poison under half hurries a Time Eater on the spot")
+TEST_CASE("Poison does not hurry a threshold along, except a guardian's")
 {
-    Battle battle = FightAgainst({ MonsterId::TIME_EATER });
-    Monster& eater = battle.GetMonsters().front();
+    // The page: when poison takes a Guardian past the wall it changes shape
+    // at, it changes there and then. "In other cases where HP thresholds
+    // affect enemy Intent (such as The Champ and Time Eater), this happens on
+    // a subsequent turn, and will not be affected." I had read that the other
+    // way round and hurried all of them.
+    {
+        Battle battle = FightAgainst({ MonsterId::TIME_EATER });
+        Monster& eater = battle.GetMonsters().front();
 
-    eater.SetHealth(eater.GetMaxHealth() / 2 + 3);
-    eater.AddPower(PowerType::POISON, 9);
+        eater.SetHealth(eater.GetMaxHealth() / 2 + 3);
+        eater.AddPower(PowerType::POISON, 9);
 
-    REQUIRE(eater.GetPhase() == 1);
-    REQUIRE(battle.EndTurn() == true);
+        REQUIRE(eater.GetPhase() == 1);
+        REQUIRE(battle.EndTurn() == true);
 
-    CHECK(eater.GetPhase() == 2);
+        // Under half from the poison, and it has not hasted on this turn -
+        // Haste comes back up to half, so still being under is the waiting.
+        CHECK(eater.GetHealth() < eater.GetMaxHealth() / 2);
+    }
 
-    // And it hastes on this turn, not the next one. The phase alone does not
-    // say which: the rules were asked after the monster had moved as well, so
-    // the old order reached phase two by the end of the same turn and only
-    // the healing tells the two apart. Haste comes back up to half, so being
-    // at or above half after a tick that put it under is the hurrying.
-    CHECK(eater.GetHealth() >= eater.GetMaxHealth() / 2);
+    // A guardian is the exception the page names, and poison counts against
+    // its wall - which it was not doing at all.
+    {
+        Battle battle = FightAgainst({ MonsterId::THE_GUARDIAN });
+        Monster& guard = battle.GetMonsters().front();
+
+        REQUIRE(guard.GetPower(PowerType::MODE_SHIFT) == 30);
+
+        guard.AddPower(PowerType::POISON, 30);
+
+        REQUIRE(battle.EndTurn() == true);
+
+        // The wall is gone and it went into Defensive Mode on that very
+        // turn, which is what Sharp Hide standing on it says - the intent
+        // cannot be read afterwards because it has already been acted on and
+        // the pattern has moved along.
+        CHECK(guard.GetPower(PowerType::MODE_SHIFT) == 0);
+        CHECK(guard.GetPower(PowerType::SHARP_HIDE) == 3);
+    }
+}
+
+TEST_CASE("A hand of greed counts a kill the way a feed does")
+{
+    // Two places ask whether the card killed something, and they were asking
+    // different questions. This one only looked at dead-and-not-a-minion, so
+    // it paid out on an awakened one's first body and on a darkling that was
+    // going to stand back up - the very farming the Fatal page gives as the
+    // reason for the rule.
+    const auto gold = [](std::vector<MonsterId> room, std::size_t at) {
+        Battle battle = FightAgainst(room);
+
+        battle.GetMonsters()[at].SetHealth(1);
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::HAND_OF_GREED));
+        battle.GetPlayer().SetEnergy(3);
+
+        const std::size_t slot = battle.GetPlayer().GetHand().size() - 1u;
+
+        REQUIRE(battle.PlayCard(slot, at) == true);
+
+        return battle.GetGoldFound();
+    };
+
+    CHECK(gold({ MonsterId::AWAKENED_ONE }, 0u) == 0);
+    CHECK(gold({ MonsterId::DARKLING, MonsterId::DARKLING }, 0u) == 0);
+
+    // The last one standing does pay, and so does an ordinary monster.
+    CHECK(gold({ MonsterId::DARKLING }, 0u) > 0);
+    CHECK(gold({ MonsterId::SPIKER }, 0u) > 0);
+}
+
+TEST_CASE("A reptomancer with a full floor gives the summon's share away")
+{
+    // Four daggers standing, so the summon has nowhere to put anybody and
+    // hands its third to the snake strike - two thirds the strike, one third
+    // the bite. The gate was being asked before the handing-over, so the
+    // share went nowhere and the two attacks split it evenly instead.
+    std::map<std::string, int> tally;
+
+    for (unsigned int seed = 1; seed <= 200u; ++seed)
+    {
+        Battle battle = FightAgainst({ MonsterId::REPTOMANCER,
+                                       MonsterId::DAGGER, MonsterId::DAGGER,
+                                       MonsterId::DAGGER,
+                                       MonsterId::DAGGER },
+                                     seed);
+
+        battle.GetPlayer().SetHealth(400);
+
+        // Past the opening summon, which is owed whatever else is true.
+        REQUIRE(battle.EndTurn() == true);
+
+        ++tally[battle.GetMonsters()[0].GetCurrentMove().name];
+    }
+
+    CHECK(tally.count("Summon") == 0u);
+
+    const int strike = tally["Snake Strike"];
+    const int bite = tally["Big Bite"];
+
+    REQUIRE(strike + bite == 200);
+
+    // Two to one, near enough. Evens is what it was.
+    CHECK(strike > bite);
+    CHECK(strike > 110);
 }

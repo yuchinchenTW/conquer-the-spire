@@ -1176,15 +1176,21 @@ std::size_t Monster::PickWeightedMove(std::mt19937& rng,
     {
         const MonsterMove& move = m_moves[i];
 
-        if (move.weight <= 0 || !MoveAllowed(move, context))
+        if (move.weight <= 0)
         {
             continue;
         }
 
-        // A move steps aside for having come up too often in a row, or for
-        // having had all the turns it gets in one fight, and where it says so
-        // its share goes to one named other rather than being shared out
-        // among all of them. The two are not the same monster: a Champ who
+        // A move steps aside for having come up too often in a row, for
+        // having had all the turns it gets in one fight, or for whatever gate
+        // it carries - a reptomancer's summon steps aside when the floor is
+        // full of daggers - and where it says so its share goes to one named
+        // other rather than being shared out among all of them.
+        //
+        // The gates used to be asked up here, which sent a move that failed
+        // one straight past the handing-over below. A reptomancer with four
+        // daggers standing was therefore splitting evenly between its two
+        // attacks instead of giving the summon's third to the snake strike. The two are not the same monster: a Champ who
         // has just gloated faces a face slap at forty and everything else
         // exactly where it was, and one who has taken his stance twice gloats
         // in its place at thirty.

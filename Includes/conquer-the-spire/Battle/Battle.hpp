@@ -186,10 +186,25 @@ class Battle
     static bool ChoiceTakesMany(const std::vector<CardEffect>& effects);
 
     //! Returns true if PlayCard() would accept this play.
-    bool CanPlay(std::size_t handIndex, std::size_t monsterIndex = 0) const;
+    //! Whether \p handIndex may be played at \p monsterIndex. Left out, the
+    //! question is asked of the first monster that may be aimed at rather
+    //! than of whoever stands first - which while a darkling lay at the front
+    //! of the room answered no for every card in hand, and that answer is
+    //! written into the state.
+    static constexpr std::size_t ANY_MONSTER =
+        static_cast<std::size_t>(-1);
+
+    bool CanPlay(std::size_t handIndex,
+                 std::size_t monsterIndex = ANY_MONSTER) const;
 
     //! Returns the indices of the monsters that are still alive.
     std::vector<std::size_t> GetLivingMonsterIndices() const;
+
+    //! Who may be aimed at, which is not everybody who is in the room: a
+    //! darkling lying there waiting to be pulled back cannot be. The state
+    //! and the ordinals a move names are built from the other list, so that
+    //! nothing shifts places while one of them is down.
+    std::vector<std::size_t> GetTargetableMonsterIndices() const;
 
     //! Returns the hand indices that PlayCard() would currently accept. Handy
     //! for enumerating legal moves.
