@@ -410,6 +410,15 @@ class Monster : public Creature
     //! one thing it cannot do.
     bool DropMove(const std::string& name);
 
+    //! Whether this monster is out of reach while it is down waiting to come
+    //! back. A darkling's page says its intent changes to Regrowing "and
+    //! cannot be targeted"; an awakened one's says nothing of the sort and
+    //! the other wiki calls it invulnerable, which is a different thing. So
+    //! it is asked of the monster rather than assumed of everything that
+    //! comes back.
+    void SetHiddenWhenDown(bool hidden);
+    bool IsHiddenWhenDown() const;
+
     //! Whether this monster is down but not out, waiting to come back.
     bool IsRegrowing() const;
     void SetRegrowing(bool regrowing);
@@ -465,6 +474,7 @@ class Monster : public Creature
     //! Which turn of the fight the monster was last asked about, so that a
     //! move whose hits are counted off the turn can be told.
     int m_turnSeen = 1;
+    bool m_hiddenWhenDown = false;
 
     //! Returns whether the move at \p at is the same move as the one
     //! standing, which is a question about its name and not about where it

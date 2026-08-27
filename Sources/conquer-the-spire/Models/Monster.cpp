@@ -733,6 +733,16 @@ void Monster::QueueMoves(std::vector<std::string> names)
     m_queued = std::move(names);
 }
 
+void Monster::SetHiddenWhenDown(bool hidden)
+{
+    m_hiddenWhenDown = hidden;
+}
+
+bool Monster::IsHiddenWhenDown() const
+{
+    return m_hiddenWhenDown;
+}
+
 bool Monster::DropMove(const std::string& name)
 {
     for (std::size_t i = 0; i < m_moves.size(); ++i)

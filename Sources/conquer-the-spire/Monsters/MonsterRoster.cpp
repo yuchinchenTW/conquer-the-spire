@@ -881,12 +881,14 @@ Monster MonsterRoster::Make(MonsterId id, std::mt19937& rng,
                 id, "Darkling", MonsterType::NORMAL, Roll(rng, 48, 56),
                 // The nip is rolled once, when the fight starts, and stands
                 // for the fight. It was nine every time.
-                { MM::Attack("Nip", Roll(rng, 7, 11)).Chance(30, 2),
+                { MM::Nothing("Regrowing", Intent::STUN).Chance(0),
+                  MM::Attack("Nip", Roll(rng, 7, 11)).Chance(30, 2),
                   MM::Attack("Chomp", 8, 2).Chance(40, 1).NotFirst(),
                   MM::Defend("Harden", 12).Chance(30, 1),
                   MM::Of("Reincarnate", Intent::SUMMON,
                          { ME::Revive(50) }) });
             monster.AddPower(PowerType::LIFE_LINK, 1);
+            monster.SetHiddenWhenDown(true);
             break;
         }
 

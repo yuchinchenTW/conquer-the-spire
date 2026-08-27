@@ -1800,6 +1800,16 @@ TEST_CASE("A darkling comes back while one of its own still stands")
 
     CHECK(first.IsRegrowing() == true);
     CHECK(battle.IsDone() == false);
+
+    // A turn lying there first. It was coming back on the very next turn,
+    // a turn early, all fight long.
+    CHECK(first.GetCurrentMove().name == "Regrowing");
+    CHECK(first.GetHealth() == 0);
+
+    battle.EndTurn();
+
+    CHECK(first.IsRegrowing() == true);
+    CHECK(first.GetHealth() == 0);
     CHECK(first.GetCurrentMove().name == "Reincarnate");
 
     battle.EndTurn();
@@ -2840,52 +2850,185 @@ TEST_CASE("A room of shapes never holds three alike, ever")
     }
 }
 
-TEST_CASE("A thing waiting to get back up can be aimed at and shrugs it off")
+TEST_CASE("What can be aimed at while it is down is asked of each of them")
 {
-    // The decision this pins: a monster at nothing health that is not
-    // finished with stays in the room and stays a target. It can be swung at
-    // and the swing does nothing, which is what invulnerable means - neither
-    // page says it cannot be aimed at, and one says invulnerable outright.
-    // Taking it out of the target list instead would be the other reading,
-    // and this is here so that is a decision and not an accident.
-    const auto waiting = [](std::vector<MonsterId> room, std::size_t at) {
-        Battle battle = FightAgainst(room);
+    // The two are not the same, and the pages are why. A darkling's says the
+    // intent changes to Regrowing "and cannot be targeted". An awakened
+    // one's says nothing about aiming and the other wiki says invulnerable,
+    // which means the blow may be thrown and comes to nothing. Reading the
+    // second answer onto the first is the mistake this is here to stop.
+    // An awakened one is still in the room and still a target, and the swing
+    // comes to nothing. Accepted matters on its own - an action offered and
+    // then refused is what sends the policy round in circles - so the strike
+    // and the energy to play it are put there rather than hoped for.
+    {
+        Battle battle = FightAgainst({ MonsterId::AWAKENED_ONE });
+        Monster& one = battle.GetMonsters().front();
 
-        battle.GetMonsters()[at].SetHealth(1);
+        one.SetHealth(1);
 
-        REQUIRE(Swing(battle, at) == true);
-        REQUIRE(battle.GetMonsters()[at].IsRegrowing() == true);
+        REQUIRE(Swing(battle, 0u) == true);
+        REQUIRE(one.IsRegrowing() == true);
+        CHECK(one.GetHealth() == 0);
 
-        const Monster& down = battle.GetMonsters()[at];
-
-        // Standing at nothing, not at some way past nothing: the learner
-        // reads that health against the maximum and a number below zero
-        // would read as something it never sees anywhere else.
-        CHECK(down.GetHealth() == 0);
-        CHECK(down.IsGone() == false);
-
-        // Still in the room, so still a target.
         const std::vector<std::size_t> living =
             battle.GetLivingMonsterIndices();
 
-        CHECK(std::find(living.begin(), living.end(), at) != living.end());
+        CHECK(std::find(living.begin(), living.end(), 0u) != living.end());
 
-        // And a swing at it is accepted and comes to nothing. Accepted
-        // matters on its own - an action offered and then refused is what
-        // sends the policy round in circles - so the strike and the energy
-        // to play it are put there rather than hoped for. Left to the draw,
-        // a hand with no attack in it made this pass without swinging at
-        // anything, which is the one thing it is here to check.
         battle.GetPlayer().GetHand().emplace_back(
             CardRegistry::Get(CardId::STRIKE_RED));
         battle.GetPlayer().SetEnergy(3);
 
-        REQUIRE(Swing(battle, at) == true);
+        REQUIRE(Swing(battle, 0u) == true);
 
-        CHECK(battle.GetMonsters()[at].GetHealth() == 0);
-        CHECK(battle.GetMonsters()[at].IsRegrowing() == true);
+        CHECK(one.GetHealth() == 0);
+        CHECK(one.IsRegrowing() == true);
+    }
+
+    // A darkling is out of reach: out of what a card may be aimed at, out of
+    // what a random blow may land on, and out of what the learner is shown.
+    {
+        Battle battle =
+            FightAgainst({ MonsterId::DARKLING, MonsterId::DARKLING });
+        Monster& first = battle.GetMonsters().front();
+
+        first.SetHealth(1);
+
+        REQUIRE(Swing(battle, 0u) == true);
+        REQUIRE(first.IsRegrowing() == true);
+        CHECK(first.GetHealth() == 0);
+        CHECK(first.IsGone() == false);
+
+        const std::vector<std::size_t> living =
+            battle.GetLivingMonsterIndices();
+
+        CHECK(std::find(living.begin(), living.end(), 0u) == living.end());
+        CHECK(living.size() == 1u);
+
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::STRIKE_RED));
+        battle.GetPlayer().SetEnergy(3);
+
+        CHECK(battle.CanPlay(battle.GetPlayer().GetHand().size() - 1u, 0u) ==
+              false);
+
+        // And it comes back into reach once it is up again.
+        battle.EndTurn();
+        battle.EndTurn();
+
+        CHECK(first.IsRegrowing() == false);
+        CHECK(battle.GetLivingMonsterIndices().size() == 2u);
+    }
+
+}
+
+TEST_CASE("A kill that does not finish anything is not a fatal one")
+{
+    // Read through a Feed, which is what Fatal is for: three of maximum
+    // health when the card kills, and nothing when it does not. The page
+    // says the first phase of an Awakened One does not count, and that among
+    // three darklings only the blow that takes the last one does - otherwise
+    // a feed could be farmed on a fight that keeps standing back up, which
+    // is the reason the page itself gives.
+    const auto fed = [](std::vector<MonsterId> room, std::size_t at) {
+        Battle battle = FightAgainst(room);
+
+        battle.GetMonsters()[at].SetHealth(1);
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::FEED));
+        battle.GetPlayer().SetEnergy(3);
+
+        const std::size_t slot = battle.GetPlayer().GetHand().size() - 1u;
+        const int before = battle.GetPlayer().GetMaxHealth();
+
+        REQUIRE(battle.PlayCard(slot, at) == true);
+
+        return battle.GetPlayer().GetMaxHealth() - before;
     };
 
-    waiting({ MonsterId::AWAKENED_ONE }, 0u);
-    waiting({ MonsterId::DARKLING, MonsterId::DARKLING }, 0u);
+    CHECK(fed({ MonsterId::AWAKENED_ONE }, 0u) == 0);
+    CHECK(fed({ MonsterId::DARKLING, MonsterId::DARKLING }, 0u) == 0);
+
+    // The last one standing does count, and so does an ordinary monster.
+    CHECK(fed({ MonsterId::DARKLING }, 0u) == 3);
+    CHECK(fed({ MonsterId::SPIKER }, 0u) == 3);
+
+    // And a minion never does: a dagger is a thing the fight made rather
+    // than a thing the room held.
+    CHECK(fed({ MonsterId::REPTOMANCER, MonsterId::DAGGER,
+                MonsterId::DAGGER }, 1u) == 0);
+}
+
+TEST_CASE("A darkling knocked down gives up what strength it was given")
+{
+    Battle battle =
+        FightAgainst({ MonsterId::DARKLING, MonsterId::DARKLING });
+    Monster& first = battle.GetMonsters().front();
+
+    // At nought ascension it only ever has strength from something the
+    // climber gave it, but the page says all of it goes and it goes.
+    first.AddPower(PowerType::STRENGTH, 5);
+    first.SetHealth(1);
+
+    REQUIRE(Swing(battle, 0u) == true);
+    REQUIRE(first.IsRegrowing() == true);
+
+    CHECK(first.GetPower(PowerType::STRENGTH) == 0);
+}
+
+TEST_CASE("A Transient gives up strength for a flat blow too")
+{
+    // A sadistic streak is flat damage: it goes through the path that was
+    // taking the health without noting what shifts owes for it. Read as the
+    // difference the streak makes, so that what the bash itself takes off
+    // cancels out of both sides.
+    const auto lost = [](int sadistic) {
+        Battle battle = FightAgainst({ MonsterId::TRANSIENT });
+        Monster& one = battle.GetMonsters().front();
+
+        if (sadistic > 0)
+        {
+            battle.GetPlayer().AddPower(PowerType::SADISTIC, sadistic);
+        }
+
+        battle.GetPlayer().GetHand().emplace_back(
+            CardRegistry::Get(CardId::BASH));
+        battle.GetPlayer().SetEnergy(3);
+
+        const std::size_t slot = battle.GetPlayer().GetHand().size() - 1u;
+
+        REQUIRE(battle.PlayCard(slot, 0u) == true);
+
+        return battle.GetMonsters().front().GetPower(
+            PowerType::SHIFTING_LOSS);
+    };
+
+    const int plain = lost(0);
+
+    REQUIRE(plain > 0);
+
+    // Five more of health taken is five more of strength owed.
+    CHECK(lost(5) == plain + 5);
+}
+
+TEST_CASE("Poison under half hurries a Time Eater on the spot")
+{
+    Battle battle = FightAgainst({ MonsterId::TIME_EATER });
+    Monster& eater = battle.GetMonsters().front();
+
+    eater.SetHealth(eater.GetMaxHealth() / 2 + 3);
+    eater.AddPower(PowerType::POISON, 9);
+
+    REQUIRE(eater.GetPhase() == 1);
+    REQUIRE(battle.EndTurn() == true);
+
+    CHECK(eater.GetPhase() == 2);
+
+    // And it hastes on this turn, not the next one. The phase alone does not
+    // say which: the rules were asked after the monster had moved as well, so
+    // the old order reached phase two by the end of the same turn and only
+    // the healing tells the two apart. Haste comes back up to half, so being
+    // at or above half after a tick that put it under is the hurrying.
+    CHECK(eater.GetHealth() >= eater.GetMaxHealth() / 2);
 }

@@ -779,6 +779,18 @@ bool Battle::CanPlay(std::size_t handIndex, std::size_t monsterIndex) const
         return false;
     }
 
+    // A darkling lying there cannot be aimed at, so a card aimed at one is
+    // not playable. The list of who is standing already leaves it out and
+    // the learner is only ever offered targets from that list, so nothing
+    // asks this in the ordinary way - but the two answers have to agree, or
+    // an action offered somewhere would be refused here.
+    if (monsterIndex < m_monsters.size() &&
+        m_monsters[monsterIndex].IsRegrowing() &&
+        m_monsters[monsterIndex].IsHiddenWhenDown())
+    {
+        return false;
+    }
+
     const std::vector<Card>& hand = m_player.GetHand();
 
     if (handIndex >= hand.size())
@@ -855,22 +867,30 @@ bool Battle::CanPlay(std::size_t handIndex, std::size_t monsterIndex) const
 
 std::vector<std::size_t> Battle::GetLivingMonsterIndices() const
 {
-    // A thing at nothing health that is not finished with - an awakened one
-    // waiting to be reborn, a darkling waiting to be pulled back - is still
-    // standing in the room. It can be aimed at and the blow does nothing,
-    // which is what being invulnerable is; neither page says it cannot be
-    // aimed at, and one of them says invulnerable in as many words.
+    // A thing at nothing health that is not finished with is still standing
+    // in the room, and whether it can be aimed at is not the same answer for
+    // all of them.
     //
-    // Which means a climber can waste a swing on it. That is a thing the
-    // spire lets happen, and the learner is told enough to stop doing it:
-    // the slot says there is somebody there and says their health is
-    // nothing, in the same two numbers it reads for everybody else.
+    // A darkling cannot: its page says the intent changes to Regrowing "and
+    // cannot be targeted", so while it is down it is out of this list - out
+    // of what a card may be aimed at, out of what a random blow may land on,
+    // and out of what the learner is shown.
+    //
+    // An awakened one can: its page says nothing about aiming and the other
+    // wiki says invulnerable, which means the blow may be thrown and comes to
+    // nothing. So a climber can waste a swing on it, the way the spire lets
+    // them, and the learner is told enough to stop doing it - the slot says
+    // somebody is there and says their health is nothing, in the same two
+    // numbers it reads for everybody else.
 
     std::vector<std::size_t> indices;
 
     for (std::size_t i = 0; i < m_monsters.size(); ++i)
     {
-        if (!m_monsters[i].IsGone())
+        const Monster& monster = m_monsters[i];
+
+        if (!monster.IsGone() &&
+            !(monster.IsRegrowing() && monster.IsHiddenWhenDown()))
         {
             indices.emplace_back(i);
         }
@@ -1412,12 +1432,27 @@ void Battle::RunMonsterTurn()
             {
                 monster.ClearBlock();
             }
+            const int standing = monster.GetHealth();
+
             TickPoison(monster);
 
             // Poison can finish a monster off before anything moves.
             if (monster.IsDead())
             {
                 OnMonsterDied(monster);
+            }
+            else if (monster.GetHealth() < standing)
+            {
+                // And short of that it can carry something past the line it
+                // changes at. The rules were only ever asked after the
+                // climber's own damage or after a monster had moved, so a
+                // time eater poisoned under half here hurried a turn late.
+                //
+                // Only when the poison actually took something. Asking for
+                // everybody every turn moves when every other rule in there
+                // fires, which is a far larger change than this is - it had
+                // a slime splitting at the top of its turn instead of on it.
+                CheckMonsterRules(monster);
             }
         }
     }
@@ -3331,12 +3366,21 @@ void Battle::OnMonsterDied(Monster& monster)
                 other.GetPower(PowerType::LIFE_LINK) > 0)
             {
                 // Nothing, rather than however far past nothing the blow
-                // carried it. It stands there for two turns and what it is
-                // standing at is read by everything that looks at the fight,
-                // the learner included.
+                // carried it: a health below zero is a number that turns up
+                // nowhere else and it would be read against a maximum.
+                //
+                // It also gives up all its strength here - the page says so
+                // in as many words - which at nought ascension it only ever
+                // has from something the climber gave it.
                 monster.SetRegrowing(true);
                 monster.SetHealth(0);
-                monster.ForceMove("Reincarnate");
+                monster.RemovePower(PowerType::STRENGTH);
+
+                // A turn lying there, and then it is pulled back: two turns
+                // in all, which is what the link says. It was coming back on
+                // the very next turn, a turn early, all fight long.
+                monster.ForceMove("Regrowing");
+                monster.QueueMoves({ "Reincarnate" });
 
                 return;
             }
@@ -3365,6 +3409,15 @@ void Battle::OnMonsterDied(Monster& monster)
         monster.SetRegrowing(true);
         monster.SetHealth(0);
         monster.RemovePower(PowerType::CURIOSITY);
+
+        // What it owes in strength goes now, where it fell, and not at the
+        // standing up: the page puts it at the moment the health reaches
+        // nothing. Only what it owes - strength it was given stays.
+        if (monster.GetPower(PowerType::STRENGTH) < 0)
+        {
+            monster.RemovePower(PowerType::STRENGTH);
+        }
+
         monster.RemovePower(PowerType::REGENERATION);
         monster.ForceMove("Rebirth");
 
@@ -4035,8 +4088,24 @@ void Battle::DealDamageToMonster(Monster& monster, int base, bool fromAttack)
 
     if (monster.IsDead())
     {
-        m_killedTargetThisPlay = true;
         OnMonsterDied(monster);
+
+        // Only a kill that finishes something counts. An awakened one on its
+        // first body and a darkling with a brother still standing both get
+        // back up, so neither is a kill; nor is a minion, which is a thing
+        // the fight made rather than a thing the room held. The cultists
+        // beside an awakened one are not minions here, and the page says
+        // those do count.
+        //
+        // Asked after the dying and not before, because whether it gets back
+        // up is decided in there - and counting it up front had a feed
+        // fattening on a darkling that was going to stand up again, over and
+        // over.
+        if (!monster.IsRegrowing() &&
+            monster.GetPower(PowerType::MINION) == 0)
+        {
+            m_killedTargetThisPlay = true;
+        }
     }
 
     if (fromAttack)
@@ -4211,7 +4280,7 @@ void Battle::DealFlatDamage(Creature& creature, int amount)
         taken = 1;
     }
 
-    creature.TakeDamage(taken);
+    NoteShifting(creature, creature.TakeDamage(taken));
 }
 
 void Battle::DamageAllEnemies(int amount)
