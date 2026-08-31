@@ -55,6 +55,24 @@ except ImportError:  # pragma: no cover - tensorboard is optional
 # How improbable a move may be and still be worth taking on a search's word.
 # exp(-6) is about one in four hundred: rare enough that the policy is not
 # already doing it, common enough that the ratio in the loss stays sane.
+BEST_OVER = 20
+"""How many reports a best is judged over.
+
+One report is two hundred climbs and bounces by several points either way,
+so the best single report is mostly the luckiest one. Twenty of them at the
+default cadence is a hundred updates, which is steady enough to mean
+something and short enough to catch a peak while it is happening.
+"""
+
+BEST_MARGIN = 0.5
+"""How much better than the standing best a run has to be to be kept.
+
+A single report's spread is about two and a half points, so a mean of twenty
+of them still wobbles by half a point either way. Without a margin every
+other report clears the bar by a hundredth and writes a hundred megabytes for
+nothing.
+"""
+
 LOGP_FLOOR = -6.0
 
 # Where health and the floor sit in the state, for the foresight targets.
@@ -178,6 +196,14 @@ class Trainer(object):
         self.folder = os.path.join(args.out, args.character)
         self.stopping = False
 
+        # The best the climber has ever been, and the reports it is judged
+        # over. Set before load(), which brings them back when there is a run
+        # to carry on.
+        self.bestScore = None
+        self.bestAt = 0
+        self.bestFloors = 0.0
+        self.scores = []
+
         os.makedirs(self.folder, exist_ok=True)
 
         # A climber that is not being carried on leaves nothing of itself
@@ -210,7 +236,53 @@ class Trainer(object):
     def checkpoint(self):
         return os.path.join(self.folder, "checkpoint.pt")
 
-    def save(self):
+    @property
+    def best(self):
+        """Where the best weights are kept, beside the working ones."""
+        return os.path.join(self.folder, "best.pt")
+
+    def noteBest(self, score, floors):
+        """Keeps a copy of the weights whenever the climber is at its best.
+
+        The one checkpoint is written over every few updates, so a run that
+        gets worse writes its best self away and there is nothing to go back
+        to. This one is only ever written when the climber is doing better
+        than it has ever done, so the good weights survive whatever happens
+        after them.
+
+        Judged on a mean of the last few reports rather than on one of them.
+        A single report is two hundred climbs and bounces by several points
+        either way, so the best single report is mostly the luckiest one, and
+        latching onto it early would mean never saving again.
+        """
+        self.scores.append((float(score), float(floors)))
+
+        if len(self.scores) > BEST_OVER:
+            self.scores.pop(0)
+
+        if len(self.scores) < BEST_OVER:
+            return
+
+        smooth = sum(one[0] for one in self.scores) / len(self.scores)
+        deep = sum(one[1] for one in self.scores) / len(self.scores)
+
+        if (self.bestScore is not None and
+                smooth <= self.bestScore + BEST_MARGIN):
+            return
+
+        was = self.bestScore
+        self.bestScore = smooth
+        self.bestAt = self.updates
+        self.bestFloors = deep
+
+        self.save(self.best)
+
+        print("   kept the best so far: return %.1f, floors %.2f, over the "
+              "last %d reports%s"
+              % (smooth, deep, BEST_OVER,
+                 "" if was is None else " (was %.1f)" % was))
+
+    def save(self, path=None):
         torch.save(
             {
                 "net": self.net.state_dict(),
@@ -227,8 +299,15 @@ class Trainer(object):
 
                 # Which net it is. Not "net": that is where the weights go.
                 "kind": self.args.net,
+
+                # Carried so that picking a run up again does not write over
+                # a best that the weights coming back cannot match yet.
+                "best_score": self.bestScore,
+                "best_at": self.bestAt,
+                "best_floors": self.bestFloors,
+                "scores": self.scores,
             },
-            self.checkpoint,
+            path or self.checkpoint,
         )
 
     def setAside(self):
@@ -237,9 +316,12 @@ class Trainer(object):
         Not deleted: it is the only record of how that one did, and a curve
         to measure the next one against.
         """
+        # best.pt goes with them. Left where it was, a climber starting over
+        # would carry the old one's best around and never beat it, and the
+        # file would say it belonged to a run that is no longer there.
         leftovers = [name for name in ("curve.csv", "picks.csv",
                                        "progress.html", "progress.png",
-                                       "events")
+                                       "best.pt", "events")
                      if os.path.exists(os.path.join(self.folder, name))]
 
         if not leftovers:
@@ -298,6 +380,10 @@ class Trainer(object):
         self.updates = int(kept.get("updates", 0))
         self.steps = int(kept.get("steps", 0))
         self.episodes = int(kept.get("episodes", 0))
+        self.bestScore = kept.get("best_score")
+        self.bestAt = int(kept.get("best_at", 0))
+        self.bestFloors = float(kept.get("best_floors", 0.0))
+        self.scores = list(kept.get("scores", []))
 
         print("picked up %s at update %d (%d moves, %d climbs)" %
               (self.args.character, self.updates, self.steps, self.episodes))
@@ -739,6 +825,8 @@ class Trainer(object):
                        deepest, 100.0 * through,
                        deck["cards_upgraded"].mean(),
                        deck["cards_removed"].mean(), 100.0 * refusal))
+            self.noteBest(returns.mean(), floors.mean())
+
             row = [self.updates, self.steps, self.episodes,
                    float(returns.mean()), float(floors.mean()),
                    float(fights.mean()), float((bosses > 0).mean()),

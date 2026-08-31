@@ -54,10 +54,20 @@ CONSIDER = 6
 
 def load(folder, device):
     """The climber saved in \\p folder, ready to play."""
+    # A folder may hold two: the working weights, which are whatever
+    # the run was doing when it last saved, and the best it ever had.
+    # A run that has since got worse writes over the first and not the
+    # second, so the best is what anybody watching would want to see.
+    best = os.path.join(folder, "best.pt")
     path = os.path.join(folder, "checkpoint.pt")
+
+    if os.path.exists(best):
+        path = best
 
     if not os.path.exists(path):
         raise SystemExit("no climber in %s" % folder)
+
+    print("playing %s" % path)
 
     kept = torch.load(path, map_location=device, weights_only=False)
 
