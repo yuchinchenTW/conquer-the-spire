@@ -1,10 +1,13 @@
 #include "doctest.h"
 
 #include <conquer-the-spire/Rl/VecSpireEnv.hpp>
+#include <conquer-the-spire/Run/Run.hpp>
 
 #include <algorithm>
 #include <cstddef>
 #include <random>
+#include <sstream>
+#include <string>
 #include <vector>
 
 using namespace ConquerTheSpire;
@@ -26,6 +29,100 @@ std::size_t FirstLegal(const std::vector<unsigned char>& mask,
     }
 
     return stride;
+}
+//! A save of a climb standing at the top of the second act.
+//!
+//! Made by walking a run rather than by playing one: random moves die in the
+//! first act every time, so a row of them never reaches the second and there
+//! would be nothing to pick up. Travel walks the map without fighting, which
+//! is exactly enough to get through the door.
+std::string SecondActSave(unsigned int seed)
+{
+    Run run(CardColor::RED, seed);
+
+    while (!run.GetAvailableColumns().empty())
+    {
+        run.Travel(run.GetAvailableColumns().front());
+    }
+
+    if (!run.IsAtBoss())
+    {
+        return std::string();
+    }
+
+    run.FinishBoss();
+
+    if (!run.AdvanceAct() || run.GetAct() != 2)
+    {
+        return std::string();
+    }
+
+    std::ostringstream out;
+
+    out << "env " << static_cast<int>(EnvPhase::MAP) << " 0 0\n"
+        << run.Serialize();
+
+    return out.str();
+}
+
+//! Plays \p ticks of \p row at random and returns how many climbs that ended
+//! in it had been picked up part-way up.
+int PlayedDeep(VecSpireEnv& row, int ticks, unsigned int dieSeed)
+{
+    const std::size_t rows = row.GetCount();
+    const std::size_t stride = SpireEnv::ActionCount();
+    const std::size_t slots = RunLog::Summary::SLOTS;
+    std::vector<unsigned char> mask(rows * stride, 0u);
+    std::vector<std::size_t> actions(rows, 0u);
+    std::vector<unsigned char> dones(rows, 0u);
+    std::vector<int> last(rows * slots, 0);
+    std::mt19937 rng(dieSeed);
+    int deep = 0;
+
+    for (int tick = 0; tick < ticks; ++tick)
+    {
+        row.ActionMask(mask.data());
+
+        for (std::size_t i = 0; i < rows; ++i)
+        {
+            std::vector<std::size_t> open;
+
+            for (std::size_t slot = 0; slot < stride; ++slot)
+            {
+                if (mask[i * stride + slot] != 0u)
+                {
+                    open.emplace_back(slot);
+                }
+            }
+
+            if (open.empty())
+            {
+                actions[i] = 0u;
+                continue;
+            }
+
+            std::uniform_int_distribution<std::size_t> pick(
+                0, open.size() - 1);
+
+            actions[i] = open[pick(rng)];
+        }
+
+        row.Step(actions.data(), nullptr, dones.data(), nullptr, nullptr,
+                 nullptr);
+        row.ReadLastSummaries(last.data());
+
+        for (std::size_t i = 0; i < rows; ++i)
+        {
+            // The last slot of a summary, which is whether the climb it
+            // describes was picked up part-way up.
+            if (dones[i] != 0u && last[i * slots + (slots - 1u)] != 0)
+            {
+                ++deep;
+            }
+        }
+    }
+
+    return deep;
 }
 }  // namespace
 
@@ -357,4 +454,166 @@ TEST_CASE("A row of one is still a row")
     CHECK(row.GetCount() == 1u);
     CHECK(row.At(0).GetPhase() == EnvPhase::MAP);
     CHECK(row.At(99).GetPhase() == EnvPhase::MAP);
+}
+
+TEST_CASE("A row asked for it starts climbs part-way up, and one not asked "
+          "for it holds nothing")
+{
+    // Every climb starts on the first floor, so the acts the climber loses in
+    // are the ones it practises least. A row that is asked to keeps a copy of
+    // a climb whenever it comes up into a new act and starts some share of
+    // its climbs from one of those copies instead of from the bottom.
+    //
+    // Both halves are here together because either on its own reads the wrong
+    // way: a row that keeps nothing and a row that keeps copies and never
+    // uses them both come to no climbs picked up part-way.
+    const std::string save = SecondActSave(7u);
+
+    REQUIRE(save.empty() == false);
+
+    int deep[2] = { 0, 0 };
+    std::size_t held[2] = { 0u, 0u };
+
+    for (int which = 0; which < 2; ++which)
+    {
+        VecSpireEnv row(4u);
+
+        row.SetAutoReset(true);
+        row.SetDeepShare(which == 0 ? 0.0f : 1.0f);
+        row.Reset(CardColor::RED, 41u);
+
+        // Put every climb into the second act, which walking there is the
+        // only way to do and which random moves never manage.
+        for (std::size_t i = 0; i < row.GetCount(); ++i)
+        {
+            REQUIRE(row.At(i).Load(save) == true);
+        }
+
+        // Then a move nothing will take, so that the climbs are still
+        // standing on the second act's map when the row comes to look at
+        // them. A real climb does come up into an act on the map - the step
+        // that took the boss down leaves it there - but a random move from
+        // that map walks straight into a fight, and a climb in a fight cannot
+        // be written out.
+        std::vector<std::size_t> nowhere(row.GetCount(),
+                                         SpireEnv::ActionCount());
+        std::vector<unsigned char> taken(row.GetCount(), 1u);
+
+        row.Step(nowhere.data(), nullptr, nullptr, taken.data(), nullptr,
+                 nullptr);
+
+        REQUIRE(taken[0] == 0u);
+
+        held[which] = row.GetDeepHeld(2);
+
+        // And now that there is something on the shelf, the climbs that end
+        // are started again from it rather than from the bottom.
+        deep[which] = PlayedDeep(row, 600, 11u);
+    }
+
+    CHECK(held[0] == 0u);
+    CHECK(held[1] == 4u);
+    CHECK(deep[0] == 0);
+    CHECK(deep[1] > 0);
+
+    // And no shelf for an act there is no picking up in.
+    VecSpireEnv row(2u);
+
+    row.SetDeepShare(1.0f);
+    row.Reset(CardColor::RED, 3u);
+
+    CHECK(row.GetDeepHeld(1) == 0u);
+    CHECK(row.GetDeepHeld(4) == 0u);
+}
+
+TEST_CASE("A climb picked up part-way up does not carry the last one's count")
+{
+    // The log is not written into a save, so loading a run leaves whatever
+    // was in it - and what was in it is the climb this env was playing
+    // before. Without clearing it the floors and the fights of the one being
+    // dropped are added to the one being picked up, and every table that
+    // reads a summary reads two climbs at once.
+    const std::string save = SecondActSave(7u);
+
+    REQUIRE(save.empty() == false);
+
+    SpireEnv env;
+    std::mt19937 rng(5u);
+
+    env.Reset(CardColor::RED, 12u);
+
+    for (int tick = 0; tick < 4000 && !env.IsDone(); ++tick)
+    {
+        const std::vector<Action> moves = env.LegalActions();
+
+        if (moves.empty())
+        {
+            break;
+        }
+
+        std::uniform_int_distribution<std::size_t> pick(0, moves.size() - 1);
+
+        env.Step(moves[pick(rng)]);
+    }
+
+    REQUIRE(env.GetRun().GetLog().GetSummary().floors > 0);
+    REQUIRE(env.GetRun().GetLog().GetSummary().died > 0);
+
+    REQUIRE(env.Load(save) == true);
+
+    CHECK(env.GetRun().GetLog().GetSummary().floors == 0);
+    CHECK(env.GetRun().GetLog().GetSummary().died == 0);
+    CHECK(env.GetRun().GetLog().GetSummary().fightsWon == 0);
+}
+
+TEST_CASE("A climb picked up part-way up is left out of the tables")
+{
+    // Its fights were reached with a deck the first act did not build and its
+    // ending is one act's worth of danger rather than three, so letting it
+    // into the tables would move every share in them without any of the
+    // choices behind them having changed.
+    const std::string save = SecondActSave(7u);
+
+    REQUIRE(save.empty() == false);
+
+    std::size_t rows[2] = { 0u, 0u };
+
+    for (int which = 0; which < 2; ++which)
+    {
+        SpireEnv env;
+        std::mt19937 rng(5u);
+
+        env.ClearStats();
+
+        REQUIRE(env.Load(save) == true);
+
+        if (which == 1)
+        {
+            env.NoteStartedDeep();
+        }
+
+        CHECK(env.StartedDeep() == (which == 1));
+
+        for (int tick = 0; tick < 4000 && !env.IsDone(); ++tick)
+        {
+            const std::vector<Action> moves = env.LegalActions();
+
+            if (moves.empty())
+            {
+                break;
+            }
+
+            std::uniform_int_distribution<std::size_t> pick(
+                0, moves.size() - 1);
+
+            env.Step(moves[pick(rng)]);
+        }
+
+        REQUIRE(env.IsDone() == true);
+
+        rows[which] = env.GetStats().GetRowCount();
+    }
+
+    CHECK(rows[0] > 0u);
+    CHECK(rows[1] == 0u);
 }

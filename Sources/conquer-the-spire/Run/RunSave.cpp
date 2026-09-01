@@ -295,6 +295,13 @@ bool Run::Load(const std::string& text)
         return false;
     }
 
+    // The log is not written into a save, so whatever is in it belongs to
+    // whichever climb this object was playing before - a different climb.
+    // Without this the floors and the fights of the one being dropped carry
+    // over onto the one being picked up, and every table reading the summary
+    // reads both climbs added together.
+    m_log.Clear();
+
     in >> m_rng;
 
     int character = 0;

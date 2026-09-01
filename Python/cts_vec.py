@@ -181,6 +181,31 @@ class VecSpireEnv(object):
         lib.cts_vec_set_act_limit.argtypes = [ctypes.c_void_p, ctypes.c_int]
         lib.cts_vec_set_act_limit(self._vec, int(acts))
 
+    def set_deep_share(self, share):
+        """Starts this share of the climbs part-way up rather than at the
+        bottom.
+
+        Every climb starts on the first floor, so the acts the climber loses
+        in are the ones it practises least. The row keeps a copy of a climb
+        whenever it comes up into a new act and starts this share of its
+        climbs from one of those copies. A climb started that way says so in
+        its summary and is left out of the tables.
+        """
+        lib = self._api.lib
+
+        lib.cts_vec_set_deep_share.argtypes = [ctypes.c_void_p,
+                                               ctypes.c_float]
+        lib.cts_vec_set_deep_share(self._vec, float(share))
+
+    def deep_held(self, act):
+        """How many copies are being held for ``act`` to be picked up in."""
+        lib = self._api.lib
+
+        lib.cts_vec_deep_held.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        lib.cts_vec_deep_held.restype = ctypes.c_size_t
+
+        return int(lib.cts_vec_deep_held(self._vec, int(act)))
+
     def reset(self, character="ironclad", seed=0):
         """Starts every climb and returns ``(obs, ids, mask)``."""
         if isinstance(character, str):

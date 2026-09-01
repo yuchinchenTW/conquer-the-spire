@@ -179,6 +179,11 @@ const RunLog::Summary& RunLog::GetSummary() const
     return m_summary;
 }
 
+void RunLog::MarkStartedDeep()
+{
+    m_summary.startedDeep = 1;
+}
+
 void RunLog::ReadSummary(int* out) const
 {
     if (out == nullptr)
@@ -186,6 +191,9 @@ void RunLog::ReadSummary(int* out) const
         return;
     }
 
+    // In the order they are written in the struct, because that order is
+    // what every reader on the other side of the wall counts on. Anything
+    // new goes on the end.
     out[0] = m_summary.floors;
     out[1] = m_summary.act;
     out[2] = m_summary.deepestAct;
@@ -211,5 +219,6 @@ void RunLog::ReadSummary(int* out) const
     out[22] = m_summary.wonTheSpire;
     out[23] = m_summary.cursesChosen;
     out[24] = m_summary.cursesRefused;
+    out[25] = m_summary.startedDeep;
 }
 }  // namespace ConquerTheSpire

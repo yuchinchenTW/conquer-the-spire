@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <random>
+#include <string>
 #include <vector>
 
 namespace ConquerTheSpire
@@ -57,6 +58,32 @@ class VecSpireEnv
     //! What a curse in the deck costs every climb of the row, a floor at a
     //! time.
     void SetCursePenalty(float penalty);
+
+    //! How often a climb is picked up part-way up rather than started at the
+    //! bottom, as a share of the climbs started.
+    //!
+    //! Every climb starts on the first floor, so the first act is where
+    //! nearly all of a run's moves are spent, and the acts the climber is
+    //! actually losing in are the ones it practises least: a third of the
+    //! climbs reach the second act's boss and a tenth reach the third's. This
+    //! puts that right by keeping a copy of a climb whenever it comes up into
+    //! a new act, and starting some share of the climbs from one of those
+    //! copies instead of from the bottom.
+    //!
+    //! The copies are the climber's own, taken as it plays, so the states it
+    //! is dropped into are the ones it really reaches. Nothing is held from
+    //! before the row started, and a full shelf is written round rather than
+    //! left alone, so what it practises keeps up with what it has become.
+    //!
+    //! A climb picked up this way is left out of every table: it walked fewer
+    //! floors and met one act's dangers rather than three, so its floors and
+    //! its ending are not the same measurement as a whole climb's.
+    void SetDeepShare(float share);
+    float GetDeepShare() const;
+
+    //! How many copies are being held for \p act, which is nothing until the
+    //! row has got that far a few times.
+    std::size_t GetDeepHeld(int act) const;
 
     //! Whether a climb that ends starts another one on its own. It does by
     //! default.
@@ -113,6 +140,25 @@ class VecSpireEnv
                         int* steps);
 
  private:
+    //! Picks \p index up part-way up, if there is anything to pick up and
+    //! the die says to. Returns whether it did, so that the caller starts a
+    //! climb from the bottom when it did not.
+    bool StartDeep(std::size_t index);
+
+    //! Keeps a copy of \p index as it stands, under \p act. Returns whether
+    //! there was a copy to be had: a climb in a fight cannot be written out,
+    //! so the caller asks again next step rather than losing the act.
+    bool Keep(std::size_t index, int act);
+
+    //! The first and last act a climb may be picked up in. Not the first:
+    //! starting there is what every other climb already does.
+    static constexpr int SHALLOWEST_START = 2;
+    static constexpr int DEEPEST_START = 3;
+
+    //! How many copies are held for each act. A save is a couple of thousand
+    //! characters, so the whole shelf is a few megabytes.
+    static constexpr std::size_t DEEP_HELD = 1024;
+
     std::vector<SpireEnv> m_envs;
     std::vector<float> m_returns;
     std::vector<int> m_lengths;
@@ -125,6 +171,18 @@ class VecSpireEnv
     unsigned int m_seed = 0;
     unsigned int m_nextSeed = 0;
     bool m_autoReset = true;
+
+    //! The copies, one shelf an act, and where the next one goes on each
+    //! shelf once it is full.
+    std::vector<std::vector<std::string>> m_deep;
+    std::vector<std::size_t> m_deepNext;
+
+    //! What act each climb was last seen in, so that coming up into a new one
+    //! is something that can be noticed.
+    std::vector<int> m_lastAct;
+
+    float m_deepShare = 0.0f;
+    std::mt19937 m_deepRng;
 };
 }  // namespace ConquerTheSpire
 

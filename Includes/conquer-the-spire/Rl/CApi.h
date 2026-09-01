@@ -164,6 +164,19 @@ CTS_API void cts_vec_set_curse_penalty(void* vec, float penalty);
 CTS_API void cts_set_act_limit(void* env, int acts);
 CTS_API void cts_vec_set_act_limit(void* vec, int acts);
 
+/* What share of climbs are picked up part-way up rather than started at the
+   bottom, and how many copies are being held for an act to be picked up in.
+
+   Every climb starts on the first floor, so the acts a climber loses in are
+   the ones it practises least. This keeps a copy of a climb whenever it comes
+   up into a new act and starts that share of the climbs from one of the
+   copies. A climb picked up this way says so in the last slot of its summary
+   and is left out of the tables, because its floors count from wherever it
+   was picked up. */
+CTS_API void cts_vec_set_deep_share(void* vec, float share);
+CTS_API float cts_vec_get_deep_share(void* vec);
+CTS_API size_t cts_vec_deep_held(void* vec, int act);
+
 /* What a kind of place on the map is called, numbered as MapNodeType is. */
 CTS_API size_t cts_map_node_name(int type, char* out, size_t size);
 

@@ -540,6 +540,29 @@ void cts_vec_set_act_limit(void* vec, int acts)
     }
 }
 
+void cts_vec_set_deep_share(void* vec, float share)
+{
+    if (auto* row = static_cast<ConquerTheSpire::VecSpireEnv*>(vec);
+        row != nullptr)
+    {
+        row->SetDeepShare(share);
+    }
+}
+
+float cts_vec_get_deep_share(void* vec)
+{
+    auto* row = static_cast<ConquerTheSpire::VecSpireEnv*>(vec);
+
+    return row == nullptr ? 0.0f : row->GetDeepShare();
+}
+
+size_t cts_vec_deep_held(void* vec, int act)
+{
+    auto* row = static_cast<ConquerTheSpire::VecSpireEnv*>(vec);
+
+    return row == nullptr ? 0u : row->GetDeepHeld(act);
+}
+
 size_t cts_map_node_name(int type, char* out, size_t size)
 {
     return Copied(ConquerTheSpire::NameOf(

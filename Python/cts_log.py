@@ -96,6 +96,12 @@ SUMMARY_FIELDS = [
     "won_the_spire",
     "curses_chosen",
     "curses_refused",
+
+    # Whether the climb was picked up part-way up rather than started at the
+    # bottom. Such a climb walked fewer floors to reach wherever it reached
+    # and met one act's dangers rather than three, so its floors and its
+    # ending do not belong in the same average as a whole climb's.
+    "started_deep",
 ]
 
 # The rooms of the map, in the order of MapNodeType.

@@ -183,9 +183,19 @@ class RunLog
         int cursesChosen = 0;
         int cursesRefused = 0;
 
+        //! Whether this climb was picked up part-way up rather than started
+        //! at the bottom.
+        //!
+        //! Such a climb walked fewer floors to reach wherever it reached and
+        //! had none of the first act's chances to go wrong, so its floors and
+        //! its ending are not the same measurement as a whole climb's. Every
+        //! table that reads a climb has to be able to leave it out, or the
+        //! numbers the run is judged on quietly stop meaning what they said.
+        int startedDeep = 0;
+
         //! How many numbers a summary is, for whatever hands it over as a
         //! row.
-        static constexpr std::size_t SLOTS = 25;
+        static constexpr std::size_t SLOTS = 26;
     };
 
     //! Writes a line, and counts it.
@@ -194,6 +204,11 @@ class RunLog
 
     //! Forgets everything, which is what starting a climb does.
     void Clear();
+
+    //! Says that this climb was picked up part-way rather than started at the
+    //! bottom. Survives nothing: a Clear() puts it back to a whole climb,
+    //! because that is what starting one over is.
+    void MarkStartedDeep();
 
     const std::vector<LogLine>& GetLines() const;
     const Summary& GetSummary() const;

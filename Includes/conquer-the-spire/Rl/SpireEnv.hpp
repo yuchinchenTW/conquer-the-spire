@@ -525,6 +525,13 @@ class SpireEnv
     std::string Save() const;
     bool Load(const std::string& text);
 
+    //! Whether this climb was picked up part-way up rather than started at
+    //! the bottom, and the way to say that it was. A climb that says so is
+    //! left out of the tables, because its floors count from wherever it was
+    //! picked up and its ending had one act's dangers rather than three.
+    bool StartedDeep() const;
+    void NoteStartedDeep();
+
  private:
     //! Turns the \p ordinal th living monster into its slot in the fight.
     std::size_t TargetOf(int ordinal) const;

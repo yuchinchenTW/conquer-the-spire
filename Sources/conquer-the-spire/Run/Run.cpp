@@ -84,6 +84,11 @@ const RunLog& Run::GetLog() const
     return m_log;
 }
 
+void Run::NoteStartedDeep()
+{
+    m_log.MarkStartedDeep();
+}
+
 void Run::LoseHealth(int amount)
 {
     if (amount <= 0)

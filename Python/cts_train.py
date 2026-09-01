@@ -191,6 +191,7 @@ class Trainer(object):
         # nothing it was allowed to do, going nowhere until it was called off
         # - and the boss it had just beaten was never counted.
         self.vec.set_act_limit(args.acts)
+        self.vec.set_deep_share(args.deep)
 
         if args.hp_weight >= 0.0:
             self.vec.set_health_weight(args.hp_weight)
@@ -226,6 +227,12 @@ class Trainer(object):
 
         # The share of the most it could be undecided by, last update.
         self.spread = 0.0
+
+        # Climbs picked up part-way up. Counted apart from the climbs proper,
+        # because everything the run is read by - the floors, the won share,
+        # the best so far - is about a climb that started at the bottom, and
+        # these did not.
+        self.deep = 0
 
         # What the run is actually holding, as against what was asked for on
         # the way in. Both move while it runs and both are carried in the
@@ -379,6 +386,7 @@ class Trainer(object):
                 "best_at": self.bestAt,
                 "best_floors": self.bestFloors,
                 "scores": self.scores,
+                "deep": self.deep,
                 "rate": self.rate,
                 "pressure": self.pressure,
                 "decayed_at": self.decayedAt,
@@ -456,6 +464,7 @@ class Trainer(object):
         self.rate = float(kept.get("rate", self.args.lr))
         self.pressure = float(kept.get("pressure", self.args.entropy))
         self.decayedAt = int(kept.get("decayed_at", 0))
+        self.deep = int(kept.get("deep", 0))
 
         for group in self.opt.param_groups:
             group["lr"] = self.rate
@@ -599,9 +608,22 @@ class Trainer(object):
                 # Only the ones that ended on this tick: the list holds the
                 # whole batch, so its length is not what just happened.
                 for i, ended in enumerate(done):
-                    if ended:
-                        finished.append((float(info["returns"][i]), counts[i]))
-                        self.episodes += 1
+                    if not ended:
+                        continue
+
+                    # A climb picked up part-way up is played and learned
+                    # from like any other. It is not one of the climbs the
+                    # run is judged on: it walked fewer floors to reach
+                    # wherever it reached and met one act's dangers rather
+                    # than three, so putting it in the average would move
+                    # every number the run is read by without the climber
+                    # having changed at all.
+                    if counts[i]["started_deep"]:
+                        self.deep += 1
+                        continue
+
+                    finished.append((float(info["returns"][i]), counts[i]))
+                    self.episodes += 1
 
         with torch.no_grad():
             state = torch.as_tensor(np.asarray(self.obs),
@@ -943,10 +965,19 @@ class Trainer(object):
                    loss]
             row += [0.0] * (len(CURVE_COLUMNS) - len(row))
 
+        # What is on the shelves, so that a run asked to practise the later
+        # acts can be seen to be doing it rather than only to have been told
+        # to.
+        shelves = ""
+
+        if self.args.deep > 0.0:
+            held = [self.vec.deep_held(act) for act in (2, 3)]
+            shelves = "  deep %d (%d/%d held)" % (self.deep, held[0], held[1])
+
         print("update %-6d %-11s %s  loss %7.3f  spread %4.2f  "
-              "push %5.3f  %5.0f moves/s" %
+              "push %5.3f%s  %5.0f moves/s" %
               (self.updates, "(%d climbs)" % self.episodes, line, loss,
-               self.spread, self.pressure,
+               self.spread, self.pressure, shelves,
                (self.steps - self.startSteps) / spent))
 
         with open(os.path.join(self.folder, "curve.csv"), "a",
@@ -1020,6 +1051,14 @@ def main(argv=None):
                         help="the least the policy is pushed to stay "
                              "undecided by; it is pushed harder than this "
                              "whenever the spread falls under --spread")
+    parser.add_argument("--deep", type=float, default=0.0,
+                        help="start this share of the climbs part-way up "
+                             "rather than at the bottom, from copies the "
+                             "climber leaves behind whenever it comes up "
+                             "into a new act. Every climb starts on the "
+                             "first floor, so the acts it loses in are the "
+                             "ones it practises least; these climbs are "
+                             "learned from and left out of every table")
     parser.add_argument("--spread", type=float, default=0.15,
                         help="how undecided the policy should stay, as a "
                              "share of the most it could be. A trained "

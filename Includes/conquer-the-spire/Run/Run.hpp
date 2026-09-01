@@ -66,6 +66,11 @@ class Run
     //! with it.
     const RunLog& GetLog() const;
 
+    //! Says that this climb was picked up part-way up. The log is the only
+    //! thing that carries it, and the log is not written into a save, so
+    //! whoever loads a run is the one that knows.
+    void NoteStartedDeep();
+
     //! Takes \p amount off the climber's health, a point less if they are
     //! carrying a tungsten rod. The rod takes a point off every loss of
     //! health there is, and a toll at a bridge or a hand pushed into a pool

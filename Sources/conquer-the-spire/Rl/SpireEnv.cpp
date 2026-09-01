@@ -1135,11 +1135,20 @@ void SpireEnv::Close()
 {
     m_phase = EnvPhase::OVER;
 
-    // A climb that has finished is counted once, whatever happens next.
+    // A climb that has finished is counted once, whatever happens next -
+    // unless it was picked up part-way up, in which case it is not a climb
+    // this can be asked about. Its fights were reached with a deck the first
+    // act did not build and its ending is one act's worth of danger, so
+    // letting it into the tables would move every share in them without any
+    // of the choices behind them having changed.
     if (!m_counted)
     {
         m_counted = true;
-        m_stats.Ingest(m_run.GetLog());
+
+        if (!StartedDeep())
+        {
+            m_stats.Ingest(m_run.GetLog());
+        }
     }
 }
 
@@ -3151,6 +3160,16 @@ std::string SpireEnv::Save() const
     return out.str();
 }
 
+bool SpireEnv::StartedDeep() const
+{
+    return m_run.GetLog().GetSummary().startedDeep != 0;
+}
+
+void SpireEnv::NoteStartedDeep()
+{
+    m_run.NoteStartedDeep();
+}
+
 bool SpireEnv::Load(const std::string& text)
 {
     std::istringstream in(text);
@@ -3185,6 +3204,17 @@ bool SpireEnv::Load(const std::string& text)
     m_phase = static_cast<EnvPhase>(phase);
     m_bossFight = boss != 0;
     m_healthBefore = m_run.GetPlayer().GetHealth();
+
+    // Everything the env was keeping about the climb it was playing, the same
+    // things Reset() lets go of. A question nobody answered, a fight half
+    // aimed at, and above all the counted mark: without it a climb loaded
+    // over one that had already ended would never be counted at all.
+    m_chosen = 0;
+    m_chosenTarget = 0;
+    m_askedByPotion = false;
+    m_answers.clear();
+    m_counted = false;
+    m_moves = 0;
 
     return true;
 }
