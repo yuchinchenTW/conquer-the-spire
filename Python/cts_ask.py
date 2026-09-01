@@ -98,6 +98,40 @@ def wantsCard(card, deckAt):
     return asked
 
 
+def wantsAnyOffer(seed):
+    """Overrules which of the cards on offer is taken, not whether to take one.
+
+    A pile that holds more than one card is on the head as one move per card,
+    all of them naming the same pile. So the cards on offer are the moves that
+    name the pile the policy had already settled on, and overruling among
+    those and no others asks which card while leaving whether to take a card
+    alone - the two questions come apart, and the coarser one is already a
+    column of its own.
+
+    A die rather than a fixed slot: the first card on a pile is not a card,
+    it is whatever the pile happened to put there, so always taking it would
+    be a third policy rather than the absence of one.
+    """
+    die = np.random.RandomState(seed)
+
+    def asked(table, legal, scores, ids, row):
+        pick = int(np.argmax(np.where(legal[row], scores[row], -1e9)))
+
+        if table.kind(pick) != "claim_reward":
+            return None
+
+        pile = table.a[pick]
+        among = [at for at, kind in enumerate(table.names)
+                 if kind == "claim_reward" and table.a[at] == pile and
+                 table.b[at] >= 0 and legal[row, at]]
+
+        # One card on the pile is not a choice, and neither is gold or a
+        # relic, which come up as a single move naming no card at all.
+        return int(die.choice(among)) if len(among) > 1 else None
+
+    return asked
+
+
 #! What can be asked, and what each column overrules.
 def questions(deckAt):
     return {
@@ -107,6 +141,7 @@ def questions(deckAt):
                   ("sharpen, always", wantsKind("smith"))]),
         "draft": ("what drafting is worth",
                   [("as it likes", None),
+                   ("any of the offer", wantsAnyOffer(11)),
                    ("take every card", wantsKind("claim_reward")),
                    ("take none of them", wantsKind("skip_reward"))]),
         "removal": ("which card is worth tearing out",
@@ -152,6 +187,7 @@ def played(net, kept, plan, device, overrule, climbs, rows, seed):
     obs, ids, mask = vec.reset(kept["character"], seed)
     floors = []
     bosses = []
+    wins = []
     forced = 0
 
     while len(floors) < climbs:
@@ -185,8 +221,10 @@ def played(net, kept, plan, device, overrule, climbs, rows, seed):
             if dones[row]:
                 floors.append(float(summary["floors"]))
                 bosses.append(float(summary["bosses_won"]))
+                wins.append(float(summary["won_the_spire"]))
 
-    return (np.array(floors[:climbs]), np.array(bosses[:climbs]), forced)
+    return (np.array(floors[:climbs]), np.array(bosses[:climbs]),
+            np.array(wins[:climbs]), forced)
 
 
 def main(argv=None):
@@ -207,17 +245,18 @@ def main(argv=None):
 
     print("%s, over %d climbs each, the same seeds" % (title, args.climbs))
     print()
-    print("%-22s %8s %8s %8s %8s"
-          % ("overruled", "floors", "+-", "bosses", "forced"))
+    print("%-22s %8s %8s %8s %8s %8s"
+          % ("overruled", "floors", "+-", "bosses", "won", "forced"))
 
     for label, overrule in columns:
-        floors, bosses, forced = played(net, kept, plan, device, overrule,
-                                        args.climbs, args.envs, args.seed)
+        floors, bosses, wins, forced = played(net, kept, plan, device,
+                                              overrule, args.climbs,
+                                              args.envs, args.seed)
 
-        print("%-22s %8.2f %8.2f %8.3f %8d"
+        print("%-22s %8.2f %8.2f %8.3f %7.1f%% %8d"
               % (label, floors.mean(),
                  floors.std() / max(1.0, len(floors) ** 0.5),
-                 bosses.mean(), forced))
+                 bosses.mean(), 100.0 * wins.mean(), forced))
 
     return 0
 
@@ -239,6 +278,13 @@ def _check():
     tookOne = 0
     skipped = 0
 
+    # And whether asking which card ever has more than one to choose between.
+    # If it never did, the column would be the policy playing itself and the
+    # two identical numbers would read as "which card does not matter".
+    among = wantsAnyOffer(11)
+    offered = 0
+    moved = 0
+
     for _ in range(1200):
         legal = np.asarray(mask, dtype=np.uint8)
         scores = rng.rand(legal.shape[0], legal.shape[1])
@@ -251,6 +297,14 @@ def _check():
             if said is not None:
                 picks[row] = said
 
+        for row in range(legal.shape[0]):
+            said = among(table, legal, scores, np.asarray(ids), row)
+
+            if said is not None:
+                offered += 1
+                moved += 1 if said != int(np.argmax(
+                    np.where(legal[row], scores[row], -1e9))) else 0
+
         for pick in picks:
             tookOne += 1 if table.kind(pick) == "claim_reward" else 0
             skipped += 1 if table.kind(pick) == "skip_reward" else 0
@@ -259,8 +313,13 @@ def _check():
 
     assert tookOne > 0, "no pile was ever taken, so nothing was overruled"
     assert skipped == 0, "a pile was turned down while being overruled to take"
+    assert offered > 0, ("no pile ever held two cards, so which card was "
+                        "never asked")
+    assert moved > 0, "the die never named a card other than the one wanted"
 
     print("taking every pile took %d and turned down %d" % (tookOne, skipped))
+    print("which card was asked %d times and moved the answer %d"
+          % (offered, moved))
     print("a deck slot is named at %d" % plan.id_layout["deck"])
 
 
