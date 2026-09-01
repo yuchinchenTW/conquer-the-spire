@@ -336,12 +336,23 @@ class Trainer(object):
         for, which is what makes it a floor.
 
         The rate comes down when the climber has gone a long while without
-        being at its best. A rate that carried a run to three billion moves is
-        too large to hold it there, and the usual answer - decay it towards
-        the end - has no end here to decay towards. So the plateau names the
-        moment instead: no new best in as many updates as asked, and the rate
-        halves. Once per stretch, so that a long flat run steps down rather
-        than falling through the floor in one go.
+        being at its best *and* is spread out enough to have been trying. A
+        rate that carried a run to three billion moves is too large to hold it
+        there, and the usual answer - decay it towards the end - has no end
+        here to decay towards. So the plateau names the moment instead: no new
+        best in as many updates as asked, and the rate halves. Once per
+        stretch, so that a long flat run steps down rather than falling
+        through the floor in one go.
+
+        The spread has to be up to what was asked before any of that, because
+        otherwise the two answer the same question and undo each other. While
+        the pressure is still pushing, the return is being held down on
+        purpose - a climber made to try things does worse at first - so "no
+        new best" is the pressure's own doing and not a plateau. Cutting the
+        rate for it would leave a run that explores as much as it can and
+        learns as slowly as it can, and would make the flatness it was reading
+        come true. A flat run that *is* spread out has nothing left to blame
+        but the rate.
         """
         if self.spread > 0.0:
             self.pressure *= (LEANING if self.spread < self.args.spread
@@ -350,8 +361,10 @@ class Trainer(object):
                                 self.args.entropy * MOST_PRESSURE)
 
         stale = self.updates - max(self.bestAt, self.decayedAt)
+        trying = self.spread >= self.args.spread
 
-        if (self.args.patience > 0 and stale >= self.args.patience and
+        if (self.args.patience > 0 and trying and
+                stale >= self.args.patience and
                 self.rate > self.args.lr_floor):
             self.rate = max(self.rate * self.args.decay, self.args.lr_floor)
             self.decayedAt = self.updates
@@ -1059,12 +1072,17 @@ def main(argv=None):
                              "first floor, so the acts it loses in are the "
                              "ones it practises least; these climbs are "
                              "learned from and left out of every table")
-    parser.add_argument("--spread", type=float, default=0.15,
+    parser.add_argument("--spread", type=float, default=0.12,
                         help="how undecided the policy should stay, as a "
                              "share of the most it could be. A trained "
-                             "climber sits near 0.10 and stops trying things")
+                             "climber sits near 0.10 and stops trying "
+                             "things; 0.12 is what ten times the floor "
+                             "actually buys, measured, so the pressure "
+                             "settles under its ceiling instead of pinning "
+                             "against it")
     parser.add_argument("--patience", type=int, default=4000,
-                        help="how many updates without a new best before the "
+                        help="how many updates without a new best, while the "
+                             "spread is up to what was asked, before the "
                              "rate comes down; 0 to leave the rate alone")
     parser.add_argument("--decay", type=float, default=0.5,
                         help="what the rate is multiplied by when it does")
