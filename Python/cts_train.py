@@ -64,6 +64,26 @@ default cadence is a hundred updates, which is steady enough to mean
 something and short enough to catch a peak while it is happening.
 """
 
+LEANING = 1.02
+"""How much the pressure to stay undecided moves in one update.
+
+Two percent a time: a hundred and sixteen updates to go from the asked-for
+coefficient to ten times it, which is slow beside the thing it is steering
+and so cannot start swinging against it.
+"""
+
+MOST_PRESSURE = 10.0
+"""How many times the asked-for coefficient the pressure may reach.
+
+There has to be a ceiling, or a policy that will not spread out for some
+other reason - too few legal moves, a value head that is simply right -
+would have the coefficient climbing for ever until nothing else in the loss
+mattered. Ten times the usual hundredth is already a tenth, which is high
+enough that a run sitting on the ceiling is a run being held back rather
+than a run being kept honest, and the number is meant to be reached only
+when something else is wrong.
+"""
+
 BEST_MARGIN = 0.5
 """How much better than the standing best a run has to be to be kept.
 
@@ -204,6 +224,17 @@ class Trainer(object):
         self.bestFloors = 0.0
         self.scores = []
 
+        # The share of the most it could be undecided by, last update.
+        self.spread = 0.0
+
+        # What the run is actually holding, as against what was asked for on
+        # the way in. Both move while it runs and both are carried in the
+        # checkpoint, so that picking a run up again does not hand it back
+        # the rate and the pressure it had already worked away from.
+        self.rate = args.lr
+        self.pressure = args.entropy
+        self.decayedAt = 0
+
         os.makedirs(self.folder, exist_ok=True)
 
         # A climber that is not being carried on leaves nothing of itself
@@ -282,6 +313,48 @@ class Trainer(object):
               % (smooth, deep, BEST_OVER,
                  "" if was is None else " (was %.1f)" % was))
 
+    def hold(self):
+        """Keeps the policy undecided, and slows the run down when it stalls.
+
+        Two things, both of which only ever fire because the run stopped
+        getting better rather than after some number of moves picked in
+        advance - there is no end to this run to count backwards from.
+
+        The pressure to stay undecided is a floor and not a setting. A policy
+        this far in is nearly made up: it holds about a tenth of the spread a
+        coin would, which is little enough that it stops trying things and
+        starts drifting on whatever it already believes. So when the spread
+        falls under what is asked for, the coefficient leans up; when it rises
+        over, the coefficient leans back down - never below the number asked
+        for, which is what makes it a floor.
+
+        The rate comes down when the climber has gone a long while without
+        being at its best. A rate that carried a run to three billion moves is
+        too large to hold it there, and the usual answer - decay it towards
+        the end - has no end here to decay towards. So the plateau names the
+        moment instead: no new best in as many updates as asked, and the rate
+        halves. Once per stretch, so that a long flat run steps down rather
+        than falling through the floor in one go.
+        """
+        if self.spread > 0.0:
+            self.pressure *= (LEANING if self.spread < self.args.spread
+                              else 1.0 / LEANING)
+            self.pressure = min(max(self.pressure, self.args.entropy),
+                                self.args.entropy * MOST_PRESSURE)
+
+        stale = self.updates - max(self.bestAt, self.decayedAt)
+
+        if (self.args.patience > 0 and stale >= self.args.patience and
+                self.rate > self.args.lr_floor):
+            self.rate = max(self.rate * self.args.decay, self.args.lr_floor)
+            self.decayedAt = self.updates
+
+            for group in self.opt.param_groups:
+                group["lr"] = self.rate
+
+            print("   no better in %d updates: the rate is now %.2e"
+                  % (stale, self.rate))
+
     def save(self, path=None):
         torch.save(
             {
@@ -306,6 +379,9 @@ class Trainer(object):
                 "best_at": self.bestAt,
                 "best_floors": self.bestFloors,
                 "scores": self.scores,
+                "rate": self.rate,
+                "pressure": self.pressure,
+                "decayed_at": self.decayedAt,
             },
             path or self.checkpoint,
         )
@@ -373,10 +449,16 @@ class Trainer(object):
         self.net.load_state_dict(kept["net"])
         self.opt.load_state_dict(kept["opt"])
 
-        # The saved optimiser brings the rate it was saved with, which would
-        # quietly ignore a rate asked for on the way back in.
+        # The saved optimiser brings the rate it was saved with. What the run
+        # should carry on at is the rate it had worked its way down to, unless
+        # it was never keeping one, in which case it is whatever was asked for
+        # on the way back in.
+        self.rate = float(kept.get("rate", self.args.lr))
+        self.pressure = float(kept.get("pressure", self.args.entropy))
+        self.decayedAt = int(kept.get("decayed_at", 0))
+
         for group in self.opt.param_groups:
-            group["lr"] = self.args.lr
+            group["lr"] = self.rate
         self.updates = int(kept.get("updates", 0))
         self.steps = int(kept.get("steps", 0))
         self.episodes = int(kept.get("episodes", 0))
@@ -584,6 +666,14 @@ class Trainer(object):
         size = max(1, total // self.args.minibatches)
         losses = []
 
+        # How undecided the policy still is, against how undecided it could
+        # be. The entropy on its own says nothing, because the number of
+        # legal moves changes from one state to the next: two nats is nearly
+        # everything when three moves are legal and nearly nothing when forty
+        # are. What is comparable across a run is the share of the most it
+        # could have, which is the log of the count of legal moves.
+        spread = []
+
         for _ in range(self.args.epochs):
             order = torch.randperm(total, device=self.device)
 
@@ -592,6 +682,11 @@ class Trainer(object):
                 judged = self.net.judge(obs[cut], ids[cut], masks[cut],
                                         actions[cut])
                 newLogp, entropy, value = judged[:3]
+
+                with torch.no_grad():
+                    legal = masks[cut].sum(dim=-1).clamp(min=1.0)
+                    spread.append(float((entropy /
+                                         legal.log().clamp(min=1e-6)).mean()))
 
                 # The card net also says what it foresees; the flat one has
                 # no such head and hands back three things, not four.
@@ -604,7 +699,7 @@ class Trainer(object):
                                         clipped * adv[cut]).mean()
                 valueLoss = functional.mse_loss(value, returns[cut])
                 loss = (policyLoss + self.args.value * valueLoss -
-                        self.args.entropy * entropy.mean())
+                        self.pressure * entropy.mean())
 
                 # And what the trunk was asked to see. Nothing reads these at
                 # play: they are here so the trunk has to hold the damage
@@ -620,6 +715,8 @@ class Trainer(object):
                                          self.args.clip_grad)
                 self.opt.step()
                 losses.append(float(loss.detach()))
+
+        self.spread = sum(spread) / len(spread) if spread else 0.0
 
         return sum(losses) / len(losses) if losses else 0.0
 
@@ -826,6 +923,7 @@ class Trainer(object):
                        deck["cards_upgraded"].mean(),
                        deck["cards_removed"].mean(), 100.0 * refusal))
             self.noteBest(returns.mean(), floors.mean())
+            self.hold()
 
             row = [self.updates, self.steps, self.episodes,
                    float(returns.mean()), float(floors.mean()),
@@ -845,8 +943,10 @@ class Trainer(object):
                    loss]
             row += [0.0] * (len(CURVE_COLUMNS) - len(row))
 
-        print("update %-6d %-11s %s  loss %7.3f  %5.0f moves/s" %
+        print("update %-6d %-11s %s  loss %7.3f  spread %4.2f  "
+              "push %5.3f  %5.0f moves/s" %
               (self.updates, "(%d climbs)" % self.episodes, line, loss,
+               self.spread, self.pressure,
                (self.steps - self.startSteps) / spent))
 
         with open(os.path.join(self.folder, "curve.csv"), "a",
@@ -916,7 +1016,22 @@ def main(argv=None):
     parser.add_argument("--clip", type=float, default=0.2)
     parser.add_argument("--clip-grad", type=float, default=0.5,
                         dest="clip_grad")
-    parser.add_argument("--entropy", type=float, default=0.01)
+    parser.add_argument("--entropy", type=float, default=0.01,
+                        help="the least the policy is pushed to stay "
+                             "undecided by; it is pushed harder than this "
+                             "whenever the spread falls under --spread")
+    parser.add_argument("--spread", type=float, default=0.15,
+                        help="how undecided the policy should stay, as a "
+                             "share of the most it could be. A trained "
+                             "climber sits near 0.10 and stops trying things")
+    parser.add_argument("--patience", type=int, default=4000,
+                        help="how many updates without a new best before the "
+                             "rate comes down; 0 to leave the rate alone")
+    parser.add_argument("--decay", type=float, default=0.5,
+                        help="what the rate is multiplied by when it does")
+    parser.add_argument("--lr-floor", type=float, default=5e-5,
+                        dest="lr_floor",
+                        help="and how far down it is allowed to go")
     parser.add_argument("--value", type=float, default=0.5)
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--minibatches", type=int, default=4)
