@@ -27,6 +27,42 @@ exit /b 1
 
 :havePython
 
+rem --------------------------------------------- the same as last time
+rem What was chosen last time, written down by this file when it starts
+rem the trainer. There is nothing to carry on from the first time, so the
+rem questions get asked; after that they do not have to be.
+set "LAST=runs\last.bat"
+if not exist "%LAST%" goto character
+
+call "%LAST%"
+
+rem Never carried over. It is the one answer that throws the weights
+rem away, so it is asked for every single time it is wanted.
+set "FRESH="
+
+if not exist "runs\%CHARACTER%\checkpoint.pt" goto character
+
+cls
+echo ==========================================================
+echo   Conquer the Spire - training
+echo ==========================================================
+echo.
+echo   Last time it was:
+echo.
+echo     %CHARACTER%, act limit %ACTS% - 0 is the whole spire
+echo     %ENVS% climbs at once, %WIDTH% wide
+echo     looks ahead %GAMMA%, a point of health %HPW%
+echo     practises the later acts: %DEEP% of the climbs start part-way up
+echo.
+echo   and it will carry on from runs\%CHARACTER%\checkpoint.pt
+echo.
+echo     1. Carry on just like that   - starts on its own in ten seconds
+echo     2. Change something
+echo.
+choice /c 12 /t 10 /d 1 /n /m "  Choose [1]: "
+if errorlevel 2 goto character
+goto go
+
 rem ---------------------------------------------------------- the character
 :character
 cls
@@ -59,6 +95,10 @@ goto character
 
 rem ---------------------------------------------------------- how far to go
 :acts
+
+rem What to offer, which the first time through is nothing to go on.
+if not defined ACTSWAS set "ACTSWAS=1"
+
 cls
 echo ==========================================================
 echo   %CHARACTER% - how much of the spire?
@@ -71,11 +111,11 @@ echo     4. As far as it can go - the third act's boss, for now
 echo.
 echo     B. Back
 echo.
-set "ACTS="
 set "PICK="
-set /p "PICK=  Choose [1]: "
+set /p "PICK=  Choose [%ACTSWAS%]: "
 
-if not defined PICK set "PICK=1"
+if not defined PICK set "PICK=%ACTSWAS%"
+set "ACTS="
 if /i "%PICK%"=="b" goto character
 if "%PICK%"=="1" set "ACTS=1"
 if "%PICK%"=="2" set "ACTS=2"
@@ -245,14 +285,69 @@ if /i "%PICK%"=="b" goto blood
 if "%PICK%"=="1" set "ENVS=64"
 if "%PICK%"=="2" set "ENVS=128"
 if "%PICK%"=="3" set "ENVS=256"
-if defined ENVS goto go
+if defined ENVS goto deep
 echo.
 echo   That was not one of them.
 pause
 goto size
 
+rem ------------------------------------------------- the acts it loses in
+:deep
+cls
+echo ==========================================================
+echo   %CHARACTER%, act limit %ACTS% - practise the later acts?
+echo ==========================================================
+echo.
+echo     1. Yes  - 40%% of the climbs start part-way up
+echo     2. No   - every climb starts on the first floor
+echo.
+echo   Every climb starts on the first floor, so the first act is where
+echo   nearly all of the moves go - and the acts the climber is losing in
+echo   are the ones it practises least. Of the climbs that beat the first
+echo   act's boss, under half live to see the second act's; nine climbs in
+echo   a hundred ever meet the last boss at all.
+echo.
+echo   Saying yes keeps a copy of a climb whenever it comes up into a new
+echo   act and starts some of the climbs from one of those copies. Those
+echo   climbs are learned from and left out of every table, so the floors
+echo   and the won share on the curve go on meaning what they meant.
+echo.
+echo     B. Back
+echo.
+set "PICK="
+set /p "PICK=  Choose [1]: "
+
+if not defined PICK set "PICK=1"
+if /i "%PICK%"=="b" goto size
+set "DEEP="
+if "%PICK%"=="1" set "DEEP=0.4"
+if "%PICK%"=="2" set "DEEP=0"
+if defined DEEP goto go
+echo.
+echo   That was not one of them.
+pause
+goto deep
+
 rem -------------------------------------------------------------------- off
 :go
+
+rem Anything the questions did not settle, because the questions were
+rem skipped or because this file is newer than the notes it left.
+if not defined DEEP set "DEEP=0.4"
+
+rem And the answers, so that next time is one keypress or none of them.
+rem Written before the trainer starts rather than after, because the way
+rem this ends is Ctrl-C.
+md runs 2>nul
+> "runs\last.bat" echo set "CHARACTER=%CHARACTER%"
+>>"runs\last.bat" echo set "ACTS=%ACTS%"
+>>"runs\last.bat" echo set "ACTSWAS=%ACTS%"
+>>"runs\last.bat" echo set "ENVS=%ENVS%"
+>>"runs\last.bat" echo set "WIDTH=%WIDTH%"
+>>"runs\last.bat" echo set "GAMMA=%GAMMA%"
+>>"runs\last.bat" echo set "HPW=%HPW%"
+>>"runs\last.bat" echo set "DEEP=%DEEP%"
+
 cls
 echo ==========================================================
 echo   Training %CHARACTER%
@@ -263,10 +358,13 @@ echo   climbs      : %ENVS% at once
 echo   brain       : %WIDTH% wide
 echo   looks ahead : %GAMMA%
 echo   a point of hp: %HPW%
+echo   later acts  : %DEEP% of climbs start part-way up
 echo   saved to    : runs\%CHARACTER%\checkpoint.pt
 echo   the curve   : runs\%CHARACTER%\curve.csv
 echo.
-echo   Ctrl-C stops it. It saves first, and running this again carries on.
+echo   Ctrl-C stops it. It saves first, and running this again carries on
+echo   at the rate it had worked its way down to - the checkpoint carries
+echo   that, so it is not something to remember.
 echo.
 echo   floors is what moves first, then boss - the share of climbs that put
 echo   an act boss down. win is the share that got as far as they were asked
@@ -274,7 +372,7 @@ echo   to get, so with an act limit it starts moving early; asked for the
 echo   whole spire it waits on the third act's boss and takes much longer.
 echo.
 
-%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --picks %FRESH% %EXTRA%
+%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --deep %DEEP% --picks %FRESH% %EXTRA%
 
 echo.
 echo ==========================================================
