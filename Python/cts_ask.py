@@ -60,7 +60,7 @@ def _best(scores, row, among):
 
 def wantsKind(*kinds):
     """Overrules a move to be of \\p kinds, wherever one is on offer."""
-    def asked(table, legal, scores, ids, row):
+    def asked(table, legal, scores, ids, obs, row):
         return _best(scores, row, [i for i in table.of(*kinds)
                                    if legal[row, i]])
 
@@ -77,7 +77,7 @@ def wantsCard(card, deckAt):
     """
     outs = ("buy_removal", "toke", "choose_option")
 
-    def asked(table, legal, scores, ids, row):
+    def asked(table, legal, scores, ids, obs, row):
         if table.kind(int(np.argmax(np.where(legal[row], scores[row],
                                              -1e9)))) not in outs:
             return None
@@ -114,7 +114,7 @@ def wantsAnyOffer(seed):
     """
     die = np.random.RandomState(seed)
 
-    def asked(table, legal, scores, ids, row):
+    def asked(table, legal, scores, ids, obs, row):
         pick = int(np.argmax(np.where(legal[row], scores[row], -1e9)))
 
         if table.kind(pick) != "claim_reward":
@@ -132,8 +132,74 @@ def wantsAnyOffer(seed):
     return asked
 
 
+def drinksUnder(mark, healthAt):
+    """Reaches for the belt whenever health is under \\p mark and there is
+    something in it.
+
+    Which potion is left to the climber: among the ones it may drink, the one
+    it thinks most of. What is being taken away is only *when*, because the
+    when is what the climbs that died on the road got wrong - they walked into
+    the fight that killed them at a third of their health with a third of them
+    still carrying something.
+    """
+    def asked(table, legal, scores, ids, obs, row):
+        if obs[row, healthAt] >= mark:
+            return None
+
+        return _best(scores, row, [i for i in table.of("use_potion")
+                                   if legal[row, i]])
+
+    return asked
+
+
+def neverDrinks():
+    """Never reaches for the belt at all.
+
+    The far end of the same question, and the one that says how much of the
+    answer is even there to be had: if a climber forbidden its potions is
+    barely worse than one left alone, then when it drinks cannot be worth much
+    either, whatever the other columns say.
+    """
+    def asked(table, legal, scores, ids, obs, row):
+        dry = [i for i, kind in enumerate(table.names)
+               if kind != "use_potion" and legal[row, i]]
+
+        if not dry:
+            return None
+
+        wanted = int(np.argmax(np.where(legal[row], scores[row], -1e9)))
+
+        if table.kind(wanted) != "use_potion":
+            return None
+
+        return _best(scores, row, dry)
+
+    return asked
+
+
+def wandersOff(seed):
+    """Takes whichever way up is nearest to hand rather than the chosen one.
+
+    The last thing on the road that is a choice rather than a fight. A climber
+    bleeds out through the second act, and if the bleeding is in where it
+    walks then throwing the walking away costs a great deal; if it is not,
+    this column reads the same as being left alone and the road is not where
+    the answer is.
+    """
+    die = np.random.RandomState(seed)
+
+    def asked(table, legal, scores, ids, obs, row):
+        ways = [i for i in table.of("travel") if legal[row, i]]
+
+        # One way on is not a fork, and a step that is not a step at all is
+        # not this question.
+        return int(die.choice(ways)) if len(ways) > 1 else None
+
+    return asked
+
+
 #! What can be asked, and what each column overrules.
-def questions(deckAt):
+def questions(deckAt, healthAt=0):
     return {
         "fire": ("what a fire is worth",
                  [("as it likes", None),
@@ -144,6 +210,14 @@ def questions(deckAt):
                    ("any of the offer", wantsAnyOffer(11)),
                    ("take every card", wantsKind("claim_reward")),
                    ("take none of them", wantsKind("skip_reward"))]),
+        "drink": ("when the belt is worth reaching for",
+                  [("as it likes", None),
+                   ("under half, always", drinksUnder(0.5, healthAt)),
+                   ("under a third, always", drinksUnder(1 / 3.0, healthAt)),
+                   ("never at all", neverDrinks())]),
+        "path": ("what choosing the way up is worth",
+                 [("as it likes", None),
+                  ("any way up", wandersOff(23))]),
         "removal": ("which card is worth tearing out",
                     [("as it likes", None),
                      ("a Strike, always", wantsCard(STRIKE, deckAt)),
@@ -202,10 +276,11 @@ def played(net, kept, plan, device, overrule, climbs, rows, seed):
         scores = logits.cpu().numpy()
         scores[legal == 0] = -1e9
         picks = scores.argmax(axis=1)
+        flat = np.asarray(obs, dtype=np.float32).reshape(rows, -1)
 
         if overrule is not None:
             for row in range(rows):
-                said = overrule(table, legal, scores, named, row)
+                said = overrule(table, legal, scores, named, flat, row)
 
                 if said is not None and said != picks[row]:
                     picks[row] = said
@@ -232,7 +307,7 @@ def main(argv=None):
         description="Ask what one kind of choice is worth.")
     parser.add_argument("folder", nargs="?", default="runs/ironclad")
     parser.add_argument("--ask", default="fire",
-                        choices=sorted(questions(0)),
+                        choices=sorted(questions(0, 0)),
                         help="which choice to take away")
     parser.add_argument("--climbs", type=int, default=500)
     parser.add_argument("--envs", type=int, default=64)
@@ -241,7 +316,10 @@ def main(argv=None):
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     net, kept, plan = load(args.folder, device)
-    title, columns = questions(plan.id_layout["deck"])[args.ask]
+    # Health is a share of the ceiling, four along the block that says where
+    # the climb has got to.
+    title, columns = questions(plan.id_layout["deck"],
+                               plan.layout["run"] + 4)[args.ask]
 
     print("%s, over %d climbs each, the same seeds" % (title, args.climbs))
     print()
@@ -285,25 +363,39 @@ def _check():
     offered = 0
     moved = 0
 
+    # And whether reaching for the belt is ever a thing that can be done. A
+    # column that never fires is three identical numbers reading as "when it
+    # drinks does not matter".
+    thirsty = drinksUnder(0.5, plan.layout["run"] + 4)
+    drank = 0
+
     for _ in range(1200):
         legal = np.asarray(mask, dtype=np.uint8)
         scores = rng.rand(legal.shape[0], legal.shape[1])
         scores[legal == 0] = -1e9
         picks = scores.argmax(axis=1)
+        flat = np.asarray(obs, dtype=np.float32).reshape(legal.shape[0], -1)
 
         for row in range(legal.shape[0]):
-            said = asked(table, legal, scores, np.asarray(ids), row)
+            said = asked(table, legal, scores, np.asarray(ids), flat, row)
 
             if said is not None:
                 picks[row] = said
 
         for row in range(legal.shape[0]):
-            said = among(table, legal, scores, np.asarray(ids), row)
+            said = among(table, legal, scores, np.asarray(ids), flat, row)
 
             if said is not None:
                 offered += 1
                 moved += 1 if said != int(np.argmax(
                     np.where(legal[row], scores[row], -1e9))) else 0
+
+            told = thirsty(table, legal, scores, np.asarray(ids), flat, row)
+
+            if told is not None:
+                drank += 1
+                assert table.kind(told) == "use_potion", (
+                    "being told to drink named a %s" % table.kind(told))
 
         for pick in picks:
             tookOne += 1 if table.kind(pick) == "claim_reward" else 0
@@ -320,6 +412,9 @@ def _check():
     print("taking every pile took %d and turned down %d" % (tookOne, skipped))
     print("which card was asked %d times and moved the answer %d"
           % (offered, moved))
+    print("the belt was reached for %d times under half health" % drank)
+
+    assert drank > 0, "nothing was ever thirsty, so when it drinks is unasked"
     print("a deck slot is named at %d" % plan.id_layout["deck"])
 
 
