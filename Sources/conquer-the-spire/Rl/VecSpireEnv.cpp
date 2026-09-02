@@ -19,7 +19,8 @@ VecSpireEnv::VecSpireEnv(std::size_t count)
       m_deep(static_cast<std::size_t>(DEEPEST_START - SHALLOWEST_START + 1)),
       m_deepNext(
           static_cast<std::size_t>(DEEPEST_START - SHALLOWEST_START + 1), 0u),
-      m_lastAct(count == 0u ? 1u : count, 1)
+      m_lastAct(count == 0u ? 1u : count, 1),
+      m_lastFloor(count == 0u ? 1u : count, 0)
 {
     // Nothing else to set up: a row of climbs is started by Reset().
 }
@@ -40,6 +41,7 @@ void VecSpireEnv::Reset(CardColor character, unsigned int seed)
         m_returns[i] = 0.0f;
         m_lengths[i] = 0;
         m_lastAct[i] = m_envs[i].GetRun().GetAct();
+        m_lastFloor[i] = m_envs[i].GetRun().GetFloor();
     }
 }
 
@@ -63,6 +65,7 @@ void VecSpireEnv::ResetOne(std::size_t index, CardColor character,
     m_returns[index] = 0.0f;
     m_lengths[index] = 0;
     m_lastAct[index] = m_envs[index].GetRun().GetAct();
+    m_lastFloor[index] = m_envs[index].GetRun().GetFloor();
 }
 
 void VecSpireEnv::SetDeepShare(float share)
@@ -145,10 +148,10 @@ bool VecSpireEnv::Keep(std::size_t index, int act)
 
     const std::string save = m_envs[index].Save();
 
-    // A climb in a fight cannot be written out. The act is noticed after the
-    // step that changed it, and that step can have walked straight into a
-    // room, so this is the ordinary case rather than a strange one - saying
-    // no and being asked again next step is how the act gets kept at all.
+    // A climb in a fight cannot be written out. The move is noticed after the
+    // step that made it, and that step can have walked straight into a room,
+    // so this is the ordinary case rather than a strange one - saying no and
+    // being asked again next step is how a floor gets kept at all.
     if (save.empty())
     {
         return false;
@@ -315,16 +318,22 @@ void VecSpireEnv::Step(const std::size_t* actions, float* rewards,
 
         if (!over)
         {
-            // A climb that has just come up into a new act leaves a copy of
-            // itself behind for another climb to be started from.
-            // The act is only marked as kept once a copy was actually
-            // taken, so a climb that came up into it and walked straight into
-            // a fight is asked again on the step after.
+            // A climb that has moved leaves a copy of itself behind for
+            // another climb to be started from. Every floor and not only
+            // every act: what the climber loses is the middle of an act, and
+            // a shelf filled at the doors holds none of it.
+            //
+            // The floor is only marked as kept once a copy was actually
+            // taken, so a climb that walked straight into a fight is asked
+            // again on the step after rather than the floor going by.
             const int act = m_envs[i].GetRun().GetAct();
+            const int floor = m_envs[i].GetRun().GetFloor();
 
-            if (act > m_lastAct[i] && Keep(i, act))
+            if ((act > m_lastAct[i] || floor > m_lastFloor[i]) &&
+                Keep(i, act))
             {
                 m_lastAct[i] = act;
+                m_lastFloor[i] = floor;
             }
 
             continue;

@@ -75,6 +75,16 @@ class VecSpireEnv
     //! before the row started, and a full shelf is written round rather than
     //! left alone, so what it practises keeps up with what it has become.
     //!
+    //! A copy is taken every floor and not only on the way into an act. An
+    //! act is only ever entered whole - the climber rests before a boss and
+    //! walks through the door at four fifths of its health - so copies taken
+    //! at the door are all of a climb that is doing well. What it actually
+    //! loses is the middle: it walks into the second act at 83% and into the
+    //! fights that kill it at 35%, and a state like that was never on the
+    //! shelf to be handed back. Every floor puts the whole act on the shelf,
+    //! wounded and whole alike, in the proportions the climber really meets
+    //! them in.
+    //!
     //! A climb picked up this way is left out of every table: it walked fewer
     //! floors and met one act's dangers rather than three, so its floors and
     //! its ending are not the same measurement as a whole climb's.
@@ -147,7 +157,7 @@ class VecSpireEnv
 
     //! Keeps a copy of \p index as it stands, under \p act. Returns whether
     //! there was a copy to be had: a climb in a fight cannot be written out,
-    //! so the caller asks again next step rather than losing the act.
+    //! so the caller asks again next step rather than losing the floor.
     bool Keep(std::size_t index, int act);
 
     //! The first and last act a climb may be picked up in. Not the first:
@@ -157,7 +167,12 @@ class VecSpireEnv
 
     //! How many copies are held for each act. A save is a couple of thousand
     //! characters, so the whole shelf is a few megabytes.
-    static constexpr std::size_t DEEP_HELD = 1024;
+    //!
+    //! Larger than it was, because a shelf now holds a whole act rather than
+    //! its doorway and has that much more to be a fair sample of. It still
+    //! turns over in seconds at any real speed, which is what matters: a copy
+    //! the climber left a billion moves ago is a state it no longer reaches.
+    static constexpr std::size_t DEEP_HELD = 4096;
 
     std::vector<SpireEnv> m_envs;
     std::vector<float> m_returns;
@@ -177,9 +192,12 @@ class VecSpireEnv
     std::vector<std::vector<std::string>> m_deep;
     std::vector<std::size_t> m_deepNext;
 
-    //! What act each climb was last seen in, so that coming up into a new one
-    //! is something that can be noticed.
+    //! What act and floor each climb was last seen on, so that moving is
+    //! something that can be noticed. A copy that could not be taken - the
+    //! climb was in a fight - leaves these where they were, so the next step
+    //! asks again rather than the floor going by unkept.
     std::vector<int> m_lastAct;
+    std::vector<int> m_lastFloor;
 
     float m_deepShare = 0.0f;
     std::mt19937 m_deepRng;

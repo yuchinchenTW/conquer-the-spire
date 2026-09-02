@@ -617,3 +617,50 @@ TEST_CASE("A climb picked up part-way up is left out of the tables")
     CHECK(rows[0] > 0u);
     CHECK(rows[1] == 0u);
 }
+
+TEST_CASE("A shelf holds the middle of an act and not only its doorway")
+{
+    // An act is only ever entered whole: the climber rests before a boss and
+    // walks through the door at four fifths of its health. So a shelf filled
+    // at the doors is all of a climb that is doing well, and what the climber
+    // actually loses is the middle - it walks into the second act at 83% of
+    // its health and into the fight that kills it at 35%, and a state like
+    // that was never on the shelf to be handed back.
+    //
+    // A copy every floor puts the whole act on the shelf. What says so is
+    // that the shelf outgrows the row: with a copy only at the door, a row of
+    // four climbs can never hold more than the four that walked through it
+    // this pass, however long it plays.
+    const std::string save = SecondActSave(7u);
+
+    REQUIRE(save.empty() == false);
+
+    VecSpireEnv row(4u);
+
+    row.SetAutoReset(true);
+    row.SetDeepShare(1.0f);
+    row.Reset(CardColor::RED, 41u);
+
+    for (std::size_t i = 0; i < row.GetCount(); ++i)
+    {
+        REQUIRE(row.At(i).Load(save) == true);
+    }
+
+    // A move nothing will take, so that the climbs are standing on the second
+    // act's map when the row first looks at them.
+    std::vector<std::size_t> nowhere(row.GetCount(),
+                                     SpireEnv::ActionCount());
+
+    row.Step(nowhere.data(), nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const std::size_t atTheDoor = row.GetDeepHeld(2);
+
+    CHECK(atTheDoor == row.GetCount());
+
+    PlayedDeep(row, 1200, 11u);
+
+    // Every climb that ends is started again from the shelf, so a row that
+    // only kept doorways would be stuck at what it had: the climbs it hands
+    // back are already inside the act and never walk through the door again.
+    CHECK(row.GetDeepHeld(2) > atTheDoor * 4u);
+}
