@@ -198,8 +198,60 @@ def wandersOff(seed):
     return asked
 
 
+#! How the map block is laid out: a flag saying the column can be walked to,
+#! then one flag a kind, running from MONSTER upwards.
+MAP_NODE_SLOTS = 8
+ELITE_AT = 2
+
+
+def walksAtElites(want, actAt, mapAt, runAt):
+    """Walks at an elite in the first act, or away from one.
+
+    The first act is the only one the climber never has to hurry through: it
+    arrives at the second act at 83% of its health, which reads as good play
+    and might instead be the whole problem. An elite is thirty health and a
+    relic, and a deck that skipped both is a deck that has to be carried by
+    the second act rather than carrying it.
+
+    So this asks the question from both ends in the act where there is room
+    to ask it. Nothing is overruled in the later acts, where the answer would
+    be about surviving rather than about building.
+
+    Read the two ends differently. Walking round them is a real column: it
+    fires most of a time a climb, and it costs. Walking at them barely fires
+    at all, and that is the answer rather than a fault in it - counted over
+    800 climbs, the climber already takes 95% of the first act's elites when
+    a fork offers one, so there is almost nothing left to force. It is not
+    being careful. It is already going.
+
+    Only one row ahead, because that is all the state holds: the row after
+    is written as a union of everywhere the whole row leads, so which first
+    step leads to which elite is not in there to be read.
+    """
+    def asked(table, legal, scores, ids, obs, row):
+        if int(round(obs[row, runAt] * 4)) != 1:
+            return None
+
+        ways = [i for i in table.of("travel") if legal[row, i]]
+
+        if len(ways) < 2:
+            return None
+
+        def elite(at):
+            return obs[row, mapAt + table.a[at] * MAP_NODE_SLOTS +
+                       ELITE_AT] > 0.5
+
+        among = [i for i in ways if elite(i) == want]
+
+        # Only where the fork actually offers both, or there is no question.
+        return (_best(scores, row, among)
+                if among and len(among) < len(ways) else None)
+
+    return asked
+
+
 #! What can be asked, and what each column overrules.
-def questions(deckAt, healthAt=0):
+def questions(deckAt, healthAt=0, actAt=0, mapAt=0):
     return {
         "fire": ("what a fire is worth",
                  [("as it likes", None),
@@ -215,6 +267,12 @@ def questions(deckAt, healthAt=0):
                    ("under half, always", drinksUnder(0.5, healthAt)),
                    ("under a third, always", drinksUnder(1 / 3.0, healthAt)),
                    ("never at all", neverDrinks())]),
+        "elites": ("whether the first act is too careful",
+                   [("as it likes", None),
+                    ("at every elite it can reach",
+                     walksAtElites(True, actAt, mapAt, actAt)),
+                    ("round every elite it can",
+                     walksAtElites(False, actAt, mapAt, actAt))]),
         "path": ("what choosing the way up is worth",
                  [("as it likes", None),
                   ("any way up", wandersOff(23))]),
@@ -307,7 +365,7 @@ def main(argv=None):
         description="Ask what one kind of choice is worth.")
     parser.add_argument("folder", nargs="?", default="runs/ironclad")
     parser.add_argument("--ask", default="fire",
-                        choices=sorted(questions(0, 0)),
+                        choices=sorted(questions(0, 0, 0, 0)),
                         help="which choice to take away")
     parser.add_argument("--climbs", type=int, default=500)
     parser.add_argument("--envs", type=int, default=64)
@@ -319,7 +377,9 @@ def main(argv=None):
     # Health is a share of the ceiling, four along the block that says where
     # the climb has got to.
     title, columns = questions(plan.id_layout["deck"],
-                               plan.layout["run"] + 4)[args.ask]
+                               plan.layout["run"] + 4,
+                               plan.layout["run"],
+                               plan.layout["map"])[args.ask]
 
     print("%s, over %d climbs each, the same seeds" % (title, args.climbs))
     print()
