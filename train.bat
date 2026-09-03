@@ -57,10 +57,10 @@ echo     walks %LOOK% moves before making one, out of a fight
 echo.
 echo   and it will carry on from runs\%CHARACTER%\checkpoint.pt
 echo.
-echo     1. Carry on just like that   - starts on its own in ten seconds
-echo     2. Change something
+echo     1. Carry on just like that   - starts on its own in 20 seconds
+echo     2. Change something          - every question, one by one
 echo.
-choice /c 12 /t 10 /d 1 /n /m "  Choose [1]: "
+choice /c 12 /t 20 /d 1 /n /m "  Choose [1]: "
 if errorlevel 2 goto character
 goto go
 
