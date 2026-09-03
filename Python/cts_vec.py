@@ -181,7 +181,7 @@ class VecSpireEnv(object):
         lib.cts_vec_set_act_limit.argtypes = [ctypes.c_void_p, ctypes.c_int]
         lib.cts_vec_set_act_limit(self._vec, int(acts))
 
-    def peek_moves(self, moves):
+    def peek_moves(self, moves, asking=None):
         """What each of ``moves`` would come to, without the climbs moving.
 
         ``moves`` is ``(count, asked)`` of action indices. Returns
@@ -212,10 +212,19 @@ class VecSpireEnv(object):
         over = np.zeros((self.count, asked), dtype=np.uint8)
         lib = self._api.lib
 
+        if asking is None:
+            want = None
+        else:
+            want = np.ascontiguousarray(asking, dtype=np.uint8)
+
+            if want.shape != (self.count,):
+                raise ValueError("asking must be one flag a climb")
+
         lib.cts_vec_peek_moves.argtypes = [
             ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t),
             ctypes.c_size_t, ctypes.POINTER(ctypes.c_float),
             ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_ubyte),
             ctypes.POINTER(ctypes.c_ubyte)]
         lib.cts_vec_peek_moves(
             self._vec,
@@ -224,7 +233,9 @@ class VecSpireEnv(object):
             obs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
             named.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
             paid.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-            over.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)))
+            over.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)),
+            None if want is None
+            else want.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)))
 
         return obs, named, paid, over
 

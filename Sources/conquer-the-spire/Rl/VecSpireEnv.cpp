@@ -384,7 +384,8 @@ void VecSpireEnv::ClearStats()
 
 void VecSpireEnv::Peek(const std::size_t* moves, std::size_t asked,
                        float* out, int* outIds, float* paid,
-                       unsigned char* over) const
+                       unsigned char* over,
+                       const unsigned char* asking) const
 {
     if (moves == nullptr || asked == 0u)
     {
@@ -396,6 +397,11 @@ void VecSpireEnv::Peek(const std::size_t* moves, std::size_t asked,
 
     for (std::size_t i = 0; i < m_envs.size(); ++i)
     {
+        if (asking != nullptr && asking[i] == 0u)
+        {
+            continue;
+        }
+
         for (std::size_t which = 0; which < asked; ++which)
         {
             const std::size_t at = i * asked + which;

@@ -35,7 +35,7 @@ except ImportError:  # pragma: no cover
     print("this needs torch: pip install torch")
     raise
 
-from cts_env import CHARACTERS, SpireEnv, action_table
+from cts_env import CHARACTERS, PHASES, SpireEnv, action_table
 from cts_net import CardPolicy, FORESIGHTS
 from cts_log import SUMMARY_FIELDS, vec_summaries
 from cts_plot import COLUMNS as CURVE_COLUMNS
@@ -102,6 +102,13 @@ _RUN = SpireEnv().layout["run"]
 FLOOR_AT = _RUN + 1
 HEALTH_AT = _RUN + 4
 
+# Which slot of the state says where the climber is standing, and which of
+# those slots are a fight. The looking below is worth three and a half floors
+# out of a fight and nothing at all in one, so it has to be able to tell.
+PHASE_AT = SpireEnv().layout["phase"]
+PHASE_COUNT = len(PHASES)
+FIGHT_PHASES = (PHASES.index("battle"), PHASES.index("boss"))
+
 # One embedding table covers every id the state names: cards, relics, potions,
 # rooms and monsters all fit under this, and a second table says which kind of
 # slot each one came from.
@@ -139,21 +146,32 @@ class Policy(nn.Module):
         return self.policy(hidden), self.value(hidden).squeeze(-1)
 
     def act(self, obs, ids, mask):
-        """Returns ``(action, logp, entropy, value)`` for one tick."""
+        """Returns ``(action, logp, entropy, value, scores)`` for one tick.
+
+        The masked scores come back too, the same as the card net's, so that
+        whatever looks a move ahead does not have to ask the trunk twice for
+        numbers it already has.
+        """
         logits, value = self.forward(obs, ids)
         logits = logits.masked_fill(mask == 0, -1e9)
         dist = torch.distributions.Categorical(logits=logits)
         action = dist.sample()
 
-        return action, dist.log_prob(action), dist.entropy(), value
+        return (action, dist.log_prob(action), dist.entropy(), value,
+                logits)
 
     def judge(self, obs, ids, mask, action):
-        """Returns ``(logp, entropy, value)`` for moves already made."""
+        """Returns ``(logp, entropy, value, foresight, scores)``.
+
+        Nothing foreseen - this net has no such head - so that slot is None,
+        and the masked scores come last, the same shape as the card net's, so
+        that the loss does not have to know which net it is holding.
+        """
         logits, value = self.forward(obs, ids)
         logits = logits.masked_fill(mask == 0, -1e9)
         dist = torch.distributions.Categorical(logits=logits)
 
-        return dist.log_prob(action), dist.entropy(), value
+        return dist.log_prob(action), dist.entropy(), value, None, logits
 
 
 class Trainer(object):
@@ -227,6 +245,17 @@ class Trainer(object):
 
         # The share of the most it could be undecided by, last update.
         self.spread = 0.0
+
+        # How many moves were walked before being made, and how many of them
+        # the walking changed. A run whose looking never changes anything is
+        # paying for nothing, and the two numbers say so.
+        self.looked = 0
+        self.overruled = 0
+
+        # And how many the log-probability floor turned away. A floor that
+        # bars most of the looking is a run paying for a search it then
+        # declines to use.
+        self.barred = 0
 
         # Climbs picked up part-way up. Counted apart from the climbs proper,
         # because everything the run is read by - the floors, the won share,
@@ -534,6 +563,92 @@ class Trainer(object):
         return (torch.where(logps > LOGP_FLOOR, kept, action),
                 torch.where(logps > LOGP_FLOOR, logps, logp))
 
+    def lookedAhead(self, state, allowed, action, logp, scores):
+        """Walks a couple of the policy's moves and keeps the better one.
+
+        The policy names a move by guessing what it comes to. This walks it:
+        the climb is copied, the move made on the copy, and what the copy is
+        worth read off the value head - plus what the move paid on the way,
+        because a move is worth what it paid as well as what it left.
+
+        Only out of a fight, and only a couple of moves. Both of those were
+        measured rather than chosen. Over 800 climbs against the same seeds,
+        looking out of a fight was worth three and a half floors and nearly
+        doubled the wins; looking in one was worth nothing, because a step
+        into a fight is followed by cards nobody has drawn yet and the head
+        cannot tell one from another through that. And walking eight moves
+        instead of two cost half the climb: given eight readings of a head
+        that is only roughly right, the largest is mostly the largest
+        mistake, and two readings barely have room for one.
+
+        Returns what to do and its log probability *under the policy*, which
+        is what the ratio in the loss is against - the same reckoning
+        reranked() makes, and for the same reason.
+        """
+        width = self.args.look
+        top = torch.topk(scores, min(width, scores.shape[1]), dim=1).indices
+
+        # topk fills a row out of the moves masked away when fewer than
+        # `width` are legal; those repeat the first, which costs a walk and
+        # changes nothing.
+        offered = torch.where(allowed.gather(1, top), top, top[:, :1])
+
+        # In a fight the walking is not worth its keep, so those climbs are
+        # not walked at all. Skipping them is most of what makes this cheap:
+        # out of a fight is about one move in twelve, so walking every climb
+        # every step would be eleven twelfths waste.
+        where = state[:, PHASE_AT:PHASE_AT + PHASE_COUNT].argmax(dim=1)
+        fighting = torch.zeros_like(where, dtype=torch.bool)
+
+        for phase in FIGHT_PHASES:
+            fighting |= where == phase
+
+        asking = ~fighting
+
+        if not bool(asking.any()):
+            return (action, logp, 0, 0, action,
+                    torch.zeros_like(logp))
+
+        seen, ids, paid, over = self.vec.peek_moves(
+            offered.cpu().numpy().astype(np.uintp),
+            asking.cpu().numpy().astype(np.uint8))
+        rows, wide = offered.shape
+
+        worth = torch.as_tensor(paid, device=self.device).float()
+        ended = torch.as_tensor(over, device=self.device).bool()
+
+        _, after, _ = self.net.forward(
+            torch.as_tensor(seen.reshape(rows * wide, -1),
+                            device=self.device).float(),
+            torch.as_tensor(ids.reshape(rows * wide, -1),
+                            device=self.device).long())
+
+        # A climb that ended there is worth its last payment and nothing
+        # after it.
+        worth = worth + torch.where(ended, torch.zeros_like(worth),
+                                    self.args.gamma *
+                                    after.reshape(rows, wide))
+
+        kept = offered.gather(1, worth.argmax(dim=1, keepdim=True)).squeeze(1)
+        kept = torch.where(asking, kept, action)
+        logps = torch.distributions.Categorical(logits=scores).log_prob(kept)
+
+        # And a move the policy all but rules out is left alone, for the
+        # reason spelled out in reranked(): the ratio is exp(new - old), and
+        # a move played at a probability of 1e-22 puts an astronomical number
+        # in it the moment the policy warms to it.
+        take = logps > LOGP_FLOOR
+        differs = kept != action
+        moved = int((differs & take).sum())
+        barred = int((differs & ~take).sum())
+
+        # What the looking wanted is handed back whether or not the floor let
+        # it be played, because a move that cannot safely be played can still
+        # be taught.
+        return (torch.where(take, kept, action),
+                torch.where(take, logps, logp), moved, barred,
+                kept, asking.float())
+
     # ------------------------------------------------------------ the loop
     def rollout(self):
         """Collects one batch and returns it, along with what ended in it."""
@@ -552,6 +667,14 @@ class Trainer(object):
         rewards = torch.zeros((steps, envs), device=self.device)
         dones = torch.zeros((steps, envs), device=self.device)
 
+        # What the looking wanted at each step, and where it had an
+        # opinion at all. Kept apart from what was played, because the two
+        # come apart wherever the floor turned the looking away - and those
+        # are the moves worth teaching.
+        wanted = torch.zeros((steps, envs), dtype=torch.long,
+                             device=self.device)
+        taught = torch.zeros((steps, envs), device=self.device)
+
         # What the trunk is asked to foresee, and the two raw counts
         # the targets are worked out from.
         seen = torch.zeros((steps, envs, len(FORESIGHTS)), device=self.device)
@@ -569,7 +692,8 @@ class Trainer(object):
             allowed = torch.as_tensor(legal, device=self.device).bool()
 
             with torch.no_grad():
-                action, logp, _, value = self.net.act(state, named, allowed)
+                action, logp, _, value, scores = self.net.act(
+                    state, named, allowed)
 
                 # A fight looked into before the move is made. The policy
                 # offers its best few and the engine plays each one's fight
@@ -577,6 +701,17 @@ class Trainer(object):
                 if self.args.peek > 0:
                     action, logp = self.reranked(state, named, allowed,
                                                  action, logp)
+
+                # And out of a fight, where a fight cannot be played out at
+                # all, the same question asked of the value head instead.
+                if self.args.look > 1:
+                    action, logp, moved, barred, said, had = self.lookedAhead(
+                        state, allowed, action, logp, scores)
+                    self.looked += envs
+                    self.overruled += moved
+                    self.barred += barred
+                    wanted[step] = said
+                    taught[step] = had
 
             obs[step] = state
             ids[step] = named
@@ -664,7 +799,7 @@ class Trainer(object):
 
         # `finished` stays last, because the loop above reads it as batch[-1].
         return (obs, ids, masks, actions, logps, values, rewards, dones,
-                last, seen, finished)
+                last, seen, wanted, taught, finished)
 
     def advantages(self, rewards, values, dones, last):
         """Generalised advantage, walked backwards over the batch."""
@@ -685,7 +820,7 @@ class Trainer(object):
 
     def learn(self, batch):
         (obs, ids, masks, actions, logps, values, rewards, dones, last,
-         seen, _) = batch
+         seen, wanted, taught, _) = batch
 
         adv, returns = self.advantages(rewards, values, dones, last)
 
@@ -694,6 +829,7 @@ class Trainer(object):
         actions, logps = flat(actions), flat(logps)
         adv, returns = flat(adv), flat(returns)
         seen = flat(seen)
+        wanted, taught = flat(wanted), flat(taught)
 
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
@@ -717,15 +853,16 @@ class Trainer(object):
                 judged = self.net.judge(obs[cut], ids[cut], masks[cut],
                                         actions[cut])
                 newLogp, entropy, value = judged[:3]
+                told = judged[4]
 
                 with torch.no_grad():
                     legal = masks[cut].sum(dim=-1).clamp(min=1.0)
                     spread.append(float((entropy /
                                          legal.log().clamp(min=1e-6)).mean()))
 
-                # The card net also says what it foresees; the flat one has
-                # no such head and hands back three things, not four.
-                foresight = judged[3] if len(judged) > 3 else None
+                # The card net also says what it foresees; the flat one
+                # has no such head and leaves that slot empty.
+                foresight = judged[3]
 
                 ratio = (newLogp - logps[cut]).exp()
                 clipped = torch.clamp(ratio, 1.0 - self.args.clip,
@@ -743,6 +880,20 @@ class Trainer(object):
                 if foresight is not None and self.args.foresight > 0.0:
                     loss = loss + self.args.foresight * functional.mse_loss(
                         foresight, seen[cut])
+
+                # And what the looking wanted, whether or not it got to play
+                # it. Two thirds of what the looking picks is turned away at
+                # the log-probability floor, because handing PPO a move the
+                # policy all but rules out puts an astronomical ratio in the
+                # loss. Teaching it the move directly is what that floor
+                # leaves room for: no ratio, no blow-up, and the moves it
+                # most needs to learn are exactly the ones it rates lowest
+                # and so never plays.
+                if self.args.distil > 0.0 and bool(taught[cut].any()):
+                    want = functional.cross_entropy(
+                        told, wanted[cut], reduction="none")
+                    loss = loss + self.args.distil * (
+                        want * taught[cut]).sum() / taught[cut].sum()
 
                 self.opt.zero_grad(set_to_none=True)
                 loss.backward()
@@ -987,6 +1138,14 @@ class Trainer(object):
             held = [self.vec.deep_held(act) for act in (2, 3)]
             shelves = "  deep %d (%d/%d held)" % (self.deep, held[0], held[1])
 
+        if self.args.look > 1 and self.looked:
+            shelves += "  look %.1f%% (%.0f%% barred)" % (
+                100.0 * self.overruled / self.looked,
+                100.0 * self.barred / max(1, self.overruled + self.barred))
+            self.looked = 0
+            self.overruled = 0
+            self.barred = 0
+
         print("update %-6d %-11s %s  loss %7.3f  spread %4.2f  "
               "push %5.3f%s  %5.0f moves/s" %
               (self.updates, "(%d climbs)" % self.episodes, line, loss,
@@ -1146,6 +1305,19 @@ def main(argv=None):
                              "- the damage coming, whether the fight is "
                              "nearly over, how far the climb gets. Nothing "
                              "reads these at play; 0 turns the head off")
+    parser.add_argument("--distil", type=float, default=0.0,
+                        help="how hard to teach the policy the move the "
+                             "looking wanted, whether or not the floor let "
+                             "it play it. Two thirds of what the looking "
+                             "picks is a move the policy rates too low for "
+                             "PPO to be handed safely, and this is the way "
+                             "those are learned at all")
+    parser.add_argument("--look", type=int, default=0,
+                        help="out of a fight, walk this many of the policy's "
+                             "best moves one step and keep whichever the "
+                             "value head thinks most of; 0 or 1 to just "
+                             "play. 2 is what measured best - at eight the "
+                             "head's largest error is what gets chosen")
     parser.add_argument("--peek", type=int, default=0,
                         help="look this many of the policy's best moves a "
                              "fight ahead before making one, and take "

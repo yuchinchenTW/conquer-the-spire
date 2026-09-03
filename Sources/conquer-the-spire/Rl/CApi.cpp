@@ -542,12 +542,12 @@ void cts_vec_set_act_limit(void* vec, int acts)
 
 void cts_vec_peek_moves(void* vec, const size_t* moves, size_t asked,
                         float* out, int* out_ids, float* paid,
-                        unsigned char* over)
+                        unsigned char* over, const unsigned char* asking)
 {
     if (auto* row = static_cast<ConquerTheSpire::VecSpireEnv*>(vec);
         row != nullptr)
     {
-        row->Peek(moves, asked, out, out_ids, paid, over);
+        row->Peek(moves, asked, out, out_ids, paid, over, asking);
     }
 }
 

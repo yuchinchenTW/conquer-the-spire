@@ -168,13 +168,16 @@ CTS_API void cts_vec_set_act_limit(void* vec, int acts);
    to, without any of the climbs moving. `moves` names count*asked moves, and
    `out`, `out_ids`, `paid` and `over` take count*asked of an observation, of
    an id vector, of what the move paid on the spot and of a flag apiece.
+   `asking`, when given, names the climbs worth walking - a zero leaves that
+   climb's slots untouched and costs nothing.
 
    A policy that names a move is guessing what it comes to; this says. A
    fight copies in about a microsecond, so asking about every move on offer
    costs roughly what making one does. */
 CTS_API void cts_vec_peek_moves(void* vec, const size_t* moves, size_t asked,
                                 float* out, int* out_ids, float* paid,
-                                unsigned char* over);
+                                unsigned char* over,
+                                const unsigned char* asking);
 
 /* What share of climbs are picked up part-way up rather than started at the
    bottom, and how many copies are being held for an act to be picked up in.

@@ -131,8 +131,13 @@ class VecSpireEnv
     //! come to. This says. The climb is copied, the move made on the copy,
     //! and the copy read - a fight copies in a microsecond, so asking about
     //! every move on offer costs about as much as making one.
+    //! \p asking, when given, names the climbs worth walking - a zero
+    //! leaves that climb's slots untouched and costs nothing. Out of a fight
+    //! is where the walking pays, and that is one move in twelve, so asking
+    //! about all of them is eleven twelfths waste.
     void Peek(const std::size_t* moves, std::size_t asked, float* out,
-              int* outIds, float* paid, unsigned char* over) const;
+              int* outIds, float* paid, unsigned char* over,
+              const unsigned char* asking = nullptr) const;
 
     //! Takes one move in every climb. \p actions holds one index a climb;
     //! the rest are written to, one a climb, and any of them may be null:

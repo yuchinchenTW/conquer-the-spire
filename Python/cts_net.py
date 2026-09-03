@@ -441,20 +441,35 @@ class CardPolicy(nn.Module):
 
     # -------------------------------------------------- the same two answers
     def act(self, obs, ids, mask):
+        """One tick: what to do, how likely it was, how undecided, worth.
+
+        The masked scores come back too, because whatever looks a move ahead
+        needs them to say which moves are worth walking - and asking the
+        trunk twice for the same numbers is a whole forward pass of the batch
+        for nothing.
+        """
         logits, value, _ = self.forward(obs, ids)
         logits = logits.masked_fill(mask == 0, -1e9)
         dist = torch.distributions.Categorical(logits=logits)
         action = dist.sample()
 
-        return action, dist.log_prob(action), dist.entropy(), value
+        return (action, dist.log_prob(action), dist.entropy(), value,
+                logits)
 
     def judge(self, obs, ids, mask, action):
-        """Adds what the trunk foresees, which the loss holds it to."""
+        """Adds what the trunk foresees, which the loss holds it to.
+
+        The masked scores come back last. Whatever is being taught a move it
+        did not play needs the whole distribution rather than one move out of
+        it, and asking the trunk twice for the same numbers is a forward pass
+        of the batch for nothing.
+        """
         logits, value, foresight = self.forward(obs, ids)
         logits = logits.masked_fill(mask == 0, -1e9)
         dist = torch.distributions.Categorical(logits=logits)
 
-        return dist.log_prob(action), dist.entropy(), value, foresight
+        return (dist.log_prob(action), dist.entropy(), value, foresight,
+                logits)
 
 
 def _check():
