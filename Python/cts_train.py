@@ -630,7 +630,16 @@ class Trainer(object):
                                     after.reshape(rows, wide))
 
         kept = offered.gather(1, worth.argmax(dim=1, keepdim=True)).squeeze(1)
-        kept = torch.where(asking, kept, action)
+
+        # Only where the move the policy sampled was one of the ones walked.
+        # A sample from outside its top few is the policy trying something,
+        # and the looking has not looked at it, so it has nothing to say
+        # against it. Without this the looking flattens every exploratory
+        # move out of a fight back to the better of the top two - which is
+        # invisible while the policy there has no spread to flatten, and
+        # would undo any attempt to give it some.
+        walked = (offered == action[:, None]).any(dim=1)
+        kept = torch.where(asking & walked, kept, action)
         logps = torch.distributions.Categorical(logits=scores).log_prob(kept)
 
         # And a move the policy all but rules out is left alone, for the
