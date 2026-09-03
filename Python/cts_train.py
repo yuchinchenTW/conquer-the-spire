@@ -243,8 +243,15 @@ class Trainer(object):
         self.bestFloors = 0.0
         self.scores = []
 
-        # The share of the most it could be undecided by, last update.
+        # The share of the most it could be undecided by, last update - in a
+        # fight and out of one, kept apart. One number over every state hid a
+        # total collapse: out of a fight the policy had a spread of 0.06 and
+        # at the card piles 0.01, while the average read 0.17 and the one
+        # pressure was being eased *off*. Out of a fight is a fifth of the
+        # decisions, so a collapse there barely moves the mean.
         self.spread = 0.0
+        self.spreadOut = 0.0
+        self.pressureOut = args.entropy
 
         # How many moves were walked before being made, and how many of them
         # the walking changed. A run whose looking never changes anything is
@@ -383,14 +390,26 @@ class Trainer(object):
         come true. A flat run that *is* spread out has nothing left to blame
         but the rate.
         """
-        if self.spread > 0.0:
-            self.pressure *= (LEANING if self.spread < self.args.spread
-                              else 1.0 / LEANING)
-            self.pressure = min(max(self.pressure, self.args.entropy),
-                                self.args.entropy * MOST_PRESSURE)
+        # Each region steered by its own reading. A fight and a card pile
+        # are different decisions with different room in them, and one
+        # pressure pushing on both from one averaged reading is how the card
+        # piles collapsed unseen.
+        def lean(pressure, spread):
+            if spread <= 0.0:
+                return pressure
+
+            pressure *= LEANING if spread < self.args.spread else 1.0 / LEANING
+
+            return min(max(pressure, self.args.entropy),
+                       self.args.entropy * MOST_PRESSURE)
+
+        self.pressure = lean(self.pressure, self.spread)
+        self.pressureOut = lean(self.pressureOut, self.spreadOut)
 
         stale = self.updates - max(self.bestAt, self.decayedAt)
-        trying = self.spread >= self.args.spread
+
+        # Both regions have to be trying before the rate is blamed.
+        trying = min(self.spread, self.spreadOut) >= self.args.spread
 
         if (self.args.patience > 0 and trying and
                 stale >= self.args.patience and
@@ -431,6 +450,7 @@ class Trainer(object):
                 "deep": self.deep,
                 "rate": self.rate,
                 "pressure": self.pressure,
+                "pressure_out": self.pressureOut,
                 "decayed_at": self.decayedAt,
             },
             path or self.checkpoint,
@@ -505,6 +525,7 @@ class Trainer(object):
         # on the way back in.
         self.rate = float(kept.get("rate", self.args.lr))
         self.pressure = float(kept.get("pressure", self.args.entropy))
+        self.pressureOut = float(kept.get("pressure_out", self.args.entropy))
         self.decayedAt = int(kept.get("decayed_at", 0))
         self.deep = int(kept.get("deep", 0))
 
@@ -863,7 +884,21 @@ class Trainer(object):
         # everything when three moves are legal and nearly nothing when forty
         # are. What is comparable across a run is the share of the most it
         # could have, which is the log of the count of legal moves.
+        #
+        # Read in a fight and out of one separately, because the two live in
+        # different places and one average hides the smaller.
         spread = []
+        spreadOut = []
+
+        # Which rows are out of a fight, from the block of the state that
+        # says where the climber stands.
+        where = obs[:, PHASE_AT:PHASE_AT + PHASE_COUNT].argmax(dim=1)
+        fighting = torch.zeros_like(where, dtype=torch.bool)
+
+        for phase in FIGHT_PHASES:
+            fighting |= where == phase
+
+        outside = (~fighting).float()
 
         for _ in range(self.args.epochs):
             order = torch.randperm(total, device=self.device)
@@ -876,9 +911,18 @@ class Trainer(object):
                 told = judged[4]
 
                 with torch.no_grad():
-                    legal = masks[cut].sum(dim=-1).clamp(min=1.0)
-                    spread.append(float((entropy /
-                                         legal.log().clamp(min=1e-6)).mean()))
+                    legal = masks[cut].sum(dim=-1).clamp(min=2.0)
+                    share = entropy / legal.log()
+                    out = outside[cut]
+                    inside = 1.0 - out
+
+                    if bool(inside.any()):
+                        spread.append(float((share * inside).sum() /
+                                            inside.sum()))
+
+                    if bool(out.any()):
+                        spreadOut.append(float((share * out).sum() /
+                                               out.sum()))
 
                 # The card net also says what it foresees; the flat one
                 # has no such head and leaves that slot empty.
@@ -897,8 +941,13 @@ class Trainer(object):
                 policyLoss = -(mine * own[cut]).sum() / own[cut].sum().clamp(
                     min=1.0)
                 valueLoss = functional.mse_loss(value, returns[cut])
+                # The entropy bonus, weighted by where each row is: the two
+                # pressures each push on their own region and nowhere else.
+                out = outside[cut]
+                pushed = (self.pressure * (1.0 - out) +
+                          self.pressureOut * out) * entropy
                 loss = (policyLoss + self.args.value * valueLoss -
-                        self.pressure * entropy.mean())
+                        pushed.mean())
 
                 # And what the trunk was asked to see. Nothing reads these at
                 # play: they are here so the trunk has to hold the damage
@@ -930,6 +979,8 @@ class Trainer(object):
                 losses.append(float(loss.detach()))
 
         self.spread = sum(spread) / len(spread) if spread else 0.0
+        self.spreadOut = (sum(spreadOut) / len(spreadOut)
+                          if spreadOut else 0.0)
 
         return sum(losses) / len(losses) if losses else 0.0
 
@@ -1173,11 +1224,12 @@ class Trainer(object):
             self.overruled = 0
             self.barred = 0
 
-        print("update %-6d %-11s %s  loss %7.3f  spread %4.2f  "
-              "push %5.3f%s  %5.0f moves/s" %
+        # Spread and push read in a fight / out of one.
+        print("update %-6d %-11s %s  loss %7.3f  spread %4.2f/%4.2f  "
+              "push %5.3f/%5.3f%s  %5.0f moves/s" %
               (self.updates, "(%d climbs)" % self.episodes, line, loss,
-               self.spread, self.pressure, shelves,
-               (self.steps - self.startSteps) / spent))
+               self.spread, self.spreadOut, self.pressure, self.pressureOut,
+               shelves, (self.steps - self.startSteps) / spent))
 
         with open(os.path.join(self.folder, "curve.csv"), "a",
                   newline="") as handle:
