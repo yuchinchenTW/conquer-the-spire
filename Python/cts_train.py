@@ -675,6 +675,15 @@ class Trainer(object):
                              device=self.device)
         taught = torch.zeros((steps, envs), device=self.device)
 
+        # And which moves were the climber's own. A move the looking put
+        # there is not something to correct the policy towards through the
+        # ratio: the ratio is exp(new - old), the looking picks moves the
+        # policy rates at a thousandth or less, and every one of those pushes
+        # at the clip's full strength the moment it comes out well. That is
+        # distillation wearing PPO's coat, and distillation was measured to
+        # make this climber worse at every strength tried.
+        own = torch.ones((steps, envs), device=self.device)
+
         # What the trunk is asked to foresee, and the two raw counts
         # the targets are worked out from.
         seen = torch.zeros((steps, envs, len(FORESIGHTS)), device=self.device)
@@ -705,6 +714,7 @@ class Trainer(object):
                 # And out of a fight, where a fight cannot be played out at
                 # all, the same question asked of the value head instead.
                 if self.args.look > 1:
+                    mine = action
                     action, logp, moved, barred, said, had = self.lookedAhead(
                         state, allowed, action, logp, scores)
                     self.looked += envs
@@ -712,6 +722,7 @@ class Trainer(object):
                     self.barred += barred
                     wanted[step] = said
                     taught[step] = had
+                    own[step] = (action == mine).float()
 
             obs[step] = state
             ids[step] = named
@@ -799,7 +810,7 @@ class Trainer(object):
 
         # `finished` stays last, because the loop above reads it as batch[-1].
         return (obs, ids, masks, actions, logps, values, rewards, dones,
-                last, seen, wanted, taught, finished)
+                last, seen, wanted, taught, own, finished)
 
     def advantages(self, rewards, values, dones, last):
         """Generalised advantage, walked backwards over the batch."""
@@ -820,7 +831,7 @@ class Trainer(object):
 
     def learn(self, batch):
         (obs, ids, masks, actions, logps, values, rewards, dones, last,
-         seen, wanted, taught, _) = batch
+         seen, wanted, taught, own, _) = batch
 
         adv, returns = self.advantages(rewards, values, dones, last)
 
@@ -829,7 +840,7 @@ class Trainer(object):
         actions, logps = flat(actions), flat(logps)
         adv, returns = flat(adv), flat(returns)
         seen = flat(seen)
-        wanted, taught = flat(wanted), flat(taught)
+        wanted, taught, own = flat(wanted), flat(taught), flat(own)
 
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
@@ -867,8 +878,15 @@ class Trainer(object):
                 ratio = (newLogp - logps[cut]).exp()
                 clipped = torch.clamp(ratio, 1.0 - self.args.clip,
                                       1.0 + self.args.clip)
-                policyLoss = -torch.min(ratio * adv[cut],
-                                        clipped * adv[cut]).mean()
+                # Only over the moves the climber chose itself. What the
+                # looking put there still counts everywhere else it counts -
+                # it is in the trajectory, so the value head is fitted
+                # against what it led to and every later state is one it
+                # reached - but the policy is not pushed towards a move it
+                # did not make.
+                mine = torch.min(ratio * adv[cut], clipped * adv[cut])
+                policyLoss = -(mine * own[cut]).sum() / own[cut].sum().clamp(
+                    min=1.0)
                 valueLoss = functional.mse_loss(value, returns[cut])
                 loss = (policyLoss + self.args.value * valueLoss -
                         self.pressure * entropy.mean())
