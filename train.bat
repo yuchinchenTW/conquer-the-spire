@@ -53,6 +53,7 @@ echo     %CHARACTER%, act limit %ACTS% - 0 is the whole spire
 echo     %ENVS% climbs at once, %WIDTH% wide
 echo     looks ahead %GAMMA%, a point of health %HPW%
 echo     practises the later acts: %DEEP% of the climbs start part-way up
+echo     walks %LOOK% moves before making one, out of a fight
 echo.
 echo   and it will carry on from runs\%CHARACTER%\checkpoint.pt
 echo.
@@ -322,11 +323,52 @@ if /i "%PICK%"=="b" goto size
 set "DEEP="
 if "%PICK%"=="1" set "DEEP=0.4"
 if "%PICK%"=="2" set "DEEP=0"
-if defined DEEP goto go
+if defined DEEP goto look
 echo.
 echo   That was not one of them.
 pause
 goto deep
+
+rem ------------------------------------------- a move walked, not guessed
+:look
+cls
+echo ==========================================================
+echo   %CHARACTER%, act limit %ACTS% - walk a move before making it?
+echo ==========================================================
+echo.
+echo     1. Yes  - walk the best two, out of a fight
+echo     2. No   - name a move and make it
+echo.
+echo   Naming a move is guessing what it comes to. Saying yes copies the
+echo   climb, makes each of the two moves on the copy, and keeps whichever
+echo   comes out worth more - which the climber can be asked, because a
+echo   fight copies in about a microsecond.
+echo.
+echo   Out of a fight only, and that is where all of it is: measured over
+echo   800 climbs, walking out of a fight was worth three and a half floors
+echo   and nearly doubled the wins, and walking in one was worth nothing.
+echo   Two moves and not more - at eight it costs half the climb, because
+echo   the largest of eight readings is mostly the largest mistake.
+echo.
+echo   It costs about a third of the speed. It is worth it: the same
+echo   weights reach floor 34 and win 19%% with it against 32 and 13%%
+echo   without.
+echo.
+echo     B. Back
+echo.
+set "PICK="
+set /p "PICK=  Choose [1]: "
+
+if not defined PICK set "PICK=1"
+if /i "%PICK%"=="b" goto deep
+set "LOOK="
+if "%PICK%"=="1" set "LOOK=2"
+if "%PICK%"=="2" set "LOOK=0"
+if defined LOOK goto go
+echo.
+echo   That was not one of them.
+pause
+goto look
 
 rem -------------------------------------------------------------------- off
 :go
@@ -334,6 +376,7 @@ rem -------------------------------------------------------------------- off
 rem Anything the questions did not settle, because the questions were
 rem skipped or because this file is newer than the notes it left.
 if not defined DEEP set "DEEP=0.4"
+if not defined LOOK set "LOOK=2"
 
 rem And the answers, so that next time is one keypress or none of them.
 rem Written before the trainer starts rather than after, because the way
@@ -347,6 +390,7 @@ md runs 2>nul
 >>"runs\last.bat" echo set "GAMMA=%GAMMA%"
 >>"runs\last.bat" echo set "HPW=%HPW%"
 >>"runs\last.bat" echo set "DEEP=%DEEP%"
+>>"runs\last.bat" echo set "LOOK=%LOOK%"
 
 cls
 echo ==========================================================
@@ -359,6 +403,7 @@ echo   brain       : %WIDTH% wide
 echo   looks ahead : %GAMMA%
 echo   a point of hp: %HPW%
 echo   later acts  : %DEEP% of climbs start part-way up
+echo   walks ahead : %LOOK% moves, out of a fight - 0 is off
 echo   saved to    : runs\%CHARACTER%\checkpoint.pt
 echo   the curve   : runs\%CHARACTER%\curve.csv
 echo.
@@ -372,7 +417,7 @@ echo   to get, so with an act limit it starts moving early; asked for the
 echo   whole spire it waits on the third act's boss and takes much longer.
 echo.
 
-%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --deep %DEEP% --picks %FRESH% %EXTRA%
+%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --deep %DEEP% --look %LOOK% --picks %FRESH% %EXTRA%
 
 echo.
 echo ==========================================================
