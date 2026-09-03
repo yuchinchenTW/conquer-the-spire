@@ -29,7 +29,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from cts_env import SpireEnv, action_table
+from cts_env import PHASES, SpireEnv, action_table
 from cts_log import vec_summaries
 from cts_net import CardPolicy
 from cts_vec import VecSpireEnv
@@ -273,6 +273,10 @@ def questions(deckAt, healthAt=0, actAt=0, mapAt=0):
                      walksAtElites(True, actAt, mapAt, actAt)),
                     ("round every elite it can",
                      walksAtElites(False, actAt, mapAt, actAt))]),
+        # Built in main(), which is the only place the climber itself is to
+        # hand. Named here so that it is one of the questions that can be
+        # asked for.
+        "look": ("what looking one move ahead is worth", []),
         "path": ("what choosing the way up is worth",
                  [("as it likes", None),
                   ("any way up", wandersOff(23))]),
@@ -309,6 +313,119 @@ def load(folder, device):
     return net, kept, plan
 
 
+#! How many moves ahead are worth walking. Six is what a fight offers on
+#! average, so this covers nearly all of them and leaves the rare wide turn
+#! to the policy's own ordering.
+LOOKS_AT = 8
+
+#! How the run discounts what comes after a move. The same 0.999 the trainer
+#! looks ahead with, because what is being read here is that trainer's value
+#! head and it was fitted against this.
+GAMMA = 0.999
+
+
+def looksAhead(net, device, only=None, looks=LOOKS_AT):
+    """Walks every move on offer one step and keeps the one that looks best.
+
+    Not an overruling of the ordinary kind: the others read the state and
+    name a move, and this one has to walk the moves to have anything to say.
+    So it is handed the row rather than a climb of it, and answers for all of
+    them at once.
+
+    What it asks is the value head, which is the only thing in there that
+    says how a *state* is doing rather than which move to make from it. The
+    policy names a move by guessing what it comes to; this looks.
+
+    \\p only holds it to one kind of place - a fight, say - so that where the
+    looking is worth anything can be told from where it is not.
+    """
+    def asked(vec, flat, named, legal, scores, phases):
+        rows = flat.shape[0]
+        wanted = np.argmax(np.where(legal, scores, -1e9), axis=1)
+
+        # The moves worth walking: the ones the policy thinks most of, so
+        # that a turn offering forty is not forty walks.
+        order = np.argsort(np.where(legal, scores, -1e9), axis=1)[:, ::-1]
+        counts = legal.sum(axis=1)
+        moves = np.zeros((rows, looks), dtype=np.uintp)
+        asking = np.zeros(rows, dtype=bool)
+
+        for row in range(rows):
+            if only is not None and phases[row] not in only:
+                continue
+
+            if counts[row] < 2:
+                continue
+
+            asking[row] = True
+
+            for k in range(looks):
+                moves[row, k] = order[row, min(k, counts[row] - 1)]
+
+        if not asking.any():
+            return wanted
+
+        seen, ids, paid, over = vec.peek_moves(moves)
+        shape = seen.shape
+
+        with torch.no_grad():
+            _, worth, _ = net.forward(
+                torch.as_tensor(seen.reshape(shape[0] * shape[1], -1),
+                                device=device).float(),
+                torch.as_tensor(ids.reshape(shape[0] * shape[1], -1),
+                                device=device).long())
+
+        worth = worth.cpu().numpy().reshape(shape[0], shape[1])
+
+        # What a move is worth is what it paid plus what it left, discounted
+        # the way the run discounts it. Reading only the second half is what
+        # a value head is for and is not what a move is worth: a card that
+        # kills a monster is paid for on the spot, and the state it leaves is
+        # a state with one fewer thing to kill.
+        #
+        # A climb that ended there is worth its last payment and nothing
+        # after it.
+        worth = paid + np.where(over != 0, 0.0, GAMMA * worth)
+
+        for row in range(rows):
+            if not asking[row]:
+                continue
+
+            # Only the moves actually asked about: past the count they are
+            # the same move over again.
+            look = min(looks, counts[row])
+
+            wanted[row] = moves[row, int(np.argmax(worth[row, :look]))]
+
+        return wanted
+
+    asked.wholeRow = True
+
+    return asked
+
+
+def lookColumns(net, device, looks=LOOKS_AT):
+    """What looking ahead is worth, and where it is worth anything.
+
+    Split by where the looking happens, because the two are not the same
+    question. In a fight the value head is being asked to tell one card from
+    another with everything else held still, which is the thing it would have
+    to be able to do. Everywhere else - a pile of cards, a fire, a fork on
+    the map - the move changes what the climb is carrying for the rest of the
+    climb, and one step is much too short a look to see any of that.
+    """
+    battle = (PHASES.index("battle"), PHASES.index("boss"))
+    elsewhere = tuple(i for i in range(len(PHASES)) if i not in battle)
+
+    return [("as it likes", None),
+            ("looks at %d, in a fight" % looks,
+             looksAhead(net, device, battle, looks)),
+            ("looks at %d, out of one" % looks,
+             looksAhead(net, device, elsewhere, looks)),
+            ("looks at %d, everywhere" % looks,
+             looksAhead(net, device, None, looks))]
+
+
 def played(net, kept, plan, device, overrule, climbs, rows, seed):
     """Plays \\p climbs with \\p overrule having the last word."""
     table = Table()
@@ -336,7 +453,14 @@ def played(net, kept, plan, device, overrule, climbs, rows, seed):
         picks = scores.argmax(axis=1)
         flat = np.asarray(obs, dtype=np.float32).reshape(rows, -1)
 
-        if overrule is not None:
+        if callable(overrule) and getattr(overrule, "wholeRow", False):
+            phases = flat[:, plan.layout["phase"]:
+                          plan.layout["phase"] + len(PHASES)].argmax(axis=1)
+            said = overrule(vec, flat, named, legal, scores, phases)
+
+            forced += int(np.sum(said != picks))
+            picks = said
+        elif overrule is not None:
             for row in range(rows):
                 said = overrule(table, legal, scores, named, flat, row)
 
@@ -370,6 +494,11 @@ def main(argv=None):
     parser.add_argument("--climbs", type=int, default=500)
     parser.add_argument("--envs", type=int, default=64)
     parser.add_argument("--seed", type=int, default=5)
+    parser.add_argument("--looks", type=int, default=LOOKS_AT,
+                        help="how many of the moves on offer to walk, for "
+                             "--ask look. Fewer is a narrower look and also "
+                             "fewer chances for the value head's largest "
+                             "error to be the one picked")
     args = parser.parse_args(argv)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -380,6 +509,11 @@ def main(argv=None):
                                plan.layout["run"] + 4,
                                plan.layout["run"],
                                plan.layout["map"])[args.ask]
+
+    # The one question that cannot be built without the climber itself: it
+    # has to ask the value head what the moves it walked came to.
+    if args.ask == "look":
+        columns = lookColumns(net, device, args.looks)
 
     print("%s, over %d climbs each, the same seeds" % (title, args.climbs))
     print()

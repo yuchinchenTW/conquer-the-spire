@@ -594,3 +594,115 @@ TEST_CASE("A climb asked for one act is finished when it clears that act")
     CHECK(stats.GetWins() == 1);
     CHECK(stats.GetDeaths() == 0);
 }
+
+TEST_CASE("A climb can be held still and asked what a move comes to")
+{
+    // A save cannot do this. It is written between rooms and says so mid
+    // fight, because a save is for putting a climb down and picking it up
+    // another day. A copy is for holding one still and walking a move to see
+    // where it goes, and the fight is the whole point of asking.
+    SpireEnv env;
+    std::mt19937 rng(11);
+
+    env.Reset(CardColor::RED, 8);
+
+    while (env.GetBattle() == nullptr && !env.IsDone())
+    {
+        const std::vector<Action> moves = env.LegalActions();
+
+        REQUIRE(moves.empty() == false);
+
+        env.Step(moves.front());
+    }
+
+    REQUIRE(env.GetBattle() != nullptr);
+    REQUIRE(env.Save().empty() == true);
+
+    const int handWas =
+        static_cast<int>(env.GetBattle()->GetPlayer().GetHand().size());
+    const int healthWas = env.GetBattle()->GetPlayer().GetHealth();
+    const std::vector<float> before = env.Observe();
+
+    // A copy plays on without the one it came from moving at all.
+    SpireEnv asked = env;
+
+    CHECK(asked.Observe() == before);
+
+    for (int step = 0; step < 60 && asked.GetBattle() != nullptr; ++step)
+    {
+        const std::vector<Action> moves = asked.LegalActions();
+
+        if (moves.empty())
+        {
+            break;
+        }
+
+        std::uniform_int_distribution<std::size_t> pick(0, moves.size() - 1);
+
+        asked.Step(moves[pick(rng)]);
+    }
+
+    CHECK(env.GetBattle() != nullptr);
+    CHECK(static_cast<int>(env.GetBattle()->GetPlayer().GetHand().size()) ==
+          handWas);
+    CHECK(env.GetBattle()->GetPlayer().GetHealth() == healthWas);
+    CHECK(env.Observe() == before);
+
+    // And the fight really was copied rather than shared: something happened
+    // in the copy, or this says nothing at all.
+    const bool moved =
+        asked.GetBattle() == nullptr ||
+        asked.Observe() != before;
+
+    CHECK(moved == true);
+
+    // Two copies of the same climb walk the same way, so what a move comes to
+    // is a thing that can be asked twice and answered the same.
+    SpireEnv one = env;
+    SpireEnv two = env;
+
+    for (int step = 0; step < 20; ++step)
+    {
+        const std::vector<Action> moves = one.LegalActions();
+
+        if (moves.empty() || one.IsDone())
+        {
+            break;
+        }
+
+        one.Step(moves.front());
+        two.Step(moves.front());
+    }
+
+    CHECK(one.Observe() == two.Observe());
+}
+
+TEST_CASE("A copy of a climb is not another run for the tables to count")
+{
+    // The tables are what a run has come to over every climb it has played.
+    // A copy taken to ask about one move is the same climb, so counting it
+    // would have every answer in there twice over.
+    SpireEnv env;
+
+    env.Reset(CardColor::RED, 8);
+    env.ClearStats();
+
+    while (!env.IsDone())
+    {
+        const std::vector<Action> moves = env.LegalActions();
+
+        if (moves.empty())
+        {
+            break;
+        }
+
+        env.Step(moves.front());
+    }
+
+    REQUIRE(env.IsDone() == true);
+    REQUIRE(env.GetStats().GetRowCount() > 0u);
+
+    const SpireEnv copy = env;
+
+    CHECK(copy.GetStats().GetRowCount() == 0u);
+}

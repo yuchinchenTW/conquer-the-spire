@@ -233,6 +233,26 @@ class SpireEnv
 
     SpireEnv() = default;
 
+    //! A climb can be taken a copy of, fight and all.
+    //!
+    //! A save cannot do this: it is written between rooms and says so mid
+    //! fight, because a save is for putting a climb down and picking it up
+    //! another day. This is for holding a climb still and asking what a move
+    //! would come to - the fight is the whole point, and it is where the
+    //! asking is worth anything.
+    //!
+    //! Cheap enough to be worth doing: a fight copies in a microsecond,
+    //! which is a fifth of what stepping one costs. Nothing in a fight or a
+    //! climb is held by pointer, so the copy is what the compiler writes,
+    //! and only the fight itself needs saying because it hangs off a
+    //! unique_ptr.
+    SpireEnv(const SpireEnv& other);
+    SpireEnv& operator=(const SpireEnv& other);
+
+    SpireEnv(SpireEnv&&) = default;
+    SpireEnv& operator=(SpireEnv&&) = default;
+    ~SpireEnv() = default;
+
     //! Starts a climb of \p character laid out by \p seed.
     void Reset(CardColor character, unsigned int seed);
 

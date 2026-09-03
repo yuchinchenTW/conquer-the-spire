@@ -550,6 +550,44 @@ Action::Action(ActionKind kind, int a, int b) : kind(kind), a(a), b(b)
     // Nothing else to set up.
 }
 
+SpireEnv::SpireEnv(const SpireEnv& other)
+{
+    *this = other;
+}
+
+SpireEnv& SpireEnv::operator=(const SpireEnv& other)
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+
+    m_run = other.m_run;
+    m_battle = other.m_battle == nullptr
+                   ? nullptr
+                   : std::make_unique<Battle>(*other.m_battle);
+    m_phase = other.m_phase;
+    m_totalFloors = other.m_totalFloors;
+    m_bossFight = other.m_bossFight;
+    m_healthBefore = other.m_healthBefore;
+    m_counted = other.m_counted;
+    m_moves = other.m_moves;
+    m_actLimit = other.m_actLimit;
+    m_chosen = other.m_chosen;
+    m_chosenTarget = other.m_chosenTarget;
+    m_answers = other.m_answers;
+    m_askedByPotion = other.m_askedByPotion;
+    m_healthWeight = other.m_healthWeight;
+    m_maxHealthWeight = other.m_maxHealthWeight;
+    m_cursePenalty = other.m_cursePenalty;
+
+    // Not the tables. They are what a run has come to over every climb it has
+    // played, and a copy taken to ask a question about one move is not
+    // another run. Copying them would have every answer counted twice over.
+
+    return *this;
+}
+
 void SpireEnv::Reset(CardColor character, unsigned int seed)
 {
     m_run = Run(character, seed);

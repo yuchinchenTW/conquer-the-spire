@@ -664,3 +664,119 @@ TEST_CASE("A shelf holds the middle of an act and not only its doorway")
     // back are already inside the act and never walk through the door again.
     CHECK(row.GetDeepHeld(2) > atTheDoor * 4u);
 }
+
+TEST_CASE("Asking what a move comes to leaves the climb where it was")
+{
+    // A policy that names a move is guessing what it comes to. This says: the
+    // climb is copied, the move walked on the copy, and the copy read. What
+    // has to be true is that the asking is free - the climbs must stand
+    // exactly where they were - and that the answers are actually different
+    // from one another, or there is nothing in them to choose by.
+    const std::size_t rows = 8u;
+    const std::size_t stride = SpireEnv::ActionCount();
+    const std::size_t floats = SpireEnv::ObservationSize();
+    const std::size_t asked = 3u;
+
+    VecSpireEnv row(rows);
+
+    // Started over as they end, so that every row has something legal to be
+    // asked about. Walked with the first legal move rather than at random,
+    // because that one dawdles in a fight instead of walking out of it.
+    row.SetAutoReset(true);
+    row.Reset(CardColor::RED, 8u);
+
+    std::vector<unsigned char> mask(rows * stride, 0u);
+    std::vector<std::size_t> actions(rows, 0u);
+    std::mt19937 rng(5u);
+
+    // Walk them all into a fight, where the asking is worth anything.
+    for (int tick = 0; tick < 40; ++tick)
+    {
+        row.ActionMask(mask.data());
+
+        for (std::size_t i = 0; i < rows; ++i)
+        {
+            actions[i] = FirstLegal(mask, i);
+        }
+
+        row.Step(actions.data(), nullptr, nullptr, nullptr, nullptr, nullptr);
+    }
+
+    std::vector<float> before(rows * floats, 0.0f);
+
+    row.Observe(before.data());
+    row.ActionMask(mask.data());
+
+    // Three legal moves apiece, or the same one over again where there are
+    // fewer - what matters is that they are legal.
+    std::vector<std::size_t> moves(rows * asked, 0u);
+
+    for (std::size_t i = 0; i < rows; ++i)
+    {
+        std::vector<std::size_t> open;
+
+        for (std::size_t slot = 0; slot < stride; ++slot)
+        {
+            if (mask[i * stride + slot] != 0u)
+            {
+                open.emplace_back(slot);
+            }
+        }
+
+        REQUIRE(open.empty() == false);
+
+        for (std::size_t which = 0; which < asked; ++which)
+        {
+            moves[i * asked + which] = open[which % open.size()];
+        }
+    }
+
+    static_cast<void>(rng);
+
+    std::vector<float> peeked(rows * asked * floats, 0.0f);
+    std::vector<int> named(rows * asked * SpireEnv::IdCount(), 0);
+    std::vector<unsigned char> over(rows * asked, 0u);
+
+    std::vector<float> paid(rows * asked, 0.0f);
+
+    row.Peek(moves.data(), asked, peeked.data(), named.data(), paid.data(),
+             over.data());
+
+    // Nothing moved.
+    std::vector<float> after(rows * floats, 0.0f);
+
+    row.Observe(after.data());
+
+    CHECK(after == before);
+
+    // And what came back is what the move would have led to, not what is
+    // standing there now. Told to walk the same move, the row lands on what
+    // the asking said it would.
+    std::size_t different = 0;
+
+    for (std::size_t i = 0; i < rows; ++i)
+    {
+        const float* was = before.data() + i * floats;
+        const float* got = peeked.data() + i * asked * floats;
+
+        different += std::equal(was, was + floats, got) ? 0u : 1u;
+    }
+
+    CHECK(different > 0u);
+
+    for (std::size_t i = 0; i < rows; ++i)
+    {
+        actions[i] = moves[i * asked];
+    }
+
+    row.Step(actions.data(), nullptr, nullptr, nullptr, nullptr, nullptr);
+    row.Observe(after.data());
+
+    for (std::size_t i = 0; i < rows; ++i)
+    {
+        const float* said = peeked.data() + i * asked * floats;
+        const float* is = after.data() + i * floats;
+
+        CHECK(std::equal(said, said + floats, is) == true);
+    }
+}

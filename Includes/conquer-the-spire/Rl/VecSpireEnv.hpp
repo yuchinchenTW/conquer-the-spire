@@ -112,6 +112,28 @@ class VecSpireEnv
     void ObserveIds(int* out) const;
     void ActionMask(unsigned char* out) const;
 
+    //! Walks \p asked moves of every climb one step and writes out what each
+    //! one came to, without any of the climbs actually moving.
+    //!
+    //! \p moves names the moves to try, \p asked of them a climb, in the
+    //! order they are to be written. \p out takes \p count * \p asked
+    //! observations, \p outIds the same in ids, \p paid what each move was
+    //! worth on the spot and \p over a flag apiece saying the climb ended
+    //! there. A move that is not legal is walked all the same and comes back
+    //! as whatever refusing it leaves - the caller knows which ones it asked
+    //! about.
+    //!
+    //! What a move is worth is the reward it paid plus whatever the state it
+    //! left is worth, so both halves have to come back or the answer is a
+    //! half of one.
+    //!
+    //! What this is for: a policy that names a move is guessing what it will
+    //! come to. This says. The climb is copied, the move made on the copy,
+    //! and the copy read - a fight copies in a microsecond, so asking about
+    //! every move on offer costs about as much as making one.
+    void Peek(const std::size_t* moves, std::size_t asked, float* out,
+              int* outIds, float* paid, unsigned char* over) const;
+
     //! Takes one move in every climb. \p actions holds one index a climb;
     //! the rest are written to, one a climb, and any of them may be null:
     //!

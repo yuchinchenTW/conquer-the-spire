@@ -382,6 +382,57 @@ void VecSpireEnv::ClearStats()
     m_stats.Clear();
 }
 
+void VecSpireEnv::Peek(const std::size_t* moves, std::size_t asked,
+                       float* out, int* outIds, float* paid,
+                       unsigned char* over) const
+{
+    if (moves == nullptr || asked == 0u)
+    {
+        return;
+    }
+
+    const std::size_t floats = SpireEnv::ObservationSize();
+    const std::size_t ids = SpireEnv::IdCount();
+
+    for (std::size_t i = 0; i < m_envs.size(); ++i)
+    {
+        for (std::size_t which = 0; which < asked; ++which)
+        {
+            const std::size_t at = i * asked + which;
+
+            // The copy is the whole trick: it holds the climb still while
+            // the move is walked on something else.
+            SpireEnv copy = m_envs[i];
+            const StepResult result =
+                copy.StepIndex(moves[i * asked + which]);
+
+            if (out != nullptr)
+            {
+                const std::vector<float> state = copy.Observe();
+
+                std::copy(state.begin(), state.end(), out + at * floats);
+            }
+
+            if (outIds != nullptr)
+            {
+                const std::vector<int> named = copy.ObserveIds();
+
+                std::copy(named.begin(), named.end(), outIds + at * ids);
+            }
+
+            if (paid != nullptr)
+            {
+                paid[at] = result.reward;
+            }
+
+            if (over != nullptr)
+            {
+                over[at] = result.done ? 1u : 0u;
+            }
+        }
+    }
+}
+
 void VecSpireEnv::ReadSummaries(int* out) const
 {
     if (out == nullptr)

@@ -181,6 +181,53 @@ class VecSpireEnv(object):
         lib.cts_vec_set_act_limit.argtypes = [ctypes.c_void_p, ctypes.c_int]
         lib.cts_vec_set_act_limit(self._vec, int(acts))
 
+    def peek_moves(self, moves):
+        """What each of ``moves`` would come to, without the climbs moving.
+
+        ``moves`` is ``(count, asked)`` of action indices. Returns
+        ``(obs, ids, paid, over)``: the first two of shape
+        ``(count, asked, ...)``, then what each move paid on the spot and
+        whether the climb ended there, both ``(count, asked)``.
+
+        What a move is worth is the reward it paid plus whatever the state it
+        left is worth. Reading only the second is reading half of it.
+
+        A policy that names a move is guessing what it comes to; this says.
+        A fight copies in about a microsecond, so asking about every move on
+        offer costs roughly what making one does.
+        """
+        import numpy as np
+
+        moves = np.ascontiguousarray(moves, dtype=np.uintp)
+
+        if moves.ndim != 2 or moves.shape[0] != self.count:
+            raise ValueError("moves must be (count, asked)")
+
+        asked = moves.shape[1]
+        floats = self._api.lib.cts_observation_size()
+        ids = self._api.lib.cts_id_count()
+        obs = np.zeros((self.count, asked, floats), dtype=np.float32)
+        named = np.zeros((self.count, asked, ids), dtype=np.int32)
+        paid = np.zeros((self.count, asked), dtype=np.float32)
+        over = np.zeros((self.count, asked), dtype=np.uint8)
+        lib = self._api.lib
+
+        lib.cts_vec_peek_moves.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t),
+            ctypes.c_size_t, ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_ubyte)]
+        lib.cts_vec_peek_moves(
+            self._vec,
+            moves.ctypes.data_as(ctypes.POINTER(ctypes.c_size_t)),
+            ctypes.c_size_t(asked),
+            obs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+            named.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
+            paid.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+            over.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)))
+
+        return obs, named, paid, over
+
     def set_deep_share(self, share):
         """Starts this share of the climbs part-way up rather than at the
         bottom.
