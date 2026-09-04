@@ -129,7 +129,16 @@ for _phase in DECK_PHASES:
     REGION_OF[_phase] = 1
 
 # How many times the floor each region's pressure may reach.
-CEILING_OF = (10.0, 50.0, 10.0)
+#
+# The deck's was fifty for a day, on the reasoning that its collapse was the
+# one ten had not opened. It opened it: the card piles went from a spread of
+# 0.02 to 0.11 in four hours with the pressure pinned at 0.5. And the policy
+# played by itself fell from 12.3% won to 4.5% and from 31.5 floors to 27.5
+# in the same four hours - the draft is worth ten floors and being made to
+# try cards at random is what it costs to find that out again. So ten, which
+# opened the piles from 0.010 to 0.019 overnight without the flat play
+# moving. Opening a lookup table is a thing to do slowly or not at all.
+CEILING_OF = (10.0, 10.0, 10.0)
 
 # One embedding table covers every id the state names: cards, relics, potions,
 # rooms and monsters all fit under this, and a second table says which kind of
