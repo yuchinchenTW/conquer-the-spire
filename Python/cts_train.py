@@ -109,6 +109,28 @@ PHASE_AT = SpireEnv().layout["phase"]
 PHASE_COUNT = len(PHASES)
 FIGHT_PHASES = (PHASES.index("battle"), PHASES.index("boss"))
 
+# The three kinds of place a decision is made in, for the pressure to stay
+# undecided. A fight; a decision that changes the deck - a card pile, a shop,
+# a fire; and the rest, which is mostly the map. Read on the best weights,
+# the fight held a spread of 0.18, the map 0.11 and the card piles 0.02 -
+# so "out of a fight" as one region was the map's reading hiding the piles'
+# collapse, the same way "everywhere" had hidden both. Each is steered on
+# its own reading now, and the deck decisions get a higher ceiling because
+# theirs is the collapse that ten times the floor did not open.
+REGIONS = ("fight", "deck", "other")
+DECK_PHASES = (PHASES.index("reward"), PHASES.index("shop"),
+               PHASES.index("rest"))
+REGION_OF = [2] * PHASE_COUNT
+
+for _phase in FIGHT_PHASES:
+    REGION_OF[_phase] = 0
+
+for _phase in DECK_PHASES:
+    REGION_OF[_phase] = 1
+
+# How many times the floor each region's pressure may reach.
+CEILING_OF = (10.0, 50.0, 10.0)
+
 # One embedding table covers every id the state names: cards, relics, potions,
 # rooms and monsters all fit under this, and a second table says which kind of
 # slot each one came from.
@@ -250,8 +272,8 @@ class Trainer(object):
         # pressure was being eased *off*. Out of a fight is a fifth of the
         # decisions, so a collapse there barely moves the mean.
         self.spread = 0.0
-        self.spreadOut = 0.0
-        self.pressureOut = args.entropy
+        self.spreads = [0.0] * len(REGIONS)
+        self.pressures = [args.entropy] * len(REGIONS)
 
         # How many moves were walked before being made, and how many of them
         # the walking changed. A run whose looking never changes anything is
@@ -394,22 +416,23 @@ class Trainer(object):
         # are different decisions with different room in them, and one
         # pressure pushing on both from one averaged reading is how the card
         # piles collapsed unseen.
-        def lean(pressure, spread):
+        def lean(pressure, spread, ceiling):
             if spread <= 0.0:
                 return pressure
 
             pressure *= LEANING if spread < self.args.spread else 1.0 / LEANING
 
             return min(max(pressure, self.args.entropy),
-                       self.args.entropy * MOST_PRESSURE)
+                       self.args.entropy * ceiling)
 
-        self.pressure = lean(self.pressure, self.spread)
-        self.pressureOut = lean(self.pressureOut, self.spreadOut)
+        self.pressures = [lean(p, sp, c) for p, sp, c
+                          in zip(self.pressures, self.spreads, CEILING_OF)]
+        self.pressure = self.pressures[0]
 
         stale = self.updates - max(self.bestAt, self.decayedAt)
 
-        # Both regions have to be trying before the rate is blamed.
-        trying = min(self.spread, self.spreadOut) >= self.args.spread
+        # Every region has to be trying before the rate is blamed.
+        trying = min(self.spreads) >= self.args.spread
 
         if (self.args.patience > 0 and trying and
                 stale >= self.args.patience and
@@ -450,7 +473,7 @@ class Trainer(object):
                 "deep": self.deep,
                 "rate": self.rate,
                 "pressure": self.pressure,
-                "pressure_out": self.pressureOut,
+                "pressures": list(self.pressures),
                 "decayed_at": self.decayedAt,
             },
             path or self.checkpoint,
@@ -525,7 +548,18 @@ class Trainer(object):
         # on the way back in.
         self.rate = float(kept.get("rate", self.args.lr))
         self.pressure = float(kept.get("pressure", self.args.entropy))
-        self.pressureOut = float(kept.get("pressure_out", self.args.entropy))
+
+        # Three regions now. A checkpoint from the two-region days carried
+        # one number for everything out of a fight, which was really the
+        # deck decisions asking for more; it seeds that region and the rest
+        # start from the floor.
+        kept3 = kept.get("pressures")
+
+        if kept3 is not None and len(kept3) == len(REGIONS):
+            self.pressures = [float(p) for p in kept3]
+        else:
+            out = float(kept.get("pressure_out", self.args.entropy))
+            self.pressures = [self.pressure, out, self.args.entropy]
         self.decayedAt = int(kept.get("decayed_at", 0))
         self.deep = int(kept.get("deep", 0))
 
@@ -887,18 +921,14 @@ class Trainer(object):
         #
         # Read in a fight and out of one separately, because the two live in
         # different places and one average hides the smaller.
-        spread = []
-        spreadOut = []
+        spreads = [[] for _ in REGIONS]
 
-        # Which rows are out of a fight, from the block of the state that
-        # says where the climber stands.
+        # Which region each row is in, from the block of the state that says
+        # where the climber stands, and one weight column a region.
         where = obs[:, PHASE_AT:PHASE_AT + PHASE_COUNT].argmax(dim=1)
-        fighting = torch.zeros_like(where, dtype=torch.bool)
-
-        for phase in FIGHT_PHASES:
-            fighting |= where == phase
-
-        outside = (~fighting).float()
+        region = torch.as_tensor(REGION_OF, device=self.device)[where]
+        weights = torch.stack([(region == r).float()
+                               for r in range(len(REGIONS))], dim=1)
 
         for _ in range(self.args.epochs):
             order = torch.randperm(total, device=self.device)
@@ -913,16 +943,12 @@ class Trainer(object):
                 with torch.no_grad():
                     legal = masks[cut].sum(dim=-1).clamp(min=2.0)
                     share = entropy / legal.log()
-                    out = outside[cut]
-                    inside = 1.0 - out
+                    here = weights[cut]
 
-                    if bool(inside.any()):
-                        spread.append(float((share * inside).sum() /
-                                            inside.sum()))
-
-                    if bool(out.any()):
-                        spreadOut.append(float((share * out).sum() /
-                                               out.sum()))
+                    for r in range(len(REGIONS)):
+                        if bool(here[:, r].any()):
+                            spreads[r].append(float(
+                                (share * here[:, r]).sum() / here[:, r].sum()))
 
                 # The card net also says what it foresees; the flat one
                 # has no such head and leaves that slot empty.
@@ -941,11 +967,10 @@ class Trainer(object):
                 policyLoss = -(mine * own[cut]).sum() / own[cut].sum().clamp(
                     min=1.0)
                 valueLoss = functional.mse_loss(value, returns[cut])
-                # The entropy bonus, weighted by where each row is: the two
-                # pressures each push on their own region and nowhere else.
-                out = outside[cut]
-                pushed = (self.pressure * (1.0 - out) +
-                          self.pressureOut * out) * entropy
+                # The entropy bonus, weighted by where each row is: each
+                # region's pressure pushes on its own rows and nowhere else.
+                push = torch.as_tensor(self.pressures, device=self.device)
+                pushed = (weights[cut] * push).sum(dim=1) * entropy
                 loss = (policyLoss + self.args.value * valueLoss -
                         pushed.mean())
 
@@ -978,9 +1003,9 @@ class Trainer(object):
                 self.opt.step()
                 losses.append(float(loss.detach()))
 
-        self.spread = sum(spread) / len(spread) if spread else 0.0
-        self.spreadOut = (sum(spreadOut) / len(spreadOut)
-                          if spreadOut else 0.0)
+        self.spreads = [sum(one) / len(one) if one else 0.0
+                        for one in spreads]
+        self.spread = self.spreads[0]
 
         return sum(losses) / len(losses) if losses else 0.0
 
@@ -1224,11 +1249,12 @@ class Trainer(object):
             self.overruled = 0
             self.barred = 0
 
-        # Spread and push read in a fight / out of one.
-        print("update %-6d %-11s %s  loss %7.3f  spread %4.2f/%4.2f  "
-              "push %5.3f/%5.3f%s  %5.0f moves/s" %
+        # Spread and push read as fight/deck/other.
+        print("update %-6d %-11s %s  loss %7.3f  spread %s  push %s%s  "
+              "%5.0f moves/s" %
               (self.updates, "(%d climbs)" % self.episodes, line, loss,
-               self.spread, self.spreadOut, self.pressure, self.pressureOut,
+               "/".join("%4.2f" % sp for sp in self.spreads),
+               "/".join("%5.3f" % p for p in self.pressures),
                shelves, (self.steps - self.startSteps) / spent))
 
         with open(os.path.join(self.folder, "curve.csv"), "a",
