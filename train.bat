@@ -4,7 +4,14 @@ title Conquer the Spire - training
 rem Everything runs from the folder this file sits in.
 cd /d "%~dp0"
 
-set "PYTHON=python"
+rem The python with torch and numpy in it, by name. "python" on its own
+rem is whichever one is first on the path, and that changed underneath
+rem this file once: a 3.11 went in ahead of the 3.12 that has the
+rem packages, and the trainer fell over on "import numpy". Named here,
+rem with the bare word kept as the fallback for a machine laid out
+rem differently.
+set "PYTHON=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if not exist "%PYTHON%" set "PYTHON=python"
 set "ENGINE=build\bin\libconquer-the-spire.dll"
 set "TRAINER=Python\cts_train.py"
 set "EXTRA=%*"
