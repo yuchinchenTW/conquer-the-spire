@@ -2446,22 +2446,37 @@ void Battle::ResolveEffect(const CardEffect& effect, Card& card,
             if (effect.extra == 1)
             {
                 // All for One takes back everything that costs nothing.
-                std::vector<Card> left;
+                //
+                // The pile is taken whole before anything is handed back,
+                // because handing a card to a full hand puts it in the
+                // discard pile - this pile - and appending to a vector while
+                // walking it leaves the walk pointing at freed memory. That
+                // was the heap corruption that took the trainer down every
+                // day or two: a hand of ten, an All for One, and two or more
+                // free cards waiting in the discard. The assignment at the
+                // end then threw the overflow away as well, so the cards
+                // that did not fit were quietly lost from the fight.
+                std::vector<Card> taking = std::move(discardPile);
 
-                for (auto& held : discardPile)
+                discardPile.clear();
+
+                for (auto& held : taking)
                 {
                     if (GetEffectiveCost(held) == 0)
                     {
+                        // Into the hand, or into the now-empty discard pile
+                        // when the hand is full - which is where an overflow
+                        // belongs, and is the one place this loop is not
+                        // walking.
                         m_player.AddCardToPile(std::move(held), CardPile::HAND,
                                                m_rng);
                     }
                     else
                     {
-                        left.emplace_back(std::move(held));
+                        discardPile.emplace_back(std::move(held));
                     }
                 }
 
-                m_player.GetDiscardPile() = std::move(left);
                 break;
             }
 

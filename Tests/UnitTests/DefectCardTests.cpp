@@ -712,3 +712,70 @@ TEST_CASE("The Defect starts a run with the deck it should")
     CHECK(deck[8].GetId() == CardId::ZAP);
     CHECK(deck[9].GetId() == CardId::DUALCAST);
 }
+
+TEST_CASE("All for One into a full hand keeps every card, and the fight")
+{
+    // The free cards come back to the hand, and a hand that is already full
+    // sends the next one to the discard pile - the pile being walked to hand
+    // them back. Appending to a vector while walking it leaves the walk on
+    // freed memory: this was the heap corruption that took the trainer down
+    // every day or two, and when it did not crash it lost the overflow, since
+    // the pile was then overwritten with only the cards that had cost
+    // something. So the count of cards in the fight is the thing that says
+    // whether the pile was taken whole first.
+    Battle battle = BattleWith({ CardId::ALL_FOR_ONE, CardId::STRIKE_BLUE },
+                               { Dummy(999) });
+    Player& player = battle.GetPlayer();
+
+    // A full hand with All for One in it, three free cards and one that costs
+    // something waiting in the discard, nothing else anywhere.
+    player.GetHand().clear();
+    player.GetDrawPile().clear();
+    player.GetDiscardPile().clear();
+    player.GetExhaustPile().clear();
+    player.GetHand().emplace_back(CardRegistry::Get(CardId::ALL_FOR_ONE));
+
+    for (int i = 0; i < 9; ++i)
+    {
+        player.GetHand().emplace_back(CardRegistry::Get(CardId::STRIKE_BLUE));
+    }
+
+    for (int i = 0; i < 3; ++i)
+    {
+        player.GetDiscardPile().emplace_back(CardRegistry::Get(CardId::CLAW));
+    }
+
+    player.GetDiscardPile().emplace_back(CardRegistry::Get(CardId::ZAP));
+
+    REQUIRE(player.GetHand().size() == Player::MAX_HAND_SIZE);
+    REQUIRE(player.GetDiscardPile().size() == 4u);
+    REQUIRE(player.GetEnergy() >= 2);
+
+    const auto everywhere = [&player]() {
+        return player.GetHand().size() + player.GetDrawPile().size() +
+               player.GetDiscardPile().size() +
+               player.GetExhaustPile().size();
+    };
+    const std::size_t before = everywhere();
+
+    REQUIRE(battle.PlayCard(Idx(battle, "All for One")) == true);
+
+    // Ten in hand: the nine strikes and the one claw that fitted. The other
+    // two claws had nowhere to go but back to the discard, beside the zap
+    // that was never coming. Fourteen cards in, fourteen out.
+    CHECK(player.GetHand().size() == Player::MAX_HAND_SIZE);
+    CHECK(player.GetDiscardPile().size() == 4u);
+    CHECK(everywhere() == before);
+
+    std::size_t claws = 0;
+    std::size_t zaps = 0;
+
+    for (const Card& card : player.GetDiscardPile())
+    {
+        claws += card.GetId() == CardId::CLAW ? 1u : 0u;
+        zaps += card.GetId() == CardId::ZAP ? 1u : 0u;
+    }
+
+    CHECK(claws == 2u);
+    CHECK(zaps == 1u);
+}
