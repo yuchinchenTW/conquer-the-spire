@@ -53,7 +53,7 @@ def main(path):
         kind, size, rva = u32(b, at), u32(b, at + 4), u32(b, at + 8)
         streams[kind] = (rva, size)
 
-    # modules: MINIDUMP_MODULE is 108 bytes; base(8) size(4) ... name rva at +24
+    # modules: MINIDUMP_MODULE is 108 bytes; the name's rva sits at +20
     mods = []
     rva, _ = streams[MODULE_LIST]
     n = u32(b, rva)
@@ -95,7 +95,8 @@ def main(path):
         # id(4) suspend(4) prio class(4) prio(4) teb(8) stack{start(8)
         # size(4) rva(4)} context{size(4) rva(4)}
         if u32(b, at) == tid:
-            start, size, mem_rva = u64(b, at + 24), u32(b, at + 32), u32(b, at + 36)
+            start = u64(b, at + 24)
+            size, mem_rva = u32(b, at + 32), u32(b, at + 36)
             stack = (start, size, mem_rva)
 
     if stack is None or stack[2] == 0:
@@ -109,27 +110,32 @@ def main(path):
             start, size = u64(b, at), u64(b, at + 8)
 
             if start <= rsp < start + size:
-                stack = (start, size, off + (rsp - start))
-                start = rsp
-                size = (stack[0] + stack[1]) - rsp
-                stack = (start, size, off + (rsp - stack[0]) if False else stack[2])
+                # From the stack pointer up to the top of the range.
+                stack = (rsp, (start + size) - rsp, off + (rsp - start))
                 break
 
             off += size
 
     start, size, mem_rva = stack
+    # The thread-list path hands back the whole stack range; the fallback
+    # above hands back the part from rsp up. Read from rsp either way.
+    mem_rva += rsp - start
+    size -= rsp - start
+    start = rsp
+
     print("  stack %016x .. %016x (%d bytes read from rsp up)"
-          % (rsp, start + size, start + size - rsp))
+          % (rsp, start + size, size))
 
     seen = []
-    depth = min(size - (rsp - start), 64 * 1024)
+    depth = min(size, 64 * 1024)
 
     for k in range(0, depth - 8, 8):
         v = u64(b, mem_rva + k)
         name, off = whose(v)
 
-        if name and not name.lower().startswith(("ntdll", "kernel", "ucrt",
-                                                  "msvcp", "vcruntime")):
+        system = ("ntdll", "kernel", "ucrt", "msvcp", "vcruntime")
+
+        if name and not name.lower().startswith(system):
             seen.append((k, v, name, off))
 
     print()
