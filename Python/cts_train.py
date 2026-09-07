@@ -138,7 +138,15 @@ for _phase in DECK_PHASES:
 # try cards at random is what it costs to find that out again. So ten, which
 # opened the piles from 0.010 to 0.019 overnight without the flat play
 # moving. Opening a lookup table is a thing to do slowly or not at all.
-CEILING_OF = (10.0, 10.0, 10.0)
+#
+# And then ten, over 7700 updates, took the policy played by itself from
+# 14.3% won to 7.3% while the same weights with the looking went to 29.7% -
+# the value head learning from search-corrected climbs while the policy head
+# was being flattened at the piles and, with the search's moves kept out of
+# its loss, taught nothing there to replace what it lost. So the deck gets
+# no push at all: the floor and nothing above it. What the piles need is
+# not entropy, it is a signal, and the search is the only one in the run.
+CEILING_OF = (10.0, 1.0, 10.0)
 
 # One embedding table covers every id the state names: cards, relics, potions,
 # rooms and monsters all fit under this, and a second table says which kind of
