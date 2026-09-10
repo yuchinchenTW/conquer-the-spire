@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover
     raise
 
 from cts_env import CHARACTERS, PHASES, SpireEnv, action_table
-from cts_net import CardPolicy, FORESIGHTS
+from cts_net import CardPolicy, FORESIGHTS, load_weights
 from cts_log import SUMMARY_FIELDS, vec_summaries
 from cts_plot import COLUMNS as CURVE_COLUMNS
 from cts_plot import read as read_curve, write_html
@@ -556,8 +556,28 @@ class Trainer(object):
 
             return False
 
-        self.net.load_state_dict(kept["net"])
-        self.opt.load_state_dict(kept["opt"])
+        fresh, dropped = load_weights(self.net, kept["net"])
+
+        if fresh:
+            print("   %d weights the checkpoint did not have start fresh: %s"
+                  % (len(fresh), ", ".join(sorted({f.split(".")[0]
+                                                    for f in fresh}))))
+
+        if dropped:
+            print("   %d saved weights the net no longer has were dropped: %s"
+                  % (len(dropped), ", ".join(sorted({d.split(".")[0]
+                                                      for d in dropped}))))
+
+        # The optimiser's saved state is one entry a parameter, in order. A
+        # net that has grown has more parameters than the state has entries,
+        # and torch refuses the lot rather than half of it. So the optimiser
+        # starts over in that case - its moments are a few hundred updates'
+        # worth of running averages, cheap to rebuild, and the rate itself is
+        # carried separately below.
+        try:
+            self.opt.load_state_dict(kept["opt"])
+        except (ValueError, KeyError) as reason:
+            print("   the optimiser starts fresh (%s)" % reason)
 
         # The saved optimiser brings the rate it was saved with. What the run
         # should carry on at is the rate it had worked its way down to, unless

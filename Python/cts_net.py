@@ -220,6 +220,26 @@ class CardPolicy(nn.Module):
         self.singles = nn.Linear(width, self.actions)
         self.value = nn.Linear(width, 1)
 
+        # More room for the value, beside the one line it had. Looking a move
+        # ahead lives or dies on this head telling two sibling states apart:
+        # with two candidates it nearly doubled the wins, with eight it chose
+        # the head's largest error and lost half the climb. A line off the
+        # trunk is the trunk's reading of the state and nothing more; this
+        # gives the value its own two layers to work in.
+        #
+        # A residual, and zero at the last layer, so that a climber trained
+        # without it comes back reading exactly what it read before and the
+        # new layers learn only what the line was getting wrong. Nothing else
+        # in the net moves when this is added.
+        self.valueMore = nn.Sequential(
+            nn.Linear(width, width // 2),
+            nn.GELU(),
+            nn.Linear(width // 2, 1),
+        )
+
+        nn.init.zeros_(self.valueMore[2].weight)
+        nn.init.zeros_(self.valueMore[2].bias)
+
         # What the trunk is asked to work out besides which move to make.
         # Nothing reads these at play - they are there to make the trunk
         # represent the things a fight turns on, because a head cannot
@@ -436,8 +456,9 @@ class CardPolicy(nn.Module):
 
             scored = scored.index_copy(1, where, flat.index_select(1, spot))
 
-        return (logits + scored, self.value(hidden).squeeze(-1),
-                self.foresee(hidden))
+        value = self.value(hidden) + self.valueMore(hidden)
+
+        return (logits + scored, value.squeeze(-1), self.foresee(hidden))
 
     # -------------------------------------------------- the same two answers
     def act(self, obs, ids, mask):
@@ -470,6 +491,25 @@ class CardPolicy(nn.Module):
 
         return (dist.log_prob(action), dist.entropy(), value, foresight,
                 logits)
+
+
+def load_weights(net, state):
+    """Loads \\p state into \\p net, letting the net have grown since.
+
+    A climber saved before a head was added has no weights for it, and a
+    strict load refuses the whole checkpoint over that. The new head starts
+    from what its constructor gave it - zero at the last layer, so the net
+    reads exactly what it read before - and everything that was saved is
+    taken as it was.
+
+    Returns ``(fresh, dropped)``: the parameter names that were not in the
+    checkpoint, and the ones in it the net no longer has. Both are worth a
+    line on the way in, because the second means a head was removed and the
+    first means a run is carrying on with part of itself untrained.
+    """
+    result = net.load_state_dict(state, strict=False)
+
+    return list(result.missing_keys), list(result.unexpected_keys)
 
 
 def _check():

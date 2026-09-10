@@ -51,7 +51,7 @@ except ImportError:  # pragma: no cover
 from cts_ask import looksAhead
 from cts_env import PHASES, SpireEnv, action_table
 from cts_log import vec_summaries
-from cts_net import CardPolicy
+from cts_net import CardPolicy, load_weights
 from cts_vec import VecSpireEnv
 
 # How many of the policy's own best moves the old fight search weighs.
@@ -103,7 +103,7 @@ def load(folder, device):
 
     net = CardPolicy(plan.layout, plan.id_layout, action_table(),
                      width=kept["width"]).to(device)
-    net.load_state_dict(kept["net"])
+    load_weights(net, kept["net"])
     net.eval()
 
     return net, kept

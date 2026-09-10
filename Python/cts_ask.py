@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cts_env import PHASES, SpireEnv, action_table
 from cts_log import vec_summaries
-from cts_net import CardPolicy
+from cts_net import CardPolicy, load_weights
 from cts_vec import VecSpireEnv
 
 #! The two cards a climber starts with five and four of.
@@ -307,7 +307,7 @@ def load(folder, device):
 
     net = CardPolicy(plan.layout, plan.id_layout, action_table(),
                      width=kept["width"]).to(device)
-    net.load_state_dict(kept["net"])
+    load_weights(net, kept["net"])
     net.eval()
 
     return net, kept, plan
