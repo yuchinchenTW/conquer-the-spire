@@ -1,0 +1,37 @@
+Looking ahead, before the value head had layers of its own
+===========================================================
+
+best.pt of update 196850 (old head), 800 climbs, seeds 5..804 every one
+played to its end, a point of health at 0.01, a mid-fight card choice
+counted as a fight. Code at 70ec5ac.
+
+    python Python/cts_ask.py <folder> --ask look --climbs 800 --looks N
+
+This is the "before" for the value head added in d8b9bcb. The reading it
+is for: does looking at 3 and 4 candidates stop losing to 2 once the head
+has trained. Compare only against runs made the same way.
+
+=== looks 2 | best.pt 196850, old head | exact seeds 5..804, hp 0.01, choosing counted as a fight ===
+what looking one move ahead is worth, over 800 climbs each, the same seeds
+
+overruled                floors       +-   bosses      won   forced
+as it likes               33.97     0.41    1.667    19.1%        0
+looks at 2, in a fight    34.85     0.41    1.722    21.5%   110391
+looks at 2, out of one    36.65     0.42    1.924    31.9%    20334
+looks at 2, everywhere    37.02     0.43    1.927    33.1%   139556
+=== looks 3 | best.pt 196850, old head | exact seeds 5..804, hp 0.01, choosing counted as a fight ===
+what looking one move ahead is worth, over 800 climbs each, the same seeds
+
+overruled                floors       +-   bosses      won   forced
+as it likes               33.97     0.41    1.667    19.1%        0
+looks at 3, in a fight    34.31     0.42    1.649    18.8%   157993
+looks at 3, out of one    36.29     0.42    1.886    30.8%    25026
+looks at 3, everywhere    37.27     0.42    1.935    31.0%   195409
+=== looks 4 | best.pt 196850, old head | exact seeds 5..804, hp 0.01, choosing counted as a fight ===
+what looking one move ahead is worth, over 800 climbs each, the same seeds
+
+overruled                floors       +-   bosses      won   forced
+as it likes               33.97     0.41    1.667    19.1%        0
+looks at 4, in a fight    32.26     0.43    1.502    15.6%   181176
+looks at 4, out of one    35.89     0.41    1.836    28.5%    31440
+looks at 4, everywhere    33.95     0.44    1.649    22.8%   215191
