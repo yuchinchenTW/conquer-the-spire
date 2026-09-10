@@ -42,6 +42,14 @@ PHASES = [
     "boss",
     "act_done",
     "over",
+
+    # A card being chosen in the middle of a fight - which to discard, which
+    # to exhaust, which to put back. The engine has always written eleven
+    # phase slots; this list stopped at ten, so a fight paused on a choice
+    # read as no phase at all, which is "invalid", which is not a fight.
+    # Everything that asks "is this a fight" - the foresight labels, the
+    # looking, the entropy regions - was wrong for exactly those steps.
+    "choosing",
 ]
 
 _LIBRARY_NAMES = [

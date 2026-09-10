@@ -107,7 +107,10 @@ HEALTH_AT = _RUN + 4
 # out of a fight and nothing at all in one, so it has to be able to tell.
 PHASE_AT = SpireEnv().layout["phase"]
 PHASE_COUNT = len(PHASES)
-FIGHT_PHASES = (PHASES.index("battle"), PHASES.index("boss"))
+# A fight is a fight whether the climber is swinging or choosing a card to
+# discard in the middle of one.
+FIGHT_PHASES = (PHASES.index("battle"), PHASES.index("boss"),
+                PHASES.index("choosing"))
 
 # The three kinds of place a decision is made in, for the pressure to stay
 # undecided. A fight; a decision that changes the deck - a card pile, a shop,
@@ -806,6 +809,12 @@ class Trainer(object):
         # What the trunk is asked to foresee, and the two raw counts
         # the targets are worked out from.
         seen = torch.zeros((steps, envs, len(FORESIGHTS)), device=self.device)
+
+        # Whether the second of those is known at all: a window the batch
+        # cuts short with no fight ending in it says nothing, and a head
+        # taught that it says 0 learns that fights never end near the end of
+        # a batch.
+        known = torch.zeros((steps, envs), device=self.device)
         hurt = torch.zeros((steps, envs), device=self.device)
         floors = torch.zeros((steps, envs), device=self.device)
 
@@ -943,14 +952,26 @@ class Trainer(object):
             # The fight is over within eight steps if the row is out of one
             # at some step in that window, or the climb ended before it. Out
             # of a fight now there is no fight to be over, so nothing.
-            ahead = min(steps, step + 8)
+            #
+            # Eight states, the eighth included - it was seven - and the
+            # climb ending on the batch's last step counts, which no state
+            # after it is there to show. A window the batch cuts short with
+            # nothing having ended in it is not known to be 0; it is not
+            # known, and the mask says so, so the head is not taught it.
             over = torch.zeros(envs, device=self.device)
 
-            for later in range(step + 1, ahead):
-                over = torch.maximum(over, ((~fighting[later]) |
-                                            (dones[later - 1] > 0)).float())
+            for later in range(step + 1, min(steps, step + 8) + 1):
+                if later < steps:
+                    ended = (~fighting[later]) | (dones[later - 1] > 0)
+                else:
+                    ended = dones[later - 1] > 0
+
+                over = torch.maximum(over, ended.float())
 
             seen[step, :, 1] = fighting[step].float() * over
+            known[step] = torch.maximum(
+                over, torch.full_like(over, 1.0 if step + 8 <= steps
+                                      else 0.0))
 
             # Floors left, out of a spire's worth, so the number sits beside
             # the others rather than dwarfing them.
@@ -958,7 +979,7 @@ class Trainer(object):
 
         # `finished` stays last, because the loop above reads it as batch[-1].
         return (obs, ids, masks, actions, logps, values, rewards, dones,
-                last, seen, wanted, taught, own, finished)
+                last, seen, known, wanted, taught, own, finished)
 
     def advantages(self, rewards, values, dones, last):
         """Generalised advantage, walked backwards over the batch."""
@@ -979,7 +1000,7 @@ class Trainer(object):
 
     def learn(self, batch):
         (obs, ids, masks, actions, logps, values, rewards, dones, last,
-         seen, wanted, taught, own, _) = batch
+         seen, known, wanted, taught, own, _) = batch
 
         adv, returns = self.advantages(rewards, values, dones, last)
 
@@ -989,6 +1010,7 @@ class Trainer(object):
         adv, returns = flat(adv), flat(returns)
         seen = flat(seen)
         wanted, taught, own = flat(wanted), flat(taught), flat(own)
+        known = flat(known)
 
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
@@ -1063,8 +1085,15 @@ class Trainer(object):
                 # coming and the shape of the fight, which every deck
                 # decision is then made on top of.
                 if foresight is not None and self.args.foresight > 0.0:
-                    loss = loss + self.args.foresight * functional.mse_loss(
-                        foresight, seen[cut])
+                    # Every target counts except "fight over soon" where the
+                    # batch cut the window short with nothing ending in it -
+                    # there the label is not 0, it is unknown, and the head
+                    # is not taught it.
+                    weight = torch.ones_like(seen[cut])
+                    weight[:, 1] = known[cut]
+                    squared = (foresight - seen[cut]) ** 2
+                    loss = loss + self.args.foresight * (
+                        (squared * weight).sum() / weight.sum().clamp(min=1.0))
 
                 # And what the looking wanted, whether or not it got to play
                 # it. Two thirds of what the looking picks is turned away at

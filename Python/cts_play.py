@@ -37,6 +37,7 @@ policy is judged on its own moves and never taught what the looking picked
 speed. Here there is one climb to get right and time to think about it.
 """
 
+import argparse
 import os
 import sys
 
@@ -63,8 +64,9 @@ CONSIDER = 6
 LOOKS = 2
 
 #! Where a fight is, in the block of the state that says where the climber
-#! stands.
-FIGHTING = (PHASES.index("battle"), PHASES.index("boss"))
+#! stands - a card being chosen mid-fight included.
+FIGHTING = (PHASES.index("battle"), PHASES.index("boss"),
+            PHASES.index("choosing"))
 
 
 def load(folder, device):
@@ -173,24 +175,37 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None):
 
 
 def main(argv):
-    folder = argv[1] if len(argv) > 1 else "runs/ironclad"
-    climbs = 100
-    envs = 64
-    looks = 0 if "--flat" in argv else LOOKS
-    fights = "--fights" in argv
+    # argparse and not a walk over the words: the old walk took every bare
+    # number for the climb count, so "800 --looks 3" played three climbs.
+    parser = argparse.ArgumentParser(
+        description="Play a trained climber, a move looked at before it is "
+                    "made.")
+    parser.add_argument("folder", nargs="?", default="runs/ironclad")
+    parser.add_argument("climbs", nargs="?", type=int, default=100,
+                        help="how many climbs, seeds 0 to climbs-1, every "
+                             "one played to its end")
+    parser.add_argument("--envs", type=int, default=64)
+    parser.add_argument("--flat", action="store_true",
+                        help="the policy as named, no looking")
+    parser.add_argument("--looks", type=int, default=LOOKS,
+                        help="how many of the policy's best moves to walk a "
+                             "step out of a fight")
+    parser.add_argument("--fights", action="store_true",
+                        help="the older whole-fight search inside a fight")
+    parser.add_argument("--hp-weight", type=float, default=None,
+                        dest="hp_weight",
+                        help="what a point of health cost in training, when "
+                             "the checkpoint does not say")
+    args = parser.parse_args(argv[1:])
 
-    hp = None
-
-    for at, one in enumerate(argv[2:], start=2):
-        if one.isdigit():
-            climbs = int(one)
-        elif one == "--looks" and at + 1 < len(argv):
-            looks = int(argv[at + 1])
-        elif one == "--hp-weight" and at + 1 < len(argv):
-            hp = float(argv[at + 1])
+    climbs = args.climbs
+    envs = args.envs
+    looks = 0 if args.flat else args.looks
+    fights = args.fights
+    hp = args.hp_weight
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net, kept = load(folder, device)
+    net, kept = load(args.folder, device)
 
     how = ("flat out" if looks < 2
            else "looking at %d moves out of a fight" % looks)

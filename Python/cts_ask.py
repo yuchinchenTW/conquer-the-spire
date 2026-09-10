@@ -414,7 +414,8 @@ def lookColumns(net, device, looks=LOOKS_AT):
     the map - the move changes what the climb is carrying for the rest of the
     climb, and one step is much too short a look to see any of that.
     """
-    battle = (PHASES.index("battle"), PHASES.index("boss"))
+    battle = (PHASES.index("battle"), PHASES.index("boss"),
+              PHASES.index("choosing"))
     elsewhere = tuple(i for i in range(len(PHASES)) if i not in battle)
 
     return [("as it likes", None),
