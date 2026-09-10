@@ -935,8 +935,16 @@ class Trainer(object):
         where = obs[:, :, PHASE_AT:PHASE_AT + PHASE_COUNT].argmax(dim=-1)
         fighting = torch.zeros_like(where, dtype=torch.bool)
 
+        # And the state after the batch's last step, which is in hand - it
+        # is what the bootstrap value was just read from. A fight won on the
+        # last step ends in a reward screen with the climb still going, and
+        # only this state shows it.
+        whereAfter = state[:, PHASE_AT:PHASE_AT + PHASE_COUNT].argmax(dim=-1)
+        fightingAfter = torch.zeros_like(whereAfter, dtype=torch.bool)
+
         for phase in FIGHT_PHASES:
             fighting |= where == phase
+            fightingAfter |= whereAfter == phase
 
         # Floors still to come in *this* climb: walked backwards, and a step
         # that ended the climb leaves nothing to come.
@@ -964,7 +972,9 @@ class Trainer(object):
                 if later < steps:
                     ended = (~fighting[later]) | (dones[later - 1] > 0)
                 else:
-                    ended = dones[later - 1] > 0
+                    # Past the batch: the state the last step left, which a
+                    # fight won on that step shows as out of one.
+                    ended = (~fightingAfter) | (dones[later - 1] > 0)
 
                 over = torch.maximum(over, ended.float())
 
