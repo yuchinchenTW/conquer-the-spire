@@ -90,6 +90,16 @@ docker pull utilforever/conquer-the-spire:latest
 
 TBA
 
+## Training
+
+An Ironclad climber trained with PPO on the engine, about nine million climbs
+in. The page below is what the trainer writes as it goes: of everything the
+climber was offered over its last 2,406 climbs, how often it took it and how
+those climbs went - cards taken, removed and upgraded, relics, potions, rooms
+answered, paths taken, and how often each boss and elite went down.
+
+<img src="./Medias/9m+run.png" alt="what the climber has been choosing, at nine million climbs" />
+
 ## How To Contribute
 
 Contributions are always welcome, either reporting issues/bugs or forking the repository and then issuing pull requests when you have completed some additional coding that you feel will be beneficial to the main project. If you are interested in contributing in a more dedicated capacity, then please contact me.
