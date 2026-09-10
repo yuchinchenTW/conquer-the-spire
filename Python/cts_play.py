@@ -48,9 +48,8 @@ except ImportError:  # pragma: no cover
     print("this needs torch: pip install torch")
     raise
 
-from cts_ask import looksAhead
+from cts_ask import exactly, looksAhead, setHealthWeight
 from cts_env import PHASES, SpireEnv, action_table
-from cts_log import vec_summaries
 from cts_net import CardPolicy, load_weights
 from cts_vec import VecSpireEnv
 
@@ -109,23 +108,26 @@ def load(folder, device):
     return net, kept
 
 
-def play(net, kept, device, climbs, envs, looks, fights):
+def play(net, kept, device, climbs, envs, looks, fights, hp=None):
     """Plays \\p climbs and returns how they went.
 
     \\p looks is how many moves are walked a step out of a fight, 0 for none;
-    \\p fights turns on the older whole-fight search inside one.
+    \\p fights turns on the older whole-fight search inside one. The climbs
+    are seeds 0 to \\p climbs - 1, every one played to its end, so two runs
+    of this with different settings are the same climbs compared. A point of
+    health costs what it cost in training, read from the checkpoint or
+    \\p hp.
     """
     vec = VecSpireEnv(envs)
     vec.set_act_limit(kept["acts"])
-    obs, ids, mask = vec.reset(kept["character"], 0)
+    setHealthWeight(vec, kept, hp)
 
     plan = SpireEnv()
     phaseAt = plan.layout["phase"]
     outside = tuple(i for i in range(len(PHASES)) if i not in FIGHTING)
     looking = looksAhead(net, device, outside, looks) if looks > 1 else None
-    done = []
 
-    while len(done) < climbs:
+    def decide(obs, ids, mask):
         legal = np.asarray(mask, dtype=np.uint8)
         flat = np.asarray(obs, dtype=np.float32).reshape(envs, -1)
         named = np.asarray(ids)
@@ -165,19 +167,9 @@ def play(net, kept, device, climbs, envs, looks, fights):
                           & allowed.gather(1, safe[:, None]).squeeze(1))
                 picks = torch.where(usable, safe, picks)
 
-        obs, ids, mask, reward, ended, info = vec.step(
-            picks.cpu().numpy().astype(np.int32))
+        return picks.cpu().numpy()
 
-        if not ended.any():
-            continue
-
-        counts = vec_summaries(vec, last=True)
-
-        for row in range(envs):
-            if ended[row]:
-                done.append(counts[row])
-
-    return done[:climbs]
+    return exactly(vec, kept["character"], list(range(climbs)), decide)
 
 
 def main(argv):
@@ -187,11 +179,15 @@ def main(argv):
     looks = 0 if "--flat" in argv else LOOKS
     fights = "--fights" in argv
 
+    hp = None
+
     for at, one in enumerate(argv[2:], start=2):
         if one.isdigit():
             climbs = int(one)
         elif one == "--looks" and at + 1 < len(argv):
             looks = int(argv[at + 1])
+        elif one == "--hp-weight" and at + 1 < len(argv):
+            hp = float(argv[at + 1])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net, kept = load(folder, device)
@@ -207,7 +203,7 @@ def main(argv):
              "{:,}".format(kept["episodes"]), kept["acts"]))
     print("playing %d climbs %s" % (climbs, how))
 
-    got = play(net, kept, device, climbs, envs, looks, fights)
+    got = play(net, kept, device, climbs, envs, looks, fights, hp)
 
     floors = np.array([one["floors"] for one in got])
     bosses = np.array([one["bosses_won"] for one in got])

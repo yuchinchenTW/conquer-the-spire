@@ -426,20 +426,83 @@ def lookColumns(net, device, looks=LOOKS_AT):
              looksAhead(net, device, None, looks))]
 
 
-def played(net, kept, plan, device, overrule, climbs, rows, seed):
-    """Plays \\p climbs with \\p overrule having the last word."""
+def exactly(vec, character, seeds, decide):
+    """Plays the climbs numbered in \\p seeds, every one of them to its end,
+    and returns their summaries in the order the seeds were given.
+
+    Not "the first N climbs to finish". That was what this did, and it is
+    biased in the one way that matters: the climbs still running at the
+    cutoff are the long ones, which are the winning ones, and a better
+    policy has more of them - so it was counted on a worse sample than the
+    policy it was being compared against, and the two columns did not even
+    hold the same climbs. Here the seed list is fixed up front, a row that
+    finishes takes the next seed, and nothing is read until all of them are
+    in. Both columns of any comparison see the same climbs, whole.
+
+    \\p decide takes ``(obs, ids, mask)`` for the whole row and returns one
+    move a row. Rows with no climb left get a move too, which the engine
+    refuses; that is cheaper than telling the caller which rows are idle.
+    """
+    rows = vec.count
+    todo = list(seeds)
+    playing = [None] * rows
+    got = {}
+
+    vec.set_auto_reset(False)
+
+    obs, ids, mask = vec.reset(character, todo[0])
+
+    for row in range(rows):
+        if todo:
+            playing[row] = todo.pop(0)
+            obs, ids, mask = vec.reset_one(row, character, playing[row])
+
+    while any(seed is not None for seed in playing):
+        picks = decide(obs, ids, mask)
+        obs, ids, mask, _, dones, _ = vec.step(
+            np.asarray(picks, dtype=np.int64))
+
+        if not any(dones):
+            continue
+
+        # One reading of the summaries for the tick, taken before any row is
+        # started over, so every finished row is read as it ended.
+        counts = vec_summaries(vec, last=True)
+
+        for row in range(rows):
+            # A row with nothing left keeps saying it is done; it is not.
+            if playing[row] is None or not dones[row]:
+                continue
+
+            got[playing[row]] = counts[row]
+
+            if todo:
+                playing[row] = todo.pop(0)
+                obs, ids, mask = vec.reset_one(row, character, playing[row])
+            else:
+                playing[row] = None
+
+    return [got[seed] for seed in seeds]
+
+
+def played(net, kept, plan, device, overrule, climbs, rows, seed, hp=None):
+    """Plays \\p climbs with \\p overrule having the last word.
+
+    The same \\p climbs seeds for every column, all played to the end. A point
+    of health costs what it cost in training - read from the checkpoint, or
+    from \\p hp - because the looking adds what a move paid to what it left,
+    and a payment on another scale is a different question.
+    """
     table = Table()
     vec = VecSpireEnv(rows)
 
     vec.set_act_limit(kept["acts"])
+    setHealthWeight(vec, kept, hp)
 
-    obs, ids, mask = vec.reset(kept["character"], seed)
-    floors = []
-    bosses = []
-    wins = []
-    forced = 0
+    forced = [0]
+    phaseAt = plan.layout["phase"]
 
-    while len(floors) < climbs:
+    def decide(obs, ids, mask):
         legal = np.asarray(mask, dtype=np.uint8)
         named = np.asarray(ids)
 
@@ -454,34 +517,55 @@ def played(net, kept, plan, device, overrule, climbs, rows, seed):
         flat = np.asarray(obs, dtype=np.float32).reshape(rows, -1)
 
         if callable(overrule) and getattr(overrule, "wholeRow", False):
-            phases = flat[:, plan.layout["phase"]:
-                          plan.layout["phase"] + len(PHASES)].argmax(axis=1)
+            phases = flat[:, phaseAt:phaseAt + len(PHASES)].argmax(axis=1)
             said = overrule(vec, flat, named, legal, scores, phases)
 
-            forced += int(np.sum(said != picks))
-            picks = said
-        elif overrule is not None:
+            forced[0] += int(np.sum(said != picks))
+
+            return said
+
+        if overrule is not None:
             for row in range(rows):
                 said = overrule(table, legal, scores, named, flat, row)
 
                 if said is not None and said != picks[row]:
                     picks[row] = said
-                    forced += 1
+                    forced[0] += 1
 
-        obs, ids, mask, _, dones, _ = vec.step(
-            np.asarray(picks, dtype=np.int64))
+        return picks
 
-        if not any(dones):
-            continue
+    seeds = [seed + k for k in range(climbs)]
+    got = exactly(vec, kept["character"], seeds, decide)
 
-        for row, summary in enumerate(vec_summaries(vec, last=True)):
-            if dones[row]:
-                floors.append(float(summary["floors"]))
-                bosses.append(float(summary["bosses_won"]))
-                wins.append(float(summary["won_the_spire"]))
+    return (np.array([float(one["floors"]) for one in got]),
+            np.array([float(one["bosses_won"]) for one in got]),
+            np.array([float(one["won_the_spire"]) for one in got]),
+            forced[0])
 
-    return (np.array(floors[:climbs]), np.array(bosses[:climbs]),
-            np.array(wins[:climbs]), forced)
+
+def setHealthWeight(vec, kept, hp=None):
+    """Sets what a point of health costs to what the climber trained on.
+
+    From the checkpoint when it says, from \\p hp when given, and otherwise
+    left at the engine's own default with a warning - which is 0.05 where
+    this run trained on 0.01, so a value head fitted to one was being read
+    beside payments on the other.
+    """
+    weight = hp if hp is not None else kept.get("hp_weight")
+
+    if weight is None or weight < 0:
+        print("warning: the checkpoint does not say what a point of health "
+              "cost in training; the engine's default is in force. Pass "
+              "--hp-weight to match the run.")
+
+        return
+
+    vec.set_health_weight(float(weight))
+
+    top = kept.get("max_hp_weight")
+
+    if top is not None and top >= 0:
+        vec.set_max_health_weight(float(top))
 
 
 def main(argv=None):
@@ -494,6 +578,11 @@ def main(argv=None):
     parser.add_argument("--climbs", type=int, default=500)
     parser.add_argument("--envs", type=int, default=64)
     parser.add_argument("--seed", type=int, default=5)
+    parser.add_argument("--hp-weight", type=float, default=None,
+                        dest="hp_weight",
+                        help="what a point of health cost in training, when "
+                             "the checkpoint does not say; the looking adds "
+                             "what a move paid, and that is on this scale")
     parser.add_argument("--looks", type=int, default=LOOKS_AT,
                         help="how many of the moves on offer to walk, for "
                              "--ask look. Fewer is a narrower look and also "
@@ -523,7 +612,8 @@ def main(argv=None):
     for label, overrule in columns:
         floors, bosses, wins, forced = played(net, kept, plan, device,
                                               overrule, args.climbs,
-                                              args.envs, args.seed)
+                                              args.envs, args.seed,
+                                              args.hp_weight)
 
         print("%-22s %8.2f %8.2f %8.3f %7.1f%% %8d"
               % (label, floors.mean(),

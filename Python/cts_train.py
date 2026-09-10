@@ -448,8 +448,14 @@ class Trainer(object):
 
         stale = self.updates - max(self.bestAt, self.decayedAt)
 
-        # Every region has to be trying before the rate is blamed.
-        trying = min(self.spreads) >= self.args.spread
+        # Every region that is being pushed has to be trying before the rate
+        # is blamed. A region whose ceiling is the floor is not being pushed
+        # - the deck's, since opening the draft by entropy was measured to
+        # hurt twice - and its spread is where it is by choice; holding the
+        # rate hostage to it would shut the gate for good.
+        pushed = [spread for spread, ceiling in zip(self.spreads, CEILING_OF)
+                  if ceiling > 1.0]
+        trying = (min(pushed) if pushed else 0.0) >= self.args.spread
 
         if (self.args.patience > 0 and trying and
                 stale >= self.args.patience and
@@ -480,6 +486,18 @@ class Trainer(object):
 
                 # Which net it is. Not "net": that is where the weights go.
                 "kind": self.args.net,
+
+                # What a point of health and of the ceiling cost in training,
+                # so that whatever plays these weights charges the same. The
+                # looking adds what a move paid to what it left, and a
+                # payment on another scale beside a value fitted to this one
+                # is a different question. None means the engine's default
+                # was in force and the checkpoint cannot say what that was.
+                "hp_weight": (self.args.hp_weight
+                              if self.args.hp_weight >= 0.0 else None),
+                "max_hp_weight": (self.args.max_hp_weight
+                                  if self.args.max_hp_weight >= 0.0
+                                  else None),
 
                 # Carried so that picking a run up again does not write over
                 # a best that the weights coming back cannot match yet.
@@ -896,18 +914,47 @@ class Trainer(object):
         # whole - each of these is a number from later in the same climb, so
         # nothing had to be labelled.
         #
-        # How much health went in the step after, whether the fight was over
-        # within eight steps, and how many more floors the climb managed.
+        # How much health went in the step after, whether the fight the row
+        # is in is over within eight steps, and how many more floors this
+        # climb manages. The last two used to read straight across a climb's
+        # end: "fight over" was the climb ending, which is a different thing
+        # and mostly did not happen inside eight steps, and the floors left
+        # went on counting into the next climb the row started, so a death
+        # was labelled with the floors of the climb after it. The trunk was
+        # being taught, at a tenth of the weight, to foresee things that were
+        # not so.
+        where = obs[:, :, PHASE_AT:PHASE_AT + PHASE_COUNT].argmax(dim=-1)
+        fighting = torch.zeros_like(where, dtype=torch.bool)
+
+        for phase in FIGHT_PHASES:
+            fighting |= where == phase
+
+        # Floors still to come in *this* climb: walked backwards, and a step
+        # that ended the climb leaves nothing to come.
+        left = torch.zeros((steps, envs), device=self.device)
+
+        for step in reversed(range(steps - 1)):
+            left[step] = (1.0 - dones[step]) * (floors[step + 1] +
+                                                left[step + 1])
+
         for step in range(steps):
             seen[step, :, 0] = torch.clamp(hurt[step], 0.0, 1.0)
 
+            # The fight is over within eight steps if the row is out of one
+            # at some step in that window, or the climb ended before it. Out
+            # of a fight now there is no fight to be over, so nothing.
             ahead = min(steps, step + 8)
-            seen[step, :, 1] = (dones[step:ahead].sum(dim=0) > 0).float()
+            over = torch.zeros(envs, device=self.device)
+
+            for later in range(step + 1, ahead):
+                over = torch.maximum(over, ((~fighting[later]) |
+                                            (dones[later - 1] > 0)).float())
+
+            seen[step, :, 1] = fighting[step].float() * over
 
             # Floors left, out of a spire's worth, so the number sits beside
             # the others rather than dwarfing them.
-            gained = floors[step:].sum(dim=0) - floors[step]
-            seen[step, :, 2] = torch.clamp(gained / 60.0, 0.0, 1.0)
+            seen[step, :, 2] = torch.clamp(left[step] / 60.0, 0.0, 1.0)
 
         # `finished` stays last, because the loop above reads it as batch[-1].
         return (obs, ids, masks, actions, logps, values, rewards, dones,

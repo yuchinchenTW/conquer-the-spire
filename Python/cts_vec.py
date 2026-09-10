@@ -274,6 +274,22 @@ class VecSpireEnv(object):
 
         return self._look()
 
+    def reset_one(self, index, character="ironclad", seed=0):
+        """Starts climb ``index`` over on ``seed`` and returns the state of
+        the whole row, that climb included.
+
+        The way to play a named list of seeds: hand each row a seed, and when
+        a row's climb ends hand it the next one, until the list is spent.
+        """
+        if isinstance(character, str):
+            character = CHARACTERS[character.lower()]
+
+        self._api.lib.cts_vec_reset_one(self._vec, ctypes.c_size_t(int(index)),
+                                        int(character),
+                                        ctypes.c_uint(int(seed)))
+
+        return self._look()
+
     def set_auto_reset(self, on=True):
         self._api.lib.cts_vec_set_auto_reset(self._vec, 1 if on else 0)
 
