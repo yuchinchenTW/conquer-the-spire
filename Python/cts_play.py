@@ -73,20 +73,22 @@ FIGHTING = (PHASES.index("battle"), PHASES.index("boss"),
             PHASES.index("choosing"))
 
 
-def load(folder, device):
+def checkpoint_path(folder, mode="look2"):
+    """An explicit file, or the winner for the requested playing mode."""
+    if os.path.isfile(folder):
+        return os.fspath(folder)
+    for name in ("best-%s.pt" % mode, "best.pt", "checkpoint.pt"):
+        path = os.path.join(folder, name)
+        if os.path.isfile(path):
+            return path
+    raise SystemExit("no climber in %s" % folder)
+
+
+def load(folder, device, mode="look2"):
     """The climber saved in \\p folder, ready to play."""
-    # A folder may hold two: the working weights, which are whatever
-    # the run was doing when it last saved, and the best it ever had.
-    # A run that has since got worse writes over the first and not the
-    # second, so the best is what anybody watching would want to see.
-    best = os.path.join(folder, "best.pt")
-    path = os.path.join(folder, "checkpoint.pt")
-
-    if os.path.exists(best):
-        path = best
-
-    if not os.path.exists(path):
-        raise SystemExit("no climber in %s" % folder)
+    # Prefer the winner for this playing mode, then the legacy return winner.
+    # An explicit file bypasses selection for same-checkpoint comparisons.
+    path = checkpoint_path(folder, mode)
 
     print("playing %s" % path)
 
@@ -115,18 +117,22 @@ def load(folder, device):
 
 
 def play(net, kept, device, climbs, envs, looks, fights, hp=None,
-         outside=False):
+         outside=False, seed=0, gamma=None):
     """Plays \\p climbs and returns how they went.
 
     \\p looks is how many moves are walked a step before one is made, 0 for
     none; \\p outside keeps that out of the fights, the way it was until
     2026-09-11; \\p fights turns on the older whole-fight search inside one.
-    The climbs are seeds 0 to \\p climbs - 1, every one played to its end, so
+    The climbs start at \\p seed, every one played to its end, so
     two runs of this with different settings are the same climbs compared.
     A point of health costs what it cost in training, read from the
     checkpoint or \\p hp.
     """
-    vec = VecSpireEnv(envs)
+    if climbs <= 0 or envs <= 0 or seed < 0 or seed + climbs > 2**32:
+        raise ValueError("positive climbs/envs and unsigned 32-bit seeds "
+                         "required")
+    vec = VecSpireEnv(min(envs, climbs))
+    envs = vec.count
     vec.set_act_limit(kept["acts"])
     setHealthWeight(vec, kept, hp)
 
@@ -134,7 +140,9 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None,
     phaseAt = plan.layout["phase"]
     where = tuple(i for i in range(len(PHASES))
                   if not outside or i not in FIGHTING)
-    looking = looksAhead(net, device, where, looks) if looks > 1 else None
+    discount = kept.get("gamma", 0.999) if gamma is None else gamma
+    looking = (looksAhead(net, device, where, looks, gamma=discount)
+               if looks > 1 else None)
 
     def decide(obs, ids, mask):
         legal = np.asarray(mask, dtype=np.uint8)
@@ -177,7 +185,8 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None,
 
         return picks.cpu().numpy()
 
-    return exactly(vec, kept["character"], list(range(climbs)), decide)
+    return exactly(vec, kept["character"], list(range(seed, seed + climbs)),
+                   decide)
 
 
 def main(argv):
@@ -188,9 +197,12 @@ def main(argv):
                     "made.")
     parser.add_argument("folder", nargs="?", default="runs/ironclad")
     parser.add_argument("climbs", nargs="?", type=int, default=100,
-                        help="how many climbs, seeds 0 to climbs-1, every "
+                        help="how many consecutive seeds, every "
                              "one played to its end")
     parser.add_argument("--envs", type=int, default=64)
+    parser.add_argument("--seed", type=int, default=0,
+                        help="first seed; every seed in the range is played "
+                             "to its end")
     parser.add_argument("--flat", action="store_true",
                         help="the policy as named, no looking")
     parser.add_argument("--looks", type=int, default=LOOKS,
@@ -214,7 +226,8 @@ def main(argv):
     hp = args.hp_weight
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net, kept = load(args.folder, device)
+    net, kept = load(args.folder, device,
+                     mode="flat" if looks < 2 else "look2")
 
     how = ("flat out" if looks < 2
            else "looking at %d moves %s" % (
@@ -228,7 +241,8 @@ def main(argv):
              "{:,}".format(kept["episodes"]), kept["acts"]))
     print("playing %d climbs %s" % (climbs, how))
 
-    got = play(net, kept, device, climbs, envs, looks, fights, hp, outside)
+    got = play(net, kept, device, climbs, envs, looks, fights, hp, outside,
+               seed=args.seed)
 
     floors = np.array([one["floors"] for one in got])
     bosses = np.array([one["bosses_won"] for one in got])

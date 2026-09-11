@@ -37,6 +37,7 @@ except ImportError:  # pragma: no cover
 
 from cts_env import CHARACTERS, PHASES, SpireEnv, action_table
 from cts_net import CardPolicy, FORESIGHTS, load_weights
+from cts_checkpoint import atomic_save
 from cts_log import SUMMARY_FIELDS, vec_summaries
 from cts_plot import COLUMNS as CURVE_COLUMNS
 from cts_plot import read as read_curve, write_html
@@ -522,7 +523,7 @@ class Trainer(object):
                   % (stale, self.rate))
 
     def save(self, path=None):
-        torch.save(
+        atomic_save(
             {
                 "net": self.net.state_dict(),
                 "opt": self.opt.state_dict(),
@@ -543,6 +544,10 @@ class Trainer(object):
 
                 # Which net it is. Not "net": that is where the weights go.
                 "kind": self.args.net,
+                "gamma": self.args.gamma,
+                "curse_penalty": (self.args.curse_penalty
+                                  if self.args.curse_penalty >= 0.0
+                                  else None),
 
                 # What a point of health and of the ceiling cost in training,
                 # so that whatever plays these weights charges the same. The
@@ -582,7 +587,9 @@ class Trainer(object):
         # file would say it belonged to a run that is no longer there.
         leftovers = [name for name in ("curve.csv", "picks.csv",
                                        "progress.html", "progress.png",
-                                       "best.pt", "events")
+                                       "best.pt", "best-flat.pt",
+                                       "best-look2.pt", "judged.csv",
+                                       "events")
                      if os.path.exists(os.path.join(self.folder, name))]
 
         if not leftovers:

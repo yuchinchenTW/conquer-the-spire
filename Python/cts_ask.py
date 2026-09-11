@@ -324,7 +324,7 @@ LOOKS_AT = 8
 GAMMA = 0.999
 
 
-def looksAhead(net, device, only=None, looks=LOOKS_AT):
+def looksAhead(net, device, only=None, looks=LOOKS_AT, gamma=GAMMA):
     """Walks every move on offer one step and keeps the one that looks best.
 
     Not an overruling of the ordinary kind: the others read the state and
@@ -385,7 +385,7 @@ def looksAhead(net, device, only=None, looks=LOOKS_AT):
         #
         # A climb that ended there is worth its last payment and nothing
         # after it.
-        worth = paid + np.where(over != 0, 0.0, GAMMA * worth)
+        worth = paid + np.where(over != 0, 0.0, gamma * worth)
 
         for row in range(rows):
             if not asking[row]:
@@ -559,14 +559,18 @@ def setHealthWeight(vec, kept, hp=None):
               "cost in training; the engine's default is in force. Pass "
               "--hp-weight to match the run.")
 
-        return
-
-    vec.set_health_weight(float(weight))
+    else:
+        vec.set_health_weight(float(weight))
 
     top = kept.get("max_hp_weight")
 
     if top is not None and top >= 0:
         vec.set_max_health_weight(float(top))
+
+    curse = kept.get("curse_penalty")
+
+    if curse is not None and curse >= 0:
+        vec.set_curse_penalty(float(curse))
 
 
 def main(argv=None):
