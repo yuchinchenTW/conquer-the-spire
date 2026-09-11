@@ -1,0 +1,46 @@
+Looking ahead, after a day of training the value head's own layers
+====================================================================
+
+checkpoint.pt of update 245290 (valueMore trained from 220989, about
+24,000 updates), 800 climbs, seeds 5..804 every one played to its end,
+a point of health at 0.01, a mid-fight card choice counted as a fight.
+The same command and seeds as look-baseline-2026-09-10.txt, so the two
+files read side by side.
+
+    python Python/cts_ask.py <folder> --ask look --climbs 800 --looks N
+
+What it says: looking at 3 and 4 still lose to 2 everywhere (30.8% and
+26.0% against 36.1%). Out of a fight the wider looks caught up (30.5%
+and 30.9% against 30.1%; before, 30.8% and 28.5% against 31.9%), so the
+head does rank moves a little better where the next state is known. In
+a fight it is as blind as before: 4 in a fight lost floors again (31.43
+against 32.99 flat). Two candidates, out of fights, stays the setting.
+
+Against the old head, same seeds: flat 19.1% -> 18.0%, looks 2
+everywhere 33.1% -> 36.1%. Both inside what 800 climbs can tell apart.
+
+=== looks 2 | checkpoint 245290, trained head | exact seeds 5..804, hp 0.01 | started  9:58 ===
+what looking one move ahead is worth, over 800 climbs each, the same seeds
+
+overruled                floors       +-   bosses      won   forced
+as it likes               32.99     0.42    1.606    18.0%        0
+looks at 2, in a fight    34.09     0.42    1.644    19.6%   114546
+looks at 2, out of one    35.47     0.42    1.834    30.1%    22654
+looks at 2, everywhere    37.71     0.41    1.978    36.1%   149600
+=== looks 3 | checkpoint 245290, trained head | exact seeds 5..804, hp 0.01 | started  9:58 ===
+what looking one move ahead is worth, over 800 climbs each, the same seeds
+
+overruled                floors       +-   bosses      won   forced
+as it likes               32.99     0.42    1.606    18.0%        0
+looks at 3, in a fight    33.66     0.42    1.643    20.1%   158007
+looks at 3, out of one    36.13     0.43    1.854    30.5%    27501
+looks at 3, everywhere    36.45     0.43    1.880    30.8%   194728
+=== looks 4 | checkpoint 245290, trained head | exact seeds 5..804, hp 0.01 | started  9:58 ===
+what looking one move ahead is worth, over 800 climbs each, the same seeds
+
+overruled                floors       +-   bosses      won   forced
+as it likes               32.99     0.42    1.606    18.0%        0
+looks at 4, in a fight    31.43     0.44    1.448    14.4%   179390
+looks at 4, out of one    36.13     0.43    1.859    30.9%    33321
+looks at 4, everywhere    34.44     0.45    1.690    26.0%   223632
+done 10:24
