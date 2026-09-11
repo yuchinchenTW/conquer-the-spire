@@ -668,10 +668,11 @@ def _check():
 
     # Controlled weights, not random ones: the aim for the claim question
     # is set to read the difference between the two states off the trunk
-    # and hand it to the difference between the two cards. The gap then has
-    # to move by exactly |h1 - h2|^2 |o1 - o2|^2 / sqrt(width), so there is
-    # no threshold to be lucky about - a random aim was too small to see
-    # one time in seven.
+    # and hand it to the difference between the two cards, scaled so that
+    # the gap has to shift by exactly -1. There is then no threshold to be
+    # lucky about - a random aim was too small to see one time in seven -
+    # and the tolerance is a thousandth of the shift and not of nothing,
+    # so an aim wired in with the wrong sign shifts it by +1 and fails.
     caught = []
     hook = net.trunk.register_forward_hook(
         lambda module, inputs, output: caught.append(output.detach()))
@@ -696,20 +697,20 @@ def _check():
 
     claimAt = QUESTIONS.index("claim") * net.token
 
+    unit = math.sqrt(net.token) \
+        / float((apart * apart).sum() * (between * between).sum())
+
     with torch.no_grad():
-        net.aim.weight[claimAt:claimAt + net.token] = torch.outer(between,
-                                                                  apart)
+        net.aim.weight[claimAt:claimAt + net.token] = \
+            torch.outer(between, apart) * unit
 
     shifted = gap() - now
     ids[0, deck:deck + 8] = 20
     obs[0, run + 4] = 0.9
     shifted -= gap() - was
-    expected = -float((apart * apart).sum() * (between * between).sum()) \
-        / math.sqrt(net.token)
 
-    assert abs(shifted - expected) <= 1e-3 * max(1.0, abs(expected)), \
-        "the deck moved the gap by %.6f, not the %.6f it was set to" \
-        % (shifted, expected)
+    assert abs(shifted + 1.0) <= 1e-3, \
+        "the deck moved the gap by %.6f, not the -1 it was set to" % shifted
 
     elsewhere()
     net.zero_grad()
