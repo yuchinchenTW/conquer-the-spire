@@ -6,6 +6,9 @@ Run beside training, using the Python installation with torch:
 python Python/cts_judge.py runs/ironclad
 ```
 
+Or double-click `judge.bat`, which runs exactly this for the character
+`train.bat` last trained and keeps the window open.
+
 The judge uses CPU only, with two torch threads and 16 environments. It waits
 one hour after a checkpoint's evaluation completes before checking again.
 It skips checkpoints already evaluated under the same protocol. Training
