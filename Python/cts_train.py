@@ -157,6 +157,44 @@ CEILING_OF = (10.0, 1.0, 10.0)
 ID_VOCAB = 512
 
 
+
+def carry_optimiser(opt, net, saved, weights):
+    """Loads a saved Adam state into \\p opt, matched by parameter name.
+
+    Returns the names of the parameters the save knew nothing about, as one
+    string, or an empty one. A saved optimiser knows its parameters only by
+    their place in the line. A head added since moves everything behind it
+    one place along, and matched by place the moments of one parameter would
+    land on another - or, when the count is off, the whole thing was thrown
+    away and every moment started over. Matched by name the parameters the
+    save knew get their moments back, and the new ones start empty, which is
+    what a fresh optimiser does for all of them. \\p weights is the saved
+    net, which says which names the save knew.
+    """
+    names = [name for name, _ in net.named_parameters()]
+    known = [name for name in names if name in weights]
+    groups = saved.get("param_groups", [])
+
+    if len(groups) != 1 or len(groups[0]["params"]) != len(known):
+        # Not a shape this knows how to match; the plain load says why not.
+        opt.load_state_dict(saved)
+
+        return ""
+
+    named = dict(zip(groups[0]["params"], known))
+    state = {}
+
+    for was, moments in saved.get("state", {}).items():
+        if was in named:
+            state[names.index(named[was])] = moments
+
+    group = dict(groups[0])
+    group["params"] = list(range(len(names)))
+    opt.load_state_dict({"state": state, "param_groups": [group]})
+
+    return ", ".join(name for name in names if name not in weights)
+
+
 class Policy(nn.Module):
     """A masked policy over the fixed head, with a value head beside it."""
 
@@ -596,7 +634,11 @@ class Trainer(object):
         # worth of running averages, cheap to rebuild, and the rate itself is
         # carried separately below.
         try:
-            self.opt.load_state_dict(kept["opt"])
+            how = carry_optimiser(self.opt, self.net, kept["opt"],
+                                  kept["net"])
+
+            if how:
+                print("   the optimiser carries on; new to it: %s" % how)
         except (ValueError, KeyError) as reason:
             print("   the optimiser starts fresh (%s)" % reason)
 

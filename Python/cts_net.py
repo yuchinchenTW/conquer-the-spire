@@ -216,6 +216,24 @@ class CardPolicy(nn.Module):
         # Every question at once, then split apart.
         self.ask = nn.Linear(width, embed * len(QUESTIONS))
 
+        # And a question for the other end of a move that has one. A move
+        # aimed at something scored as its own token against the question,
+        # plus its own token against the target's: the state reached the
+        # thing the move was about and never the thing it was aimed at. On
+        # a reward pile the things aimed at are the cards on offer, so two
+        # cards on one pile were ranked by the pile and by themselves, and
+        # the deck they would join cancelled out of the difference. Measured
+        # on a trained climber, 2026-09-11: health at 1%, or a deck of
+        # nothing but Defends, moved the gap between two offered cards by
+        # nothing past floating point, and the gap's gradient never reached
+        # the trunk. Here the state asks something of the target as well.
+        # Zero to begin with, so a climber trained without it comes back
+        # scoring exactly as it did and learns only the pairing.
+        self.aim = nn.Linear(width, embed * len(QUESTIONS))
+
+        nn.init.zeros_(self.aim.weight)
+        nn.init.zeros_(self.aim.bias)
+
         # The moves that are not about anything in particular.
         self.singles = nn.Linear(width, self.actions)
         self.value = nn.Linear(width, 1)
@@ -417,6 +435,7 @@ class CardPolicy(nn.Module):
         summary = torch.cat([one.mean(dim=1) for one in held.values()], dim=1)
         hidden = self.trunk(torch.cat([obs, summary], dim=1))
         questions = self.ask(hidden).view(-1, len(QUESTIONS), self.token)
+        aims = self.aim(hidden).view(-1, len(QUESTIONS), self.token)
         scale = 1.0 / math.sqrt(self.token)
 
         # Moves that stand alone keep a weight of their own; the rest are
@@ -432,13 +451,17 @@ class CardPolicy(nn.Module):
             score = torch.einsum("bcd,bd->bc", about, asked) * scale
 
             if plan["wide"] > 1:
+                # The thing the move is about, with what the state asks of
+                # the target folded in, against each target.
+                aimed = about + aims[:, plan["question"], :].unsqueeze(1)
+
                 if plan["target"] == "offer":
                     # Every reward against the four things it offers.
                     other = held["offer"].view(about.shape[0],
                                                about.shape[1], 4, -1)
-                    pair = torch.einsum("bcd,bcod->bco", about, other) * scale
+                    pair = torch.einsum("bcd,bcod->bco", aimed, other) * scale
                 else:
-                    pair = torch.einsum("bcd,btd->bct", about,
+                    pair = torch.einsum("bcd,btd->bct", aimed,
                                         held[plan["target"]]) * scale
 
                 # A column for having aimed at nothing at all.
@@ -611,6 +634,61 @@ def _check():
 
         assert abs(float(decked[0, here]) - float(decked[0, there])) < 1e-5, \
             "the same deck card scored differently by slot for %s" % kind
+
+    # Two cards on one reward pile are ranked against each other by what the
+    # climber holds, not by what they are alone. Until 2026-09-11 the gap
+    # between the two claims was the pile against each card, and the deck,
+    # the health and everything else cancelled out of it - so nothing could
+    # be learnt about which card suits this deck. With the aim still at zero
+    # the old shape is there to be seen; with it set, the gap moves when
+    # the deck does and its gradient reaches the trunk.
+    claimTwo = find("claim_reward", 0, 1)
+    run = plan.layout["run"]
+
+    ids[0, offers] = 30
+    ids[0, offers + 1] = 31
+
+    def gap():
+        with torch.no_grad():
+            out, _, _ = net(obs, ids)
+
+        return float(out[0, claim] - out[0, claimTwo])
+
+    def elsewhere():
+        for slot in range(8):
+            ids[0, deck + slot] = 22 + slot
+
+        obs[0, run + 4] = 0.01
+
+    was = gap()
+    elsewhere()
+
+    assert abs(gap() - was) < 1e-5, \
+        "with nothing asked of the offer the deck should cancel out"
+
+    with torch.no_grad():
+        net.aim.weight.normal_(std=0.1)
+
+    ids[0, deck:deck + 8] = 20
+    obs[0, run + 4] = 0.9
+    was = gap()
+    elsewhere()
+
+    assert abs(gap() - was) > 1e-4, \
+        "the deck made no odds to which offered card is preferred"
+
+    net.zero_grad()
+    out, _, _ = net(obs, ids)
+    (out[0, claim] - out[0, claimTwo]).backward()
+
+    reached = sum(float(one.grad.abs().sum())
+                  for one in net.trunk.parameters() if one.grad is not None)
+
+    assert reached > 0.0, \
+        "the gap between two offered cards taught the trunk nothing"
+
+    with torch.no_grad():
+        net.aim.weight.zero_()
 
     # Every move of the head is either scored from a token or has a weight of
     # its own, and none is both.
