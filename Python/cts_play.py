@@ -1,29 +1,33 @@
 """Playing a trained climber, with a move looked at before it is made.
 
-The policy names a move by guessing what it comes to. Out of a fight, this
-walks its best two moves one step each on a copy of the climb and keeps
-whichever the value head thinks more of, with what the move paid added to
-what it left. In a fight it plays the policy's move as named.
+The policy names a move by guessing what it comes to. This walks its best
+two moves one step each on a copy of the climb and keeps whichever the
+value head thinks more of, with what the move paid added to what it left.
+Everywhere: in a fight as well as out of one.
 
-Both halves of that were measured rather than chosen. Over 800 climbs on the
-same seeds, on the climber at 7.1M climbs:
+That was measured rather than chosen, on fixed seeds with every climb
+played to its end and a point of health at 0.01 - twice, once on the 800
+seeds the setting was picked on and once on 800 it had never seen, with
+the climber of update 245290:
 
-                               floors     won
-    as it likes                 32.08    15.2%
-    looks at 2, in a fight      32.55    13.6%
-    looks at 2, out of one      35.50    28.0%
-    looks at 2, everywhere      36.17    28.5%
+                               seeds 5..804      seeds 1005..1804
+                               floors     won     floors     won
+    as it likes                 32.99   18.0%      33.50   16.8%
+    looks at 2, in a fight      34.09   19.6%      33.80   18.1%
+    looks at 2, out of one      35.47   30.1%      35.98   29.8%
+    looks at 2, everywhere      37.71   36.1%      37.08   33.9%
 
-So the looking pays outside the fights and not in them - a step into a
-fight is followed by cards nobody has drawn yet, and the head cannot tell
-one move from another through that - and it pays a great deal: nearly
-double the wins. Two moves and not more, because at eight the largest of
-eight noisy readings is mostly the largest mistake and the climb loses half
-its floors.
+So the looking pays most out of a fight, where the next state is known,
+and a little in one, where a step is followed by cards nobody has drawn
+yet; and the two together pay more than either alone. Two moves and not
+more: at three the wins fall back to 31% and at four to 26%, because the
+largest of several noisy readings is mostly the largest mistake. The runs
+are in Notes/look-trained-head-2026-09-11.txt.
 
     python cts_play.py runs/ironclad              # a hundred climbs, counted
     python cts_play.py runs/ironclad 500          # five hundred
     python cts_play.py runs/ironclad 100 --flat   # the policy as named
+    python cts_play.py runs/ironclad --outside    # no looking in a fight
 
 Older: ``--fights`` turns on the search this file used to be about, which
 plays each candidate a whole fight ahead by a rule of thumb. Asked the same
@@ -110,15 +114,17 @@ def load(folder, device):
     return net, kept
 
 
-def play(net, kept, device, climbs, envs, looks, fights, hp=None):
+def play(net, kept, device, climbs, envs, looks, fights, hp=None,
+         outside=False):
     """Plays \\p climbs and returns how they went.
 
-    \\p looks is how many moves are walked a step out of a fight, 0 for none;
-    \\p fights turns on the older whole-fight search inside one. The climbs
-    are seeds 0 to \\p climbs - 1, every one played to its end, so two runs
-    of this with different settings are the same climbs compared. A point of
-    health costs what it cost in training, read from the checkpoint or
-    \\p hp.
+    \\p looks is how many moves are walked a step before one is made, 0 for
+    none; \\p outside keeps that out of the fights, the way it was until
+    2026-09-11; \\p fights turns on the older whole-fight search inside one.
+    The climbs are seeds 0 to \\p climbs - 1, every one played to its end, so
+    two runs of this with different settings are the same climbs compared.
+    A point of health costs what it cost in training, read from the
+    checkpoint or \\p hp.
     """
     vec = VecSpireEnv(envs)
     vec.set_act_limit(kept["acts"])
@@ -126,8 +132,9 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None):
 
     plan = SpireEnv()
     phaseAt = plan.layout["phase"]
-    outside = tuple(i for i in range(len(PHASES)) if i not in FIGHTING)
-    looking = looksAhead(net, device, outside, looks) if looks > 1 else None
+    where = tuple(i for i in range(len(PHASES))
+                  if not outside or i not in FIGHTING)
+    looking = looksAhead(net, device, where, looks) if looks > 1 else None
 
     def decide(obs, ids, mask):
         legal = np.asarray(mask, dtype=np.uint8)
@@ -143,13 +150,12 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None):
             picks = scores.argmax(dim=1)
 
             if looking is not None:
-                # Out of a fight, the best two walked a step each and the
-                # one worth more kept. The rows in a fight get their own
-                # move back untouched: there the walking is worth nothing
-                # and costs a copy of the fight for every move.
-                where = flat[:, phaseAt:phaseAt + len(PHASES)].argmax(axis=1)
+                # The best two walked a step each and the one worth more
+                # kept. With --outside the rows in a fight get their own
+                # move back untouched.
+                stood = flat[:, phaseAt:phaseAt + len(PHASES)].argmax(axis=1)
                 said = looking(vec, flat, named, legal, scores.cpu().numpy(),
-                               where)
+                               stood)
                 picks = torch.as_tensor(said, device=device).long()
 
             if fights:
@@ -190,6 +196,8 @@ def main(argv):
     parser.add_argument("--looks", type=int, default=LOOKS,
                         help="how many of the policy's best moves to walk a "
                              "step out of a fight")
+    parser.add_argument("--outside", action="store_true",
+                        help="look only out of a fight, as before 2026-09-11")
     parser.add_argument("--fights", action="store_true",
                         help="the older whole-fight search inside a fight")
     parser.add_argument("--hp-weight", type=float, default=None,
@@ -201,6 +209,7 @@ def main(argv):
     climbs = args.climbs
     envs = args.envs
     looks = 0 if args.flat else args.looks
+    outside = args.outside
     fights = args.fights
     hp = args.hp_weight
 
@@ -208,7 +217,8 @@ def main(argv):
     net, kept = load(args.folder, device)
 
     how = ("flat out" if looks < 2
-           else "looking at %d moves out of a fight" % looks)
+           else "looking at %d moves %s" % (
+               looks, "out of a fight" if outside else "everywhere"))
 
     if fights:
         how += ", and the fights looked into"
@@ -218,7 +228,7 @@ def main(argv):
              "{:,}".format(kept["episodes"]), kept["acts"]))
     print("playing %d climbs %s" % (climbs, how))
 
-    got = play(net, kept, device, climbs, envs, looks, fights, hp)
+    got = play(net, kept, device, climbs, envs, looks, fights, hp, outside)
 
     floors = np.array([one["floors"] for one in got])
     bosses = np.array([one["bosses_won"] for one in got])

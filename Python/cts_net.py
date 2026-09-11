@@ -666,17 +666,52 @@ def _check():
     assert abs(gap() - was) < 1e-5, \
         "with nothing asked of the offer the deck should cancel out"
 
-    with torch.no_grad():
-        net.aim.weight.normal_(std=0.1)
+    # Controlled weights, not random ones: the aim for the claim question
+    # is set to read the difference between the two states off the trunk
+    # and hand it to the difference between the two cards. The gap then has
+    # to move by exactly |h1 - h2|^2 |o1 - o2|^2 / sqrt(width), so there is
+    # no threshold to be lucky about - a random aim was too small to see
+    # one time in seven.
+    caught = []
+    hook = net.trunk.register_forward_hook(
+        lambda module, inputs, output: caught.append(output.detach()))
 
     ids[0, deck:deck + 8] = 20
     obs[0, run + 4] = 0.9
     was = gap()
+    hiddenWas = caught.pop()[0]
     elsewhere()
+    now = gap()
+    hiddenNow = caught.pop()[0]
+    hook.remove()
 
-    assert abs(gap() - was) > 1e-4, \
-        "the deck made no odds to which offered card is preferred"
+    with torch.no_grad():
+        offer = net.byFamily(net.tokens(obs, ids))["offer"][0]
 
+    apart = hiddenWas - hiddenNow
+    between = offer[0] - offer[1]
+
+    assert float(apart.abs().sum()) > 0.0, "the trunk did not see the deck"
+    assert float(between.abs().sum()) > 0.0, "the two cards read the same"
+
+    claimAt = QUESTIONS.index("claim") * net.token
+
+    with torch.no_grad():
+        net.aim.weight[claimAt:claimAt + net.token] = torch.outer(between,
+                                                                  apart)
+
+    shifted = gap() - now
+    ids[0, deck:deck + 8] = 20
+    obs[0, run + 4] = 0.9
+    shifted -= gap() - was
+    expected = -float((apart * apart).sum() * (between * between).sum()) \
+        / math.sqrt(net.token)
+
+    assert abs(shifted - expected) <= 1e-3 * max(1.0, abs(expected)), \
+        "the deck moved the gap by %.6f, not the %.6f it was set to" \
+        % (shifted, expected)
+
+    elsewhere()
     net.zero_grad()
     out, _, _ = net(obs, ids)
     (out[0, claim] - out[0, claimTwo]).backward()

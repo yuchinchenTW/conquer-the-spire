@@ -158,7 +158,7 @@ ID_VOCAB = 512
 
 
 
-def carry_optimiser(opt, net, saved, weights):
+def carry_optimiser(opt, net, saved, weights, saved_names=None):
     """Loads a saved Adam state into \\p opt, matched by parameter name.
 
     Returns the names of the parameters the save knew nothing about, as one
@@ -168,12 +168,22 @@ def carry_optimiser(opt, net, saved, weights):
     land on another - or, when the count is off, the whole thing was thrown
     away and every moment started over. Matched by name the parameters the
     save knew get their moments back, and the new ones start empty, which is
-    what a fresh optimiser does for all of them. \\p weights is the saved
-    net, which says which names the save knew.
+    what a fresh optimiser does for all of them.
+
+    \\p saved_names is the line of names the optimiser was saved with, which
+    every checkpoint now carries. A checkpoint from before that has none, and
+    for those the line is taken to be today's order with the new names left
+    out - right for a head added, and only for that: a parameter moved in
+    the line would take another's moments without a word. \\p weights is the
+    saved net, which says which names the save knew.
     """
     names = [name for name, _ in net.named_parameters()]
-    known = [name for name in names if name in weights]
     groups = saved.get("param_groups", [])
+
+    if saved_names is not None:
+        known = list(saved_names)
+    else:
+        known = [name for name in names if name in weights]
 
     if len(groups) != 1 or len(groups[0]["params"]) != len(known):
         # Not a shape this knows how to match; the plain load says why not.
@@ -185,14 +195,15 @@ def carry_optimiser(opt, net, saved, weights):
     state = {}
 
     for was, moments in saved.get("state", {}).items():
-        if was in named:
+        # A parameter the net no longer has leaves its moments behind.
+        if was in named and named[was] in names:
             state[names.index(named[was])] = moments
 
     group = dict(groups[0])
     group["params"] = list(range(len(names)))
     opt.load_state_dict({"state": state, "param_groups": [group]})
 
-    return ", ".join(name for name in names if name not in weights)
+    return ", ".join(name for name in names if name not in known)
 
 
 class Policy(nn.Module):
@@ -515,6 +526,11 @@ class Trainer(object):
             {
                 "net": self.net.state_dict(),
                 "opt": self.opt.state_dict(),
+                # The line of names the optimiser's moments are in, so that a
+                # net whose parameters have moved about since can still take
+                # each one's moments back. One group over the whole net.
+                "opt_names": [name for name, _
+                              in self.net.named_parameters()],
                 "updates": self.updates,
                 "steps": self.steps,
                 "episodes": self.episodes,
@@ -635,7 +651,7 @@ class Trainer(object):
         # carried separately below.
         try:
             how = carry_optimiser(self.opt, self.net, kept["opt"],
-                                  kept["net"])
+                                  kept["net"], kept.get("opt_names"))
 
             if how:
                 print("   the optimiser carries on; new to it: %s" % how)

@@ -44,3 +44,19 @@ looks at 4, in a fight    31.43     0.44    1.448    14.4%   179390
 looks at 4, out of one    36.13     0.43    1.859    30.9%    33321
 looks at 4, everywhere    34.44     0.45    1.690    26.0%   223632
 done 10:24
+
+
+The same looking on 800 seeds it had never seen (1005..1804), the same
+checkpoint, run 2026-09-11 15:09-15:14. Everywhere beat out-of-fights
+again (33.9% against 29.8%), so everywhere became cts_play's default;
+--outside keeps the old way.
+
+=== looks 2 | checkpoint 245290, trained head | FRESH seeds 1005..1804, hp 0.01 | started 15:09 ===
+what looking one move ahead is worth, over 800 climbs each, the same seeds
+
+overruled                floors       +-   bosses      won   forced
+as it likes               33.50     0.41    1.610    16.8%        0
+looks at 2, in a fight    33.80     0.41    1.599    18.1%   111756
+looks at 2, out of one    35.98     0.42    1.845    29.8%    23267
+looks at 2, everywhere    37.08     0.42    1.923    33.9%   147387
+done 15:14
