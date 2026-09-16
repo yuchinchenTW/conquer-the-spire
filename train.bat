@@ -61,6 +61,7 @@ echo     %ENVS% climbs at once, %WIDTH% wide
 echo     looks ahead %GAMMA%, a point of health %HPW%
 echo     practises the later acts: %DEEP% of the climbs start part-way up
 echo     walks %LOOK% moves before making one, out of a fight
+echo     credits a move for what follows with lambda %LAM%
 echo.
 echo   and it will carry on from runs\%CHARACTER%\checkpoint.pt
 echo.
@@ -371,11 +372,46 @@ if /i "%PICK%"=="b" goto deep
 set "LOOK="
 if "%PICK%"=="1" set "LOOK=2"
 if "%PICK%"=="2" set "LOOK=0"
-if defined LOOK goto go
+if defined LOOK goto lam
 echo.
 echo   That was not one of them.
 pause
 goto look
+
+rem --------------------------------------- how far a move's credit reaches
+:lam
+cls
+echo ==========================================================
+echo   %CHARACTER%, act limit %ACTS% - how far does a move's credit reach?
+echo ==========================================================
+echo.
+echo     1. Near   - lambda 0.95: what happens 100 moves on counts 0.5%%
+echo     2. Far    - lambda 0.98: what happens 100 moves on counts 12%%
+echo.
+echo   A move is credited with what followed it, fading with distance, and
+echo   for the rest the value head's guess stands in. Near leans on the
+echo   guess; far leans on what really happened. A card taken pays off in
+echo   fights several floors later - about 16 moves a floor - so far lets
+echo   more of that reach the pick. It also makes the signal noisier.
+echo.
+echo   This changes the learning signal, not what a climb is worth, so the
+echo   curve reads the same either way.
+echo.
+echo     B. Back
+echo.
+set "PICK="
+set /p "PICK=  Choose [1]: "
+
+if not defined PICK set "PICK=1"
+if /i "%PICK%"=="b" goto look
+set "LAM="
+if "%PICK%"=="1" set "LAM=0.95"
+if "%PICK%"=="2" set "LAM=0.98"
+if defined LAM goto go
+echo.
+echo   That was not one of them.
+pause
+goto lam
 
 rem -------------------------------------------------------------------- off
 :go
@@ -384,6 +420,7 @@ rem Anything the questions did not settle, because the questions were
 rem skipped or because this file is newer than the notes it left.
 if not defined DEEP set "DEEP=0.4"
 if not defined LOOK set "LOOK=2"
+if not defined LAM set "LAM=0.95"
 
 rem And the answers, so that next time is one keypress or none of them.
 rem Written before the trainer starts rather than after, because the way
@@ -398,6 +435,7 @@ md runs 2>nul
 >>"runs\last.bat" echo set "HPW=%HPW%"
 >>"runs\last.bat" echo set "DEEP=%DEEP%"
 >>"runs\last.bat" echo set "LOOK=%LOOK%"
+>>"runs\last.bat" echo set "LAM=%LAM%"
 
 cls
 echo ==========================================================
@@ -411,6 +449,7 @@ echo   looks ahead : %GAMMA%
 echo   a point of hp: %HPW%
 echo   later acts  : %DEEP% of climbs start part-way up
 echo   walks ahead : %LOOK% moves, out of a fight - 0 is off
+echo   lambda      : %LAM%
 echo   saved to    : runs\%CHARACTER%\checkpoint.pt
 echo   the curve   : runs\%CHARACTER%\curve.csv
 echo.
@@ -424,7 +463,7 @@ echo   to get, so with an act limit it starts moving early; asked for the
 echo   whole spire it waits on the third act's boss and takes much longer.
 echo.
 
-%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --deep %DEEP% --look %LOOK% --picks %FRESH% %EXTRA%
+%PYTHON% "%TRAINER%" --character %CHARACTER% --acts %ACTS% --envs %ENVS% --width %WIDTH% --gamma %GAMMA% --hp-weight %HPW% --deep %DEEP% --look %LOOK% --lam %LAM% --picks %FRESH% %EXTRA%
 
 echo.
 echo ==========================================================

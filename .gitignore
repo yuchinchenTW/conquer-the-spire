@@ -43,3 +43,4 @@ Assets/cards/
 
 # Debugging builds of the engine (bounds-checked, debug containers, -g twin)
 build-*/
+runs-*/
