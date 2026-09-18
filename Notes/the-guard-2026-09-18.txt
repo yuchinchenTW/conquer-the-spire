@@ -1,0 +1,46 @@
+The guard: stopping a run whose wins have fallen away
+=====================================================
+
+Two runs have now gone bad and gone on training for a day: the main run
+on 2026-09-17 (act 3 boss fights lost 30 in 30, everything else unmoved -
+Notes/act3-boss-collapse-2026-09-17.txt) and, it turns out, the run in
+runs\ironclad\before-the-rewind, which fell from 12% wins to 2% at update
+80000 and never came back. Both were noticed by a person, hours later.
+
+So the trainer now watches the share of climbs that got as far as they
+were asked to get, over the last 60 reports - three hundred updates, about
+twenty minutes. Whenever that mean is the highest it has been, the weights
+go to well.pt. When it falls under --guard (0.5) of that high mark, the
+run stops and says where to pick up from. --guard-least (0.08) is how high
+the mark has to be before any of this means anything.
+
+Why the wins and not the return: in the collapse the return only fell a
+fifth, because the floors were holding it up. The wins fell by a hundred
+and ninety fold.
+
+Replayed against every curve there is, at the settings as shipped:
+
+    run                        curve            what the guard does
+    the collapse (0.95)        225545..409827   stops at 401060; best
+                                                22.8% at 380160; 8767
+                                                updates not wasted
+    lambda 0.98, which slid    383185..404778   never fires; best 19.6%
+    before-the-rewind          5..113494        stops at 80240; best
+                                                12.3% at 65640; 33254
+                                                updates not wasted
+    before-the-rewind-2,-3,-4  same early run   the same 80240
+
+The 0.98 run is the one that must not fire, and does not: it lost three
+and a half points of wins over 21000 updates, which is a worse setting
+rather than a run falling over, and stopping it would have thrown away
+the comparison it was there to make.
+
+Two thresholds were tried against the same curves. At --guard-least 0.05
+the early runs stopped at update 22515, where the wins wobbled between
+two and five in a hundred on their way up - a false alarm. At 0.08 that
+wobble is beneath the guard and the real fall at 80240 is not. At --guard
+0.7 the collapse is caught 5000 updates sooner but the margin over an
+ordinary bad patch is thin; at 0.3 it waits 300 updates longer for no gain.
+
+The high mark and its window ride in the checkpoint, so stopping and
+starting again does not hand the run a fresh clean slate to fall from.

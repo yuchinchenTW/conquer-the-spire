@@ -29,10 +29,12 @@ class CheckpointTests(unittest.TestCase):
                                        max_hp_weight=-1., curse_penalty=-1.)
         for key in ("updates", "steps", "episodes", "floats", "id_count",
                     "actions", "bestScore", "bestAt", "bestFloors", "deep",
-                    "rate", "pressure", "decayedAt"):
+                    "rate", "pressure", "decayedAt", "wellest",
+                    "wellAt"):
             setattr(trainer, key, 1)
         trainer.scores = []
         trainer.pressures = [1., 1., 1.]
+        trainer.wins = []
         with tempfile.TemporaryDirectory() as directory:
             trainer.folder = directory
             trainer.save()

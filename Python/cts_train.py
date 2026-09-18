@@ -94,6 +94,15 @@ other report clears the bar by a hundredth and writes a hundred megabytes for
 nothing.
 """
 
+WELL_OVER = 60
+"""How many reports the run's health is read over.
+
+Three times what a best is judged over, because this one is not looking for
+a peak but for a floor falling out, and it must not fire on a bad patch.
+Sixty reports at the default cadence is three hundred updates - about
+twenty minutes - and the collapse of 2026-09-17 took eight thousand.
+"""
+
 LOGP_FLOOR = -6.0
 
 # Where health and the floor sit in the state, for the foresight targets.
@@ -335,6 +344,18 @@ class Trainer(object):
         self.bestFloors = 0.0
         self.scores = []
 
+        # The healthiest the run has been, by the share of climbs that got
+        # as far as they were asked to, and the reports that share is read
+        # over. A run can lose the last fight of the spire and nothing else
+        # - on 2026-09-17 this one did, and the floors, the act bosses and
+        # the whole deck held still while the wins went from 19% to 0.1%
+        # over eight thousand updates, none of which was worth training.
+        # So the guard watches the wins and not the return: the return only
+        # fell a fifth, because the floors were holding it up.
+        self.wins = []
+        self.wellest = 0.0
+        self.wellAt = 0
+
         # The share of the most it could be undecided by, last update - in a
         # fight and out of one, kept apart. One number over every state hid a
         # total collapse: out of a fight the policy had a spread of 0.06 and
@@ -447,6 +468,80 @@ class Trainer(object):
               "last %d reports%s"
               % (smooth, deep, BEST_OVER,
                  "" if was is None else " (was %.1f)" % was))
+
+    @property
+    def well(self):
+        """Where the weights from the run's healthiest moment are kept."""
+        return os.path.join(self.folder, "well.pt")
+
+    def watch(self, won):
+        """Stops the run if the climbs it wins fall away under it.
+
+        \\p won is the share of the climbs in this report that got as far as
+        they were asked to get. The run keeps the mean of the last
+        WELL_OVER of those; when that mean is the highest it has been, the
+        weights go to well.pt, and when it falls under \\p --guard of that
+        high mark the run stops and says so.
+
+        There is a floor on the high mark as well, \\p --guard-least, because
+        a share of a hundredth halving is not news and an act limit means
+        the share is nothing at all for the first while. Eight in a
+        hundred is where the curves in runs\ironclad\before-* put it:
+        those wobbled between two and five in a hundred early on, which at
+        five would have stopped them at update 22515 for nothing.
+
+        Written as a share of what the run itself has managed rather than
+        an absolute: what counts as healthy is different for every character
+        and act limit, and nobody should have to work it out to be warned.
+        """
+        self.wins.append(float(won))
+
+        if len(self.wins) > WELL_OVER:
+            self.wins.pop(0)
+
+        if len(self.wins) < WELL_OVER:
+            return
+
+        now = sum(self.wins) / len(self.wins)
+
+        if now > self.wellest:
+            first = self.wellest <= 0.0
+            self.wellest = now
+            self.wellAt = self.updates
+            self.save(self.well)
+
+            if first:
+                print("   the wins to fall back to are in well.pt")
+
+            return
+
+        if self.args.guard <= 0.0 or self.wellest < self.args.guard_least:
+            return
+
+        if now >= self.wellest * self.args.guard:
+            return
+
+        self.stopping = True
+        print("")
+        print("=" * 58)
+        print("  Stopping: the climbs being won have fallen away.")
+        print("=" * 58)
+        print("  won %.1f%% of the last %d reports, against %.1f%% at its "
+              "best (update %d)." % (100.0 * now, WELL_OVER,
+                                     100.0 * self.wellest, self.wellAt))
+        print("")
+        print("  Nothing here is thrown away: the weights from that best")
+        print("  moment are in %s, and this batch is being" % self.well)
+        print("  saved over the working ones as usual, so the two can be")
+        print("  compared. To carry on from the healthy ones instead, copy")
+        print("  well.pt over checkpoint.pt before starting again.")
+        print("")
+        print("  A run losing this much is not learning: the 2026-09-17")
+        print("  collapse held every other reading still - floors, act")
+        print("  bosses, the deck - and lost only the last fight of the")
+        print("  spire, for eight thousand updates. --guard 0 turns this")
+        print("  off, --guard 0.3 makes it wait for a deeper fall.")
+        print("=" * 58)
 
     def hold(self):
         """Keeps the policy undecided, and slows the run down when it stalls.
@@ -564,6 +659,9 @@ class Trainer(object):
                 # Carried so that picking a run up again does not write over
                 # a best that the weights coming back cannot match yet.
                 "best_score": self.bestScore,
+                "wellest": self.wellest,
+                "well_at": self.wellAt,
+                "wins": self.wins,
                 "best_at": self.bestAt,
                 "best_floors": self.bestFloors,
                 "scores": self.scores,
@@ -588,8 +686,8 @@ class Trainer(object):
         leftovers = [name for name in ("curve.csv", "picks.csv",
                                        "progress.html", "progress.png",
                                        "best.pt", "best-flat.pt",
-                                       "best-look2.pt", "judged.csv",
-                                       "events")
+                                       "best-look2.pt", "well.pt",
+                                       "judged.csv", "events")
                      if os.path.exists(os.path.join(self.folder, name))]
 
         if not leftovers:
@@ -691,6 +789,9 @@ class Trainer(object):
         self.updates = int(kept.get("updates", 0))
         self.steps = int(kept.get("steps", 0))
         self.episodes = int(kept.get("episodes", 0))
+        self.wellest = float(kept.get("wellest", 0.0))
+        self.wellAt = int(kept.get("well_at", 0))
+        self.wins = list(kept.get("wins", []))
         self.bestScore = kept.get("best_score")
         self.bestAt = int(kept.get("best_at", 0))
         self.bestFloors = float(kept.get("best_floors", 0.0))
@@ -1400,6 +1501,7 @@ class Trainer(object):
                        deck["cards_upgraded"].mean(),
                        deck["cards_removed"].mean(), 100.0 * refusal))
             self.noteBest(returns.mean(), floors.mean())
+            self.watch(wins.mean())
             self.hold()
 
             row = [self.updates, self.steps, self.episodes,
@@ -1556,6 +1658,14 @@ def main(argv=None):
                         help="save every this many updates; closing the "
                              "window without stopping first costs at most "
                              "this much work")
+    parser.add_argument("--guard", type=float, default=0.5,
+                        help="stop when the share of climbs won falls under "
+                             "this much of the run's own best; 0 to never "
+                             "stop")
+    parser.add_argument("--guard-least", type=float, default=0.08,
+                        dest="guard_least",
+                        help="how high the best has to be before the guard "
+                             "means anything")
     parser.add_argument("--out", default="runs")
     parser.add_argument("--fresh", action="store_true",
                         help="ignore whatever was saved and start over")
