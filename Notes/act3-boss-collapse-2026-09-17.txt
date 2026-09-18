@@ -1,0 +1,49 @@
+The act 3 boss fight collapsing, and everything else staying
+============================================================
+
+The main run (runs\ironclad, lambda 0.95, carrying on from the aim
+plateau at 383180) went from 19% flat wins to 0.1% between updates 399000
+and 407000 on 2026-09-17, in two steps rather than a slide:
+
+    update band   loss   return   win%   act boss%   two down%   floors
+    394000-398800  6.35   41.90   19.5      93.0        50.9      34.3
+    399600-400400  5.90   40.10   15.7      93.1        50.1      34.2
+    401200-404400  4.42   35.88    5.8      92.9        49.5      34.2
+    405200-409200  2.98   33.42    0.6      93.1        48.3      33.7
+
+Every other reading held: floors, the share of climbs that put an act
+boss down, the share that put two down, fights won, cards taken, removed,
+upgraded, rests. Only the last fight of the spire was being lost.
+
+Played on the same 64 seeds, 30 act 3 boss fights each:
+
+                                383180 (plateau)   409827 (collapsed)
+    act 3 boss fights won            16 of 30           0 of 30
+    the value head in them       mean +4.3           mean -20.3
+                                 (-24.0 .. +21.5)    (-23.6 .. -16.3)
+    cards played a turn              5.21               4.22
+    potions a fight                  1.61               0.70
+    Strike, of the cards played      10.8%              19.0%
+
+The value head had stopped reading the fight at all: within three points
+of -20 whatever the board, which is "this climb is over". A zero-cost
+Anger sat in hand at the end of a turn. The moves the collapsed weights
+name differ from the plateau's on 30-38% of ordinary fight and reward
+states and on 63% of act 3 boss states, so the damage is aimed.
+
+Ruled out: the engine (the same dll since 09-07, and the judge hashes it),
+the machine (no display or power events in the system log), the settings
+(runs\last.bat unchanged, the run never restarted), and chance in the
+judge (both judged splits agree, and the trainer's own curve agrees).
+
+Not explained: what tipped it. The two steps look like something
+discrete rather than a drift. The entropy pressures were where they had
+been all through the aim's rise (0.020/0.010/0.055 against
+0.016/0.010/0.063), the rate was on its floor either way, and the same
+weights under lambda 0.98 ran 21000 updates without collapsing - while
+leaning the same way, 21 of 30 boss fights lost and the value head at
+-4.3 in them.
+
+What is kept: aim-plateau.pt (383180), the judged champions
+(best-look2.pt of 356200, best-flat.pt of 350610), and
+collapsed-409827.pt, which reproduces it.

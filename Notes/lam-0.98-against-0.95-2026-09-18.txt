@@ -1,0 +1,45 @@
+Lambda 0.98 against 0.95, from the same weights
+===============================================
+
+Both sides started from runs\ironclad\aim-plateau.pt, update 383180 - the
+main run's checkpoint from where the aim branch had stopped paying - and
+differ in --lam alone. Everything else: ironclad, act limit 3, 128 climbs,
+1024 wide, gamma 0.999, a point of health 0.01, deep 0.4, look 0, lr at
+its floor 5e-5.
+
+Judged by cts_judge on the same seeds: 400 climbs it selects on
+(200005..200404) and 400 it never selects on (300005..300404), every climb
+played to its end. Only the reporting column is read here. A reading is
+400 climbs; the means below are over the checkpoints listed.
+
+    side          n   flat sel  flat rep  look2 sel  look2 rep  look2 flr
+    lambda 0.95  12     21.8%     19.9%      36.9%      34.3%      37.92
+    lambda 0.98  15     15.8%     16.2%      31.8%      31.4%      36.93
+
+The standard error of a mean that size is half a point, so both gaps are
+five standard errors or more. 0.98 is worse, and it goes on getting worse:
+
+    lambda 0.98, five checkpoints at a time
+    384570-390090    flat rep 18.2%   look2 rep 34.2%   floors 37.51
+    391490-397080    flat rep 15.5%   look2 rep 30.2%   floors 36.71
+    398460-404010    flat rep 14.9%   look2 rep 29.7%   floors 36.55
+
+    lambda 0.95, four at a time (it ends where the run collapsed)
+    383770-388310    flat rep 20.8%   look2 rep 35.4%   floors 37.75
+    389700-393640    flat rep 20.7%   look2 rep 33.1%   floors 37.70
+    394980-398990    flat rep 18.2%   look2 rep 34.5%   floors 38.30
+
+So the credit reaching further did not help the card picks; it cost three
+and a half points of flat wins and three of looking. The loss it trains
+against doubled, 6.3 to 12.6, which is what a longer trace does to the
+value target's variance - and here that variance bought nothing.
+
+0.95 stays. Measured 2026-09-17..18, code at fcc87dd.
+
+Beside the point but worth keeping: the 0.95 side collapsed at update
+399000 (act 3 boss fights lost 30 in 30, the value head reading -20 flat
+in them, everything else unmoved) and the 0.98 side, 21000 updates in, had
+not - though it is leaning the same way: 21 of 30 act 3 boss fights lost
+against 14 of 30 at 383180, the value head in them averaging -4.3 against
++4.3, and a potion a fight against 1.6. The collapse is in
+Notes/act3-boss-collapse-2026-09-17.txt.
