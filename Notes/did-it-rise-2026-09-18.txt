@@ -1,0 +1,46 @@
+Every climber kept along the way, on one set of seeds
+=====================================================
+
+The judged history only goes back to update 250590, and the readings
+before that were taken on other seeds, so none of them could be set
+against each other. This puts every checkpoint still on disk through the
+same 400 climbs - the judge's reporting seeds, 300005..300404, each one
+played to its end - with the policy naming its own move and no looking.
+
+Flat and not the looking, because that is the policy itself; and a win is
+a win whatever a point of health was worth in training, so the two older
+weights from the days of 0.05 are comparable here where their returns
+are not.
+
+    when        update      climbs      won   floors   act boss   what
+    2026-09-03  139925   7,105,288    14.5%    33.07     96.0%    hp 0.05
+    2026-09-09  147050   7,439,958    13.5%    31.62     92.5%
+    2026-09-07  154050   7,769,810    11.5%    29.62     92.5%    (*)
+    2026-09-11  250549   9,892,839    16.0%    31.99     91.0%    before aim
+    2026-09-15  350610  12,236,176    22.5%    34.99     93.0%    best flat
+    2026-09-15  356200  12,365,345    19.8%    34.44     94.5%    best look2
+    2026-09-16  383180  12,988,795    20.5%    34.73     95.8%    the plateau
+    2026-09-18  387360  13,086,109    25.2%    35.26     95.0%    today
+    2026-09-17  409827  13,606,046     0.5%    33.71     94.0%    collapsed
+
+    (*) the run that fell from 12% to 2% at update 80000 and never came
+        back; 154050 is the far end of it. The guard now stops that.
+
+So over the fortnight the policy went from 14.5% to 20-25% and the floors
+from 33.1 to 35.3, on the same climbs. The rise is real and it is slow.
+
+A caution the table itself supplies: 386960 and 387360 are four hundred
+updates apart and read 19.8% and 25.2%. Four hundred climbs carry a
+standard error of 2.2 points, and the weights move as well, so a single
+checkpoint's reading is worth about five points either way. Only the
+blocks in judged.csv - twenty checkpoints at a time - are worth reading
+as a level:
+
+    250590-266060  flat 17.0%  look2 31.4%   (before aim)
+    267260-289960       18.2%        33.1%
+    291150-314870       19.8%        35.0%
+    316050-345010       19.9%        35.4%
+    346880-378360       20.5%        35.7%
+    380170-398990       19.6%        34.5%
+
+Measured 2026-09-18, code at e999e37.
