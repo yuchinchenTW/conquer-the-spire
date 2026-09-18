@@ -486,7 +486,7 @@ class Trainer(object):
         There is a floor on the high mark as well, \\p --guard-least, because
         a share of a hundredth halving is not news and an act limit means
         the share is nothing at all for the first while. Eight in a
-        hundred is where the curves in runs\ironclad\before-* put it:
+        hundred is where the curves in the before-* folders put it:
         those wobbled between two and five in a hundred early on, which at
         five would have stopped them at update 22515 for nothing.
 
