@@ -1,0 +1,48 @@
+Twice now, and both times at the same height
+============================================
+
+The run has gone bad twice from the same settings, and the guard caught
+the second one. Laid from each run's own peak, on the trainer's own
+reports, the two are the same shape:
+
+    from the peak    first collapse            second
+                     win  floors boss  thru    win  floors boss  thru
+        +0          19.1%  34.26 92.9% 50.4%  18.2%  34.23 92.9% 49.8%
+     +2000          19.1%  34.13 92.8% 49.6%  20.0%  34.26 92.5% 49.9%
+     +4000          20.3%  34.23 92.7% 49.8%  19.9%  34.08 92.2% 49.3%
+     +6000          20.5%  34.34 92.9% 49.9%  19.1%  34.05 92.5% 49.2%
+     +8000          21.5%  34.60 92.9% 51.0%  15.9%  34.15 92.8% 49.6%
+    +10000          19.8%  34.52 92.5% 51.4%  12.1%  34.42 93.2% 50.8%
+    +12000          19.0%  34.42 93.1% 50.6%   (the guard stopped it)
+    +20000          10.0%  34.25 93.0% 50.0%
+    +28000           0.2%  33.76 93.0% 48.0%
+
+The floors, the act bosses and the share of climbs that put two bosses
+down do not move at all, through either fall. Half the climbs still reach
+the third act's boss; they simply stop beating it.
+
+The high marks: 22.8% at update 380160 and 22.5% at 387360. Two runs from
+different weights arriving within three tenths of a point of each other
+and then falling is not a coincidence.
+
+Played on the same seeds, thirty act 3 boss fights each:
+
+                            well 387360      stopped 397870
+    lost                       9 of 30          20 of 30
+    the value head there       mean +6.4        mean -6.3
+    cards played a turn        5.32             4.58
+    potions a fight            2.03             1.71
+
+The same direction as the first collapse (which reached mean -20.3 and
+30 of 30), caught earlier.
+
+What this points at, and has not been tested yet: the deep shelf. Two
+climbs in five start from a snapshot of an act 2 or act 3 floor, the
+shelf holds four thousand of them and is full, and the better the policy
+gets the deeper those snapshots sit - so the further in it gets, the more
+of its training is the part of the spire it is worst at, and the more the
+value head hears that the third act's boss is where climbs end. That
+would explain a ceiling that arrives at the same height twice.
+
+The test is one run: carry on from well.pt with --deep 0 and nothing else
+changed, and see whether the wins go past 22.5% or fall again at +10000.
