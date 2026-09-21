@@ -72,6 +72,12 @@ choice /c 12 /t 20 /d 1 /n /m "  Choose [1]: "
 if errorlevel 2 goto character
 goto go
 
+rem From here on every question offers whatever the run is already using,
+rem worked out from runs\last.bat, so walking through them with the Return
+rem key changes nothing. The defaults used to be written into this file,
+rem which once turned a run trained at 0.01 a point of health into one
+rem trained at 0.05 without anybody choosing it.
+
 rem ---------------------------------------------------------- the character
 :character
 cls
@@ -190,12 +196,14 @@ echo   changing this starts over however the last question was answered.
 echo.
 echo     B. Back
 echo.
-set "WIDTH="
+set "WAS=2"
+if "%WIDTH%"=="512" set "WAS=1"
 set "PICK="
-set /p "PICK=  Choose [2]: "
+set /p "PICK=  Choose [%WAS%]: "
 
-if not defined PICK set "PICK=2"
+if not defined PICK set "PICK=%WAS%"
 if /i "%PICK%"=="b" goto carry
+set "WIDTH="
 if "%PICK%"=="1" set "WIDTH=512"
 if "%PICK%"=="2" set "WIDTH=1024"
 if defined WIDTH goto sight
@@ -224,12 +232,14 @@ echo   be read against a run made with the other answer. Floors and boss can.
 echo.
 echo     B. Back
 echo.
-set "GAMMA="
+set "WAS=2"
+if "%GAMMA%"=="0.995" set "WAS=1"
 set "PICK="
-set /p "PICK=  Choose [2]: "
+set /p "PICK=  Choose [%WAS%]: "
 
-if not defined PICK set "PICK=2"
+if not defined PICK set "PICK=%WAS%"
 if /i "%PICK%"=="b" goto width
+set "GAMMA="
 if "%PICK%"=="1" set "GAMMA=0.995"
 if "%PICK%"=="2" set "GAMMA=0.999"
 if defined GAMMA goto blood
@@ -258,12 +268,14 @@ echo   curve cannot be read against a run made with the other answer.
 echo.
 echo     B. Back
 echo.
-set "HPW="
+set "WAS=1"
+if "%HPW%"=="0.01" set "WAS=2"
 set "PICK="
-set /p "PICK=  Choose [1]: "
+set /p "PICK=  Choose [%WAS%]: "
 
-if not defined PICK set "PICK=1"
+if not defined PICK set "PICK=%WAS%"
 if /i "%PICK%"=="b" goto sight
+set "HPW="
 if "%PICK%"=="1" set "HPW=0.05"
 if "%PICK%"=="2" set "HPW=0.01"
 if defined HPW goto size
@@ -285,12 +297,15 @@ echo     3. Heavy    - 256 climbs at once, fastest if the GPU keeps up
 echo.
 echo     B. Back
 echo.
-set "ENVS="
+set "WAS=2"
+if "%ENVS%"=="64" set "WAS=1"
+if "%ENVS%"=="256" set "WAS=3"
 set "PICK="
-set /p "PICK=  Choose [2]: "
+set /p "PICK=  Choose [%WAS%]: "
 
-if not defined PICK set "PICK=2"
+if not defined PICK set "PICK=%WAS%"
 if /i "%PICK%"=="b" goto blood
+set "ENVS="
 if "%PICK%"=="1" set "ENVS=64"
 if "%PICK%"=="2" set "ENVS=128"
 if "%PICK%"=="3" set "ENVS=256"
@@ -323,10 +338,12 @@ echo   and the won share on the curve go on meaning what they meant.
 echo.
 echo     B. Back
 echo.
+set "WAS=1"
+if "%DEEP%"=="0" set "WAS=2"
 set "PICK="
-set /p "PICK=  Choose [1]: "
+set /p "PICK=  Choose [%WAS%]: "
 
-if not defined PICK set "PICK=1"
+if not defined PICK set "PICK=%WAS%"
 if /i "%PICK%"=="b" goto size
 set "DEEP="
 if "%PICK%"=="1" set "DEEP=0.4"
@@ -364,10 +381,12 @@ echo   without.
 echo.
 echo     B. Back
 echo.
+set "WAS=1"
+if "%LOOK%"=="0" set "WAS=2"
 set "PICK="
-set /p "PICK=  Choose [1]: "
+set /p "PICK=  Choose [%WAS%]: "
 
-if not defined PICK set "PICK=1"
+if not defined PICK set "PICK=%WAS%"
 if /i "%PICK%"=="b" goto deep
 set "LOOK="
 if "%PICK%"=="1" set "LOOK=2"
@@ -399,10 +418,12 @@ echo   curve reads the same either way.
 echo.
 echo     B. Back
 echo.
+set "WAS=1"
+if "%LAM%"=="0.98" set "WAS=2"
 set "PICK="
-set /p "PICK=  Choose [1]: "
+set /p "PICK=  Choose [%WAS%]: "
 
-if not defined PICK set "PICK=1"
+if not defined PICK set "PICK=%WAS%"
 if /i "%PICK%"=="b" goto look
 set "LAM="
 if "%PICK%"=="1" set "LAM=0.95"
