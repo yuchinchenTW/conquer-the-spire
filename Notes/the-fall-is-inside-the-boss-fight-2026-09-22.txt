@@ -1,0 +1,46 @@
+The fall is inside the boss fight, not on the road to it
+========================================================
+
+A climber that wins less often is either losing the last fight or walking
+into it with less to fight with, and replaying whole climbs cannot tell
+the two apart because each climber walks its own road. So: one reference
+climber (well.pt, update 387360) walks the road and the state is saved in
+each act 3 boss room, before a card is drawn; then every climber is handed
+those exact states - the same health, deck, relics and potions - and
+fights them out.
+
+    python Python/cts_boss.py --fights 40 --reference runs/ironclad/well.pt \
+        runs/ironclad/aim-plateau.pt ... runs/ironclad/collapsed-409827.pt
+
+Forty fights, the reference arriving with 92% health on average:
+
+    climber                     update    won    steps
+    aim-plateau.pt              383180   65.0%    51.8
+    best-look2.pt               356200   65.0%    51.0
+    well.pt                     387360   62.5%    52.8
+    fell-nodeep-393590.pt       393590   30.0%    54.3
+    fell-397870.pt              397870   32.5%    50.6
+    collapsed-409827.pt         409827    2.5%    45.5
+
+The three healthy climbers are within two and a half points of each other
+at 62-65%. The two the guard stopped are at half that, on identical
+entries. The one that ran on for eight thousand updates after its fall is
+at 2.5%.
+
+So nothing about the road matters: the deck, the health and the relics
+they arrive with are the same object in memory, and the difference is
+entirely what they do once the fight starts. Whatever training does to
+these weights, it does it to the last fight and to nothing else.
+
+It also gives the training experiments a ten-minute read instead of a
+day: a checkpoint that holds 60% here has not fallen, however its curve
+looks.
+
+A caveat the tool carries: the engine will not save inside a fight, so
+the save is the boss room and the opening hand is drawn after the load.
+The tests in Python/test_cts_boss.py hold that down - the same state
+loaded twice and played with the same moves plays out identically, card
+for card - so the draw follows the saved state rather than a fresh
+shuffle.
+
+Measured 2026-09-22, code at 7dbe9a0.
