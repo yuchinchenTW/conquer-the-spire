@@ -1,0 +1,75 @@
+The deep shelf is not what is breaking the run
+==============================================
+
+The test was one run: carry on from well.pt (update 387360, the healthy
+weights from the second collapse) with --deep 0 and nothing else changed,
+and see whether the wins go past 22.5% or fall again. They fell again,
+sooner: the guard stopped it at 393590, six thousand updates in, against
+ten thousand with the shelf on.
+
+    from the peak    with the shelf (0.4)      without it (0)
+        +2000            20.0%                    21.2%
+        +4000            19.9%                    20.2%
+        +6000            19.1%                    18.8%  then 13.9%
+        +8000            15.9%                    (stopped)
+       +10000            12.1%
+
+The judge agrees, on its own seeds, playing the policy flat:
+
+    387360   25.2%      look2 36.2%
+    389130   20.8%            33.0%
+    391040   19.2%            39.8%
+    392920   19.0%            36.5%
+    393590   11.5%            24.2%
+
+So the shelf was holding it up a little, not pushing it over - which
+makes sense of the direction: without the shelf the third act is a
+smaller share of what the trainer sees, and the third act's boss is the
+thing that gets lost.
+
+Three things the fall is not
+----------------------------
+
+Not a bad batch. The loss through the fall is 5.33 against 5.81 before
+it, and the largest loss in the whole run (9.65) was four thousand
+updates earlier, while the wins were still up.
+
+Not the sampling. The trainer's own win share and the judge's flat
+reading, which takes the best move rather than drawing one, fall
+together: 21% to 13.9% on the curve, 25.2% to 11.5% in the judge.
+
+Not the value head losing the boss fight first. Measured against what
+actually followed - the climber playing its own moves, every state's
+reading kept beside the discounted sum of what came after it, 180 climbs
+each:
+
+    where            well 387360                fell 393590
+                  says   really   error      says   really   error
+    act 1 fight   24.3    22.0    +2.3       20.4    10.0   +10.4
+    act 2 fight   11.2     6.8    +4.3        6.6    -2.9    +9.5
+    act 3 fight   10.8    10.1    +0.8        1.4    -5.6    +7.0
+    act 3 boss     9.8     9.3    +0.5       -5.8    -6.2    +0.4
+
+The healthy head is within a few points everywhere. The fallen one is
+the other way round from what was expected: at the boss it is still
+right (-5.8 against -6.2), and it is the whole rest of the climb it has
+wrong, by nine or ten points. What actually followed had collapsed -
+act 2 went from +6.8 to -2.9 - and the head had not caught up with its
+own policy.
+
+So the head reading -20 in boss fights on 2026-09-17 was the end of the
+story and not the start of it. What starts it is still open.
+
+What is left untested
+---------------------
+
+The entropy pressure. It is a floor that leans up whenever the policy's
+spread falls under --spread (0.12), and on these weights it has leaned a
+long way up: 0.032 in fights and 0.066 out of them against the 0.01 asked
+for. That is a high coefficient for PPO, and it is highest exactly when
+the policy has stopped improving - which is when the runs fall over. A
+long boss fight is a hundred and fifty decisions with no second chance,
+so it is where an extra push towards the undecided would cost most.
+
+The test is `--spread 0`, which stops the leaning and lets every pressure
+settle back on its 0.01 floor, from well.pt with nothing else changed.
