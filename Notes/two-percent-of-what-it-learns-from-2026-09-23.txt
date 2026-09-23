@@ -1,0 +1,67 @@
+Four runs, four peaks at the same height, and the number behind them
+====================================================================
+
+    start    shelf   spread   peak won   fell from
+    383180   0.4     0.12     22.8%      +18000
+    387360   0.4     0.12     22.5%      +8000
+    387360   0       0.12     22.5%      +6000
+    387360   0.4     0        22.6%      +11500
+
+Four settings, four peaks inside three tenths of a point, four falls that
+take only the third act's boss and leave the floors, the act bosses and
+the share reaching two bosses exactly where they were. --spread 0 did
+what it was asked to - the pressures sat on their 0.010 floor for the
+whole run, against 0.032 before - and bought about three thousand updates
+over the plain setting. It did not stop the fall and it did not lift the
+ceiling.
+
+So it is not the shelf, not the entropy pressure, not the value head
+leading, not a bad batch, not the sampling. Here is what it looks like it
+is.
+
+What a batch is made of
+-----------------------
+
+The same policy, the same shelf setting, sampled moves as the trainer
+takes them, six batches' worth of steps counted by where they sit:
+
+    where              shelf off   shelf on (0.4)
+    act 1 fight          23.08%      22.82%
+    act 1 boss            7.57%       6.04%
+    act 2 fight          30.42%      21.38%
+    act 2 boss            6.15%       6.75%
+    act 3 fight          11.38%      19.09%
+    act 3 boss            1.74%       4.76%
+    not a fight          19.66%      19.15%
+
+The fight that every run loses is 1.74% of what the trainer learns from
+without the shelf and 4.76% with it. An act 1 fight is thirteen times
+more of the batch, or five times with the shelf on.
+
+That orders the three falls: the shelf off, at 1.74%, fell soonest
+(+6000); the shelf on, at 4.76%, lasted longer (+8000 and +18000). The
+shelf was never the cause - it was the only thing holding the fight up.
+
+This is catastrophic forgetting with a number on it. Ninety-five to
+ninety-eight per cent of every update rewrites shared weights for the
+rest of the spire, and two to five per cent has to hold a skill against
+it. The skill is the last thing learnt and the first thing lost, which
+is why the peak lands in the same place whatever else is changed: 22.5%
+is roughly what this much of the batch can keep.
+
+It also says why nothing tried so far moved it. A learning rate, an
+entropy floor, a lambda - none of them change what fraction of the batch
+the fight is.
+
+What follows from it
+--------------------
+
+Give the fight more of the batch. The shelf already does this by
+accident, keeping a snapshot of every floor of acts 2 and 3; keeping the
+third act's boss room instead, or mostly, would take the fight from 4.76%
+to something like a fifth of the batch without changing anything else
+about the run. Python/cts_boss.py already shows the engine can save and
+restore exactly that state, and reads the result in ten minutes rather
+than a day.
+
+Measured 2026-09-23, code at d0955b5.
