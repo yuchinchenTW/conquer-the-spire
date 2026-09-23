@@ -78,6 +78,21 @@ float VecSpireEnv::GetDeepShare() const
     return m_deepShare;
 }
 
+void VecSpireEnv::SetBossShare(float share)
+{
+    m_bossShare = share < 0.0f ? 0.0f : (share > 1.0f ? 1.0f : share);
+}
+
+float VecSpireEnv::GetBossShare() const
+{
+    return m_bossShare;
+}
+
+std::size_t VecSpireEnv::GetBossHeld() const
+{
+    return m_boss.size();
+}
+
 std::size_t VecSpireEnv::GetDeepHeld(int act) const
 {
     if (act < SHALLOWEST_START || act > DEEPEST_START)
@@ -116,6 +131,22 @@ bool VecSpireEnv::StartDeep(std::size_t index)
     if (coin(m_deepRng) >= m_deepShare)
     {
         return false;
+    }
+
+    // The last act's boss room first, when there is one to be had and the
+    // share asks for it. The fight there is the one the climber loses hold
+    // of, and it is a fiftieth of an ordinary batch.
+    if (!m_boss.empty() && coin(m_deepRng) < m_bossShare)
+    {
+        std::uniform_int_distribution<std::size_t> pick(0u,
+                                                        m_boss.size() - 1u);
+
+        if (m_envs[index].Load(m_boss[pick(m_deepRng)]))
+        {
+            m_envs[index].NoteStartedDeep();
+
+            return true;
+        }
     }
 
     // Evenly between the acts rather than evenly among the copies. The whole
@@ -171,6 +202,48 @@ bool VecSpireEnv::Keep(std::size_t index, int act)
     // climber stopped reaching a billion moves ago.
     m_deep[shelf][m_deepNext[shelf]] = save;
     m_deepNext[shelf] = (m_deepNext[shelf] + 1u) % DEEP_HELD;
+
+    return true;
+}
+
+bool VecSpireEnv::KeepBoss(std::size_t index)
+{
+    if (m_bossShare <= 0.0f || m_envs[index].GetPhase() != EnvPhase::BOSS)
+    {
+        return false;
+    }
+
+    // Only where the climb is standing in front of the last boss it will be
+    // asked to beat, before a card is drawn: the one the run ends on, which
+    // is what the act limit says and not always the third. A climb in a
+    // fight cannot be written out at all, so this is the room and not the
+    // first turn of it.
+    const int limit = m_envs[index].GetActLimit();
+    const int last = limit > 0 ? limit : DEEPEST_START;
+
+    if (m_envs[index].GetRun().GetAct() != last)
+    {
+        return false;
+    }
+
+    const std::string save = m_envs[index].Save();
+
+    if (save.empty())
+    {
+        return false;
+    }
+
+    if (m_boss.size() < DEEP_HELD)
+    {
+        m_boss.emplace_back(save);
+
+        return true;
+    }
+
+    // Round and round, as the shelf of floors goes, so that the rooms keep
+    // up with the deck the climber is arriving with.
+    m_boss[m_bossNext] = save;
+    m_bossNext = (m_bossNext + 1u) % DEEP_HELD;
 
     return true;
 }
@@ -329,11 +402,19 @@ void VecSpireEnv::Step(const std::size_t* actions, float* rewards,
             const int act = m_envs[i].GetRun().GetAct();
             const int floor = m_envs[i].GetRun().GetFloor();
 
-            if ((act > m_lastAct[i] || floor > m_lastFloor[i]) &&
-                Keep(i, act))
+            if (act > m_lastAct[i] || floor > m_lastFloor[i])
             {
-                m_lastAct[i] = act;
-                m_lastFloor[i] = floor;
+                // The boss room goes on its own shelf as well as the one
+                // of floors, and the floor counts as kept if either took a
+                // copy - a row standing in the boss room has only the one
+                // to offer.
+                const bool boss = KeepBoss(i);
+
+                if (Keep(i, act) || boss)
+                {
+                    m_lastAct[i] = act;
+                    m_lastFloor[i] = floor;
+                }
             }
 
             continue;

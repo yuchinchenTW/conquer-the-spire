@@ -255,6 +255,32 @@ class VecSpireEnv(object):
                                                ctypes.c_float]
         lib.cts_vec_set_deep_share(self._vec, float(share))
 
+    def set_boss_share(self, share):
+        """Of the climbs started part-way up, starts this share of them in
+        the last act's boss room.
+
+        That fight is 1.7% of a batch with no shelf and 4.8% with the shelf
+        of floors, against 23% for an act 1 fight, and four runs have now
+        peaked at 22.5% won and lost that fight and nothing else. A boss
+        climb is also short - fifty steps against five hundred - so the
+        share of climbs started here is much larger than the share of the
+        batch it turns into. Measure the batch; do not assume it.
+        """
+        lib = self._api.lib
+
+        lib.cts_vec_set_boss_share.argtypes = [ctypes.c_void_p,
+                                               ctypes.c_float]
+        lib.cts_vec_set_boss_share(self._vec, float(share))
+
+    def boss_held(self):
+        """How many boss rooms are on the shelf."""
+        lib = self._api.lib
+
+        lib.cts_vec_boss_held.argtypes = [ctypes.c_void_p]
+        lib.cts_vec_boss_held.restype = ctypes.c_size_t
+
+        return int(lib.cts_vec_boss_held(self._vec))
+
     def deep_held(self, act):
         """How many copies are being held for ``act`` to be picked up in."""
         lib = self._api.lib

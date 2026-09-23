@@ -311,6 +311,7 @@ class Trainer(object):
         # - and the boss it had just beaten was never counted.
         self.vec.set_act_limit(args.acts)
         self.vec.set_deep_share(args.deep)
+        self.vec.set_boss_share(args.deep_boss)
 
         if args.hp_weight >= 0.0:
             self.vec.set_health_weight(args.hp_weight)
@@ -1618,6 +1619,10 @@ def main(argv=None):
                         help="the least the policy is pushed to stay "
                              "undecided by; it is pushed harder than this "
                              "whenever the spread falls under --spread")
+    parser.add_argument("--deep-boss", type=float, default=0.0,
+                        dest="deep_boss",
+                        help="of the climbs started part-way up, the share "
+                             "started in the last act's boss room")
     parser.add_argument("--deep", type=float, default=0.0,
                         help="start this share of the climbs part-way up "
                              "rather than at the bottom, from copies the "

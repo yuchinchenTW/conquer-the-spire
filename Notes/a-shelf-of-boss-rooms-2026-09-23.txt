@@ -1,0 +1,41 @@
+A shelf of last-boss rooms, and what it does to a batch
+=======================================================
+
+The fight every run loses is 4.7% of what the trainer learns from. This
+adds a second shelf beside the shelf of floors, holding the room in front
+of the last boss the run will be asked to beat - whichever act the limit
+ends on, not always the third - and takes a share of the deep starts from
+it. --deep-boss is that share; --deep is unchanged and still says how
+many climbs are started deep at all.
+
+Two knobs, one treatment. A boss climb is short, fifty steps against five
+hundred for a whole one, so the share of climbs started there is much
+larger than the share of the batch it becomes. Measured on the same
+policy, six batches' worth of steps each, rather than assumed:
+
+    setting                act1 fight  act2 fight  act3 fight  act3 boss
+    shelf 0.4, boss 0        22.87%      21.51%      19.89%      4.73%
+    shelf 0.4, boss 1.0         -           -           -        7.78%
+    shelf 0.6, boss 0.8      21.54%      20.93%      16.81%     12.00%
+    shelf 0.7, boss 1.0      20.75%      20.44%      13.95%     18.26%
+
+An earlier guess that 40% of climbs would make a fifth of the batch was
+out by a factor of four, for exactly that reason. To land in the 15-20%
+the experiment is aimed at, the deep share has to go to 0.7 as well.
+
+What it costs: the first two acts lose about two points each, and what
+is really displaced is the ordinary act 3 fight, 19.89% to 13.95%. So
+the reading has to include whole climbs and not only the boss, which is
+what the judge is for.
+
+What is still unproven: that a bigger share of the batch keeps the skill.
+The number says what the trainer sees, not what it learns. The run under
+bossshelf.bat answers that, and three things have to hold together -
+past +15000 updates without the guard firing, 60% or better on the forty
+saved rooms in Python/cts_boss.py that it never trains on, and the
+judge's whole-climb readings not falling while the boss holds.
+
+The default is 0, so a run that says nothing about this behaves exactly
+as it did; there is a test for that beside the one for the shelf itself.
+
+Written 2026-09-23.

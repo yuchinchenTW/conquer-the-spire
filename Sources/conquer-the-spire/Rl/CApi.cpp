@@ -551,6 +551,36 @@ void cts_vec_peek_moves(void* vec, const size_t* moves, size_t asked,
     }
 }
 
+void cts_vec_set_boss_share(void* vec, float share)
+{
+    if (vec == nullptr)
+    {
+        return;
+    }
+
+    static_cast<VecSpireEnv*>(vec)->SetBossShare(share);
+}
+
+float cts_vec_get_boss_share(void* vec)
+{
+    if (vec == nullptr)
+    {
+        return 0.0f;
+    }
+
+    return static_cast<VecSpireEnv*>(vec)->GetBossShare();
+}
+
+size_t cts_vec_boss_held(void* vec)
+{
+    if (vec == nullptr)
+    {
+        return 0u;
+    }
+
+    return static_cast<VecSpireEnv*>(vec)->GetBossHeld();
+}
+
 void cts_vec_set_deep_share(void* vec, float share)
 {
     if (auto* row = static_cast<ConquerTheSpire::VecSpireEnv*>(vec);

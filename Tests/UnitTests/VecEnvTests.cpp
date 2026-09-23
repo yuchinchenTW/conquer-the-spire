@@ -65,6 +65,47 @@ std::string SecondActSave(unsigned int seed)
     return out.str();
 }
 
+//! A climb standing in the boss room of \ act, before a card is drawn.
+//! \param seed which climb
+//! \param act which act's boss to stand in front of
+//! \return the save, or an empty string if that climb has no such room
+std::string BossRoomSave(unsigned int seed, int act)
+{
+    Run run(CardColor::RED, seed);
+
+    for (int at = 1; at <= act; ++at)
+    {
+        while (!run.GetAvailableColumns().empty())
+        {
+            run.Travel(run.GetAvailableColumns().front());
+        }
+
+        if (!run.IsAtBoss())
+        {
+            return std::string();
+        }
+
+        if (at == act)
+        {
+            break;
+        }
+
+        run.FinishBoss();
+
+        if (!run.AdvanceAct() || run.GetAct() != at + 1)
+        {
+            return std::string();
+        }
+    }
+
+    std::ostringstream out;
+
+    out << "env " << static_cast<int>(EnvPhase::BOSS) << " 0 0\n"
+        << run.Serialize();
+
+    return out.str();
+}
+
 //! Plays \p ticks of \p row at random and returns how many climbs that ended
 //! in it had been picked up part-way up.
 int PlayedDeep(VecSpireEnv& row, int ticks, unsigned int dieSeed)
@@ -663,6 +704,100 @@ TEST_CASE("A shelf holds the middle of an act and not only its doorway")
     // only kept doorways would be stuck at what it had: the climbs it hands
     // back are already inside the act and never walk through the door again.
     CHECK(row.GetDeepHeld(2) > atTheDoor * 4u);
+}
+
+TEST_CASE("A shelf of last boss rooms, and climbs started in them")
+{
+    // The fight the climber loses hold of is the last one: four runs peaked
+    // at 22.5% won and lost the third act's boss and nothing else. Counted
+    // by where its steps sit, that fight is a fiftieth of a batch with no
+    // shelf and a twentieth with the shelf of floors, against a quarter for
+    // an act 1 fight - too little to hold a skill against the rest of the
+    // spire rewriting the same weights.
+    //
+    // So there is a second shelf, holding the room in front of the last
+    // boss, and a share of the deep starts come from it. Random play does
+    // not beat fifty floors, so the climbs are stood in the room rather
+    // than walked to it.
+    const std::string room = BossRoomSave(7u, 3);
+
+    REQUIRE(room.empty() == false);
+
+    VecSpireEnv row(6u);
+
+    row.SetAutoReset(true);
+    row.SetDeepShare(1.0f);
+    row.SetBossShare(1.0f);
+    row.Reset(CardColor::RED, 23u);
+
+    CHECK(row.GetBossShare() == doctest::Approx(1.0f));
+    CHECK(row.GetBossHeld() == 0u);
+
+    for (std::size_t i = 0; i < row.GetCount(); ++i)
+    {
+        REQUIRE(row.At(i).Load(room) == true);
+        CHECK(row.At(i).GetRun().GetAct() == 3);
+    }
+
+    // A move nothing will take, so the row looks at the climbs where they
+    // stand and shelves the rooms.
+    std::vector<std::size_t> nowhere(row.GetCount(),
+                                     SpireEnv::ActionCount());
+
+    row.Step(nowhere.data(), nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    const std::size_t rooms = row.GetBossHeld();
+
+    CHECK(rooms == row.GetCount());
+
+    // Every climb that ends is started again, and with both shares at one
+    // every one of those starts is a boss room - so the climbs are still in
+    // the third act long after the ones stood there have died.
+    PlayedDeep(row, 3000, 13u);
+
+    int inTheLastAct = 0;
+
+    for (std::size_t i = 0; i < row.GetCount(); ++i)
+    {
+        if (row.At(i).GetRun().GetAct() == 3)
+        {
+            ++inTheLastAct;
+        }
+    }
+
+    CHECK(inTheLastAct > 0);
+    CHECK(row.GetBossHeld() >= rooms);
+}
+
+TEST_CASE("Asking for no boss rooms leaves the shelf of floors as it was")
+{
+    // The share defaults to none, so a run that knows nothing about this
+    // behaves exactly as it did: the room goes on the shelf of floors, as
+    // it always did, and on no other.
+    const std::string room = BossRoomSave(7u, 3);
+
+    REQUIRE(room.empty() == false);
+
+    VecSpireEnv row(4u);
+
+    row.SetAutoReset(true);
+    row.SetDeepShare(1.0f);
+    row.Reset(CardColor::RED, 41u);
+
+    for (std::size_t i = 0; i < row.GetCount(); ++i)
+    {
+        REQUIRE(row.At(i).Load(room) == true);
+    }
+
+    CHECK(row.GetBossShare() == doctest::Approx(0.0f));
+
+    std::vector<std::size_t> nowhere(row.GetCount(),
+                                     SpireEnv::ActionCount());
+
+    row.Step(nowhere.data(), nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    CHECK(row.GetBossHeld() == 0u);
+    CHECK(row.GetDeepHeld(3) == row.GetCount());
 }
 
 TEST_CASE("Asking what a move comes to leaves the climb where it was")

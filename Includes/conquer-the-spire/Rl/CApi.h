@@ -189,6 +189,19 @@ CTS_API void cts_vec_peek_moves(void* vec, const size_t* moves, size_t asked,
    and is left out of the tables, because its floors count from wherever it
    was picked up. */
 CTS_API void cts_vec_set_deep_share(void* vec, float share);
+
+//! Sets how often a deep start is the last act's boss room.
+//! \param vec the batch
+//! \param share none of them at 0, all of them at 1
+CTS_API void cts_vec_set_boss_share(void* vec, float share);
+
+//! \param vec the batch
+//! \return how often a deep start is the last act's boss room
+CTS_API float cts_vec_get_boss_share(void* vec);
+
+//! \param vec the batch
+//! \return how many boss rooms are on the shelf
+CTS_API size_t cts_vec_boss_held(void* vec);
 CTS_API float cts_vec_get_deep_share(void* vec);
 CTS_API size_t cts_vec_deep_held(void* vec, int act);
 

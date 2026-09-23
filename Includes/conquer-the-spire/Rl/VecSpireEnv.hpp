@@ -89,6 +89,16 @@ class VecSpireEnv
     //! floors and met one act's dangers rather than three, so its floors and
     //! its ending are not the same measurement as a whole climb's.
     void SetDeepShare(float share);
+
+    //! Sets how often a deep start is the last act's boss room.
+    //! \param share none of them at 0, all of them at 1
+    void SetBossShare(float share);
+
+    //! \return how often a deep start is the last act's boss room
+    float GetBossShare() const;
+
+    //! \return how many boss rooms are on the shelf
+    std::size_t GetBossHeld() const;
     float GetDeepShare() const;
 
     //! How many copies are being held for \p act, which is nothing until the
@@ -187,6 +197,12 @@ class VecSpireEnv
     //! so the caller asks again next step rather than losing the floor.
     bool Keep(std::size_t index, int act);
 
+    //! Keeps a copy of the row standing in the last act's boss room, if it
+    //! is standing in one, on the shelf of its own.
+    //! \param index which climb
+    //! \return whether a copy was taken
+    bool KeepBoss(std::size_t index);
+
     //! The first and last act a climb may be picked up in. Not the first:
     //! starting there is what every other climb already does.
     static constexpr int SHALLOWEST_START = 2;
@@ -219,6 +235,11 @@ class VecSpireEnv
     std::vector<std::vector<std::string>> m_deep;
     std::vector<std::size_t> m_deepNext;
 
+    //! Copies of climbs standing in the last act's boss room, and where the
+    //! next one goes once the shelf is full.
+    std::vector<std::string> m_boss;
+    std::size_t m_bossNext = 0u;
+
     //! What act and floor each climb was last seen on, so that moving is
     //! something that can be noticed. A copy that could not be taken - the
     //! climb was in a fight - leaves these where they were, so the next step
@@ -227,6 +248,17 @@ class VecSpireEnv
     std::vector<int> m_lastFloor;
 
     float m_deepShare = 0.0f;
+
+    //! How often a climb that is being started deep is started in the last
+    //! act's boss room rather than anywhere on the shelf of floors.
+    //!
+    //! The fight this is for is 1.7% of a batch with no shelf at all and
+    //! 4.8% with the shelf of floors, against 23% for an act 1 fight - and
+    //! four runs have now peaked at 22.5% and lost that fight and nothing
+    //! else. A boss climb is also short, fifty steps against five hundred,
+    //! so the share of climbs started here is much larger than the share of
+    //! the batch it becomes: measure the batch, do not assume it.
+    float m_bossShare = 0.0f;
     std::mt19937 m_deepRng;
 };
 }  // namespace ConquerTheSpire
