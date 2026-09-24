@@ -126,10 +126,11 @@ could *name*, not on what it could play like. Notes/ has the measurements.
 
 ### The weights
 
-The climber these numbers are from is `best-look2.pt`, 119 MB, on the
-[releases page][releases] rather than in the repository - GitHub refuses a
-file over 100 MB, and a clone should not carry one either way. Put it in
-`runs/ironclad/` and everything below finds it:
+The climber these numbers are from is on the [releases page][releases]
+rather than in the repository - it is 119 MB, GitHub refuses a file over
+100 MB, and a clone should not carry one either way. Unzip
+`ironclad-best-look2.zip` into `runs/ironclad/` and everything below
+finds it:
 
 ```
 runs/ironclad/best-look2.pt
