@@ -1,0 +1,54 @@
+Why the trainer's curve says 16% and playing says 72%
+=====================================================
+
+One set of weights - best-look2.pt, update 356200 - played five ways on
+one set of 200 seeds, every climb to its end. Nothing about the weights
+changes down the table; only what is done with them at the moment a move
+is made.
+
+    how it plays                          won   floors  boss  two down
+    1  drawn at random, nothing walked    16.0%   33.90  92.5%   47.0%
+    2  its best move, nothing walked      19.5%   34.88  93.0%   55.5%
+    3  two moves walked, out of fights    35.0%   37.90  93.5%   61.5%
+    4  two moves walked everywhere        43.5%   40.43  95.5%   72.5%
+    5  the turn played out in fights      72.5%   44.81  98.5%   88.5%
+
+Row 1 is what train.bat's window reports. Row 5 is what play.bat does.
+The whole of the 56 points between them is spent at play time; not one
+of them is the policy getting better.
+
+Where each step goes:
+
+  1 -> 2, three and a half points. The trainer draws a move from the
+  policy rather than taking its best, because a policy that only ever
+  does what it already believes learns nothing. That is the cost of
+  exploring, and it is the smaller half of why the curve reads low.
+
+  2 -> 3, fifteen and a half points. Out of a fight the best two moves
+  are each walked one step on a copy and the better kept. Paths, card
+  rewards, shops, fires - places where what happens next is known, so a
+  single step tells the value head most of what it needs.
+
+  3 -> 4, eight and a half points. The same one-step walk inside fights.
+  Worth having and not worth much: a step into a fight is followed by
+  cards nobody has drawn.
+
+  4 -> 5, twenty-nine points. The whole turn played out instead of one
+  move. This is the largest single step in the table and the reason is
+  in the rules rather than the search: block only counts once the
+  monsters have swung, and they swing inside the move that ends the
+  turn, so one move of a turn says almost nothing about what the turn
+  comes to. Nothing short of playing the turn out can see that.
+
+The bosses are where it shows. Two bosses down goes 47% to 88.5% while
+one boss down only goes 92.5% to 98.5%: the first act's boss was never
+the problem, and every step down the table buys another share of the
+climbs that get past the second.
+
+What follows from it: the trainer's own curve is not a measure of how
+well the climber plays, and never was. It is a measure of how well the
+policy plays alone while exploring, which is the thing being trained.
+Judge a training change on the curve or on cts_play --flat; judge how
+good the climber is with cts_play --turn.
+
+Measured 2026-09-24, code at f17b682, seeds 500005..500204.

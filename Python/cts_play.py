@@ -129,7 +129,7 @@ def load(folder, device, mode="look2"):
 
 def play(net, kept, device, climbs, envs, looks, fights, hp=None,
          outside=False, seed=0, gamma=None, turn=False, width=4,
-         budget=120):
+         budget=120, sample=False):
     """Plays \\p climbs and returns how they went.
 
     \\p looks is how many moves are walked a step before one is made, 0 for
@@ -173,7 +173,13 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None,
                 torch.as_tensor(named, device=device).long())
             allowed = torch.as_tensor(legal, device=device).bool()
             scores = scores.masked_fill(~allowed, -1e9)
-            picks = scores.argmax(dim=1)
+
+            # Drawn rather than taken, which is what the trainer does: the
+            # numbers on its own curve are a policy trying things, not one
+            # playing its best. That is most of why the curve reads lower
+            # than anything here.
+            picks = (torch.distributions.Categorical(logits=scores).sample()
+                     if sample else scores.argmax(dim=1))
 
             if looking is not None:
                 # The best two walked a step each and the one worth more
@@ -247,6 +253,9 @@ def main(argv):
                              "step out of a fight")
     parser.add_argument("--outside", action="store_true",
                         help="look only out of a fight, as before 2026-09-11")
+    parser.add_argument("--sample", action="store_true",
+                        help="draw a move from the policy rather than take "
+                             "its best, as the trainer does")
     parser.add_argument("--turn", action="store_true",
                         help="search the whole turn inside a fight")
     parser.add_argument("--width", type=int, default=4,
@@ -272,7 +281,8 @@ def main(argv):
     net, kept = load(args.folder, device,
                      mode="flat" if looks < 2 else "look2")
 
-    how = ("flat out" if looks < 2
+    how = ("drawn at random, as the trainer draws" if args.sample
+           else "flat out" if looks < 2
            else "looking at %d moves %s" % (
                looks, "out of a fight" if (outside or args.turn)
                else "everywhere"))
@@ -291,7 +301,7 @@ def main(argv):
 
     got = play(net, kept, device, climbs, envs, looks, fights, hp, outside,
                seed=args.seed, turn=args.turn, width=args.width,
-               budget=args.budget)
+               budget=args.budget, sample=args.sample)
 
     floors = np.array([one["floors"] for one in got])
     bosses = np.array([one["bosses_won"] for one in got])
