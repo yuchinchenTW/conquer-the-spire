@@ -124,6 +124,26 @@ about where it left the climb - doubled the wins on weights that had
 stopped improving a month earlier. The ceiling was on what the policy
 could *name*, not on what it could play like. Notes/ has the measurements.
 
+### The weights
+
+The climber these numbers are from is `best-look2.pt`, 119 MB, on the
+[releases page][releases] rather than in the repository - GitHub refuses a
+file over 100 MB, and a clone should not carry one either way. Put it in
+`runs/ironclad/` and everything below finds it:
+
+```
+runs/ironclad/best-look2.pt
+```
+
+It is a PyTorch checkpoint and carries everything needed to play it: the
+width of the net, the act limit, what a point of health cost in training.
+Nothing else from the run is needed.
+
+Training your own instead takes about a day to reach the plateau on one
+GPU. `train.bat` asks what to train and remembers the answers.
+
+[releases]: https://github.com/yuchinchenTW/conquer-the-spire/releases
+
 ### Running it
 
 Four things, each on a double-click, on Windows:
