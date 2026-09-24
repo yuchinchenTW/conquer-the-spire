@@ -28,6 +28,13 @@ are in Notes/look-trained-head-2026-09-11.txt.
     python cts_play.py runs/ironclad 500          # five hundred
     python cts_play.py runs/ironclad 100 --flat   # the policy as named
     python cts_play.py runs/ironclad --outside    # no looking in a fight
+    python cts_play.py runs/ironclad --turn       # play the turn out first
+
+``--turn`` searches the whole turn inside a fight, where walking one move
+says little: block only counts once the monsters have swung, and they
+swing inside the move that ends the turn. On forty saved boss rooms it
+took the same weights from 62.5% to 77.5%. Out of a fight the one-move
+looking above still does the work. See cts_turn.py.
 
 Older: ``--fights`` turns on the search this file used to be about, which
 plays each candidate a whole fight ahead by a rule of thumb. Asked the same
@@ -56,6 +63,7 @@ except ImportError:  # pragma: no cover
 from cts_ask import exactly, looksAhead, setHealthWeight
 from cts_env import PHASES, SpireEnv, action_table
 from cts_net import CardPolicy, load_weights
+from cts_turn import turnSearch
 from cts_vec import VecSpireEnv
 
 # How many of the policy's own best moves the old fight search weighs.
@@ -117,7 +125,8 @@ def load(folder, device, mode="look2"):
 
 
 def play(net, kept, device, climbs, envs, looks, fights, hp=None,
-         outside=False, seed=0, gamma=None):
+         outside=False, seed=0, gamma=None, turn=False, width=4,
+         budget=120):
     """Plays \\p climbs and returns how they went.
 
     \\p looks is how many moves are walked a step before one is made, 0 for
@@ -138,8 +147,14 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None,
 
     plan = SpireEnv()
     phaseAt = plan.layout["phase"]
+
+    # With the turn search on, the one-move looking keeps out of fights:
+    # the search is what answers there, and the two would be asking the
+    # same question with the worse tool winning ties.
     where = tuple(i for i in range(len(PHASES))
-                  if not outside or i not in FIGHTING)
+                  if not (outside or turn) or i not in FIGHTING)
+    searching = (turnSearch(net, device, width=width, budget=budget)
+                 if turn else None)
     discount = kept.get("gamma", 0.999) if gamma is None else gamma
     looking = (looksAhead(net, device, where, looks, gamma=discount)
                if looks > 1 else None)
@@ -159,12 +174,31 @@ def play(net, kept, device, climbs, envs, looks, fights, hp=None,
 
             if looking is not None:
                 # The best two walked a step each and the one worth more
-                # kept. With --outside the rows in a fight get their own
-                # move back untouched.
+                # kept. With --outside or --turn the rows in a fight get
+                # their own move back untouched.
                 stood = flat[:, phaseAt:phaseAt + len(PHASES)].argmax(axis=1)
                 said = looking(vec, flat, named, legal, scores.cpu().numpy(),
                                stood)
                 picks = torch.as_tensor(said, device=device).long()
+
+            if searching is not None:
+                # A row in a fight plays its turn out on a copy first. The
+                # search answers None where there is nothing to search -
+                # out of a fight, or with one move on offer - and the row
+                # keeps what it had.
+                chosen = picks.cpu().numpy()
+
+                for row in range(envs):
+                    if not legal[row].any():
+                        continue
+
+                    move = searching(vec, row, flat[row], named[row],
+                                     legal[row])
+
+                    if move is not None:
+                        chosen[row] = move
+
+                picks = torch.as_tensor(chosen, device=device).long()
 
             if fights:
                 # The policy's best few, in its own order, and the engine
@@ -210,6 +244,12 @@ def main(argv):
                              "step out of a fight")
     parser.add_argument("--outside", action="store_true",
                         help="look only out of a fight, as before 2026-09-11")
+    parser.add_argument("--turn", action="store_true",
+                        help="search the whole turn inside a fight")
+    parser.add_argument("--width", type=int, default=4,
+                        help="how many sequences the turn search carries")
+    parser.add_argument("--budget", type=int, default=120,
+                        help="how many sequences a decision may walk")
     parser.add_argument("--fights", action="store_true",
                         help="the older whole-fight search inside a fight")
     parser.add_argument("--hp-weight", type=float, default=None,
@@ -231,7 +271,12 @@ def main(argv):
 
     how = ("flat out" if looks < 2
            else "looking at %d moves %s" % (
-               looks, "out of a fight" if outside else "everywhere"))
+               looks, "out of a fight" if (outside or args.turn)
+               else "everywhere"))
+
+    if args.turn:
+        how += ", and the turn searched in one (%d wide, %d a decision)" % (
+            args.width, args.budget)
 
     if fights:
         how += ", and the fights looked into"
@@ -242,7 +287,8 @@ def main(argv):
     print("playing %d climbs %s" % (climbs, how))
 
     got = play(net, kept, device, climbs, envs, looks, fights, hp, outside,
-               seed=args.seed)
+               seed=args.seed, turn=args.turn, width=args.width,
+               budget=args.budget)
 
     floors = np.array([one["floors"] for one in got])
     bosses = np.array([one["bosses_won"] for one in got])
