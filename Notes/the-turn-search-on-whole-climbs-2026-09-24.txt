@@ -1,0 +1,54 @@
+Searching the turn, over whole climbs
+=====================================
+
+Two hundred climbs a reading, every one played to its end, on two seed
+sets: 300005.. which the judge reports on, and 500005.. which nothing has
+ever been measured on. The weights are well.pt, update 387360 - the best
+any of the five training runs produced - except the last row.
+
+    how it played                   seeds 300005    seeds 500005
+                                    won   floors    won   floors
+    the policy names its move      29.0%   35.78   25.5%   35.92
+    looks at 2, everywhere         36.0%   36.91   39.0%   38.54
+    looks at 2 out, turn searched  71.5%   44.24   72.0%   44.11
+    the same, best-look2 (356200)                  74.5%   45.06
+
+Two hundred climbs carry a standard error of about three points, so 71.5
+and 72.0 are the same number twice, and both are twice what the same
+weights manage playing their own moves.
+
+Two bosses down went from 53-54% to 85-87%, and the floors from 36 to 44.
+A climb that wins is 48 floors, so an average of 44 is most of them
+winning - the three readings agree with each other, which a measurement
+artefact would not have to.
+
+The last row matters as much as the rest: best-look2.pt is thirty
+thousand updates older and beat the newer weights with the search in
+front of it. So what the search is worth does not belong to one
+checkpoint, and the training plateau at 22.5% was never the ceiling on
+what these weights could play like - only on what they could name.
+
+Nothing about how a win is counted can be reached from here: the engine
+writes SPIRE_DONE only when the act 3 boss has actually gone down and the
+act limit has been reached (SpireEnv.cpp, the m_bossFight branch). The
+search picks moves; it cannot touch that.
+
+What it costs
+-------------
+
+About 30ms a decision in a fight, against nothing at all for naming a
+move, so a climb takes nine seconds instead of a tenth of one. That is
+why the judge still reads look2 - 800 climbs an hour at this price would
+be 800 climbs a day - and why --turn is a flag rather than the default.
+
+What is not shown by this
+-------------------------
+
+  * The engine is this repository's, not the game's. Every number here is
+    against our own rules.
+  * Act limit 3, so the spire's own top - act 4 and the Heart - is not in
+    any of it.
+  * The search is only inside fights. Out of them the one-move looking is
+    still what plays, unchanged.
+
+Measured 2026-09-24, code at aab157b.

@@ -1,40 +1,43 @@
-"""Playing a trained climber, with a move looked at before it is made.
+"""Playing a trained climber, with what it is about to do played out first.
 
-The policy names a move by guessing what it comes to. This walks its best
-two moves one step each on a copy of the climb and keeps whichever the
-value head thinks more of, with what the move paid added to what it left.
-Everywhere: in a fight as well as out of one.
+The policy names a move by guessing what it comes to. Two things are done
+with that guess, and which one pays depends entirely on where the climber
+is standing.
 
-That was measured rather than chosen, on fixed seeds with every climb
-played to its end and a point of health at 0.01 - twice, once on the 800
-seeds the setting was picked on and once on 800 it had never seen, with
-the climber of update 245290:
+Out of a fight, the best two moves are each walked one step on a copy of
+the climb and whichever the value head thinks more of is kept. In a fight
+that is nearly worthless, because a turn is a sequence: block only counts
+once the monsters have swung, and they swing inside the move that ends
+the turn, so the first card of a turn says almost nothing about what the
+turn comes to. So in a fight ``--turn`` plays the whole turn out instead -
+sequences grown a move at a time, four carried, scored by what they paid
+plus where they left the climb, and a sequence that ends the turn scored
+after the monsters have answered. See cts_turn.py.
 
-                               seeds 5..804      seeds 1005..1804
-                               floors     won     floors     won
-    as it likes                 32.99   18.0%      33.50   16.8%
-    looks at 2, in a fight      34.09   19.6%      33.80   18.1%
-    looks at 2, out of one      35.47   30.1%      35.98   29.8%
-    looks at 2, everywhere      37.71   36.1%      37.08   33.9%
+Two hundred climbs a reading, every one played to its end, on the weights
+of update 387360:
 
-So the looking pays most out of a fight, where the next state is known,
-and a little in one, where a step is followed by cards nobody has drawn
-yet; and the two together pay more than either alone. Two moves and not
-more: at three the wins fall back to 31% and at four to 26%, because the
-largest of several noisy readings is mostly the largest mistake. The runs
-are in Notes/look-trained-head-2026-09-11.txt.
+    how it played                   seeds 300005    seeds 500005
+                                    won   floors    won   floors
+    the policy names its move      29.0%   35.78   25.5%   35.92
+    looks at 2, everywhere         36.0%   36.91   39.0%   38.54
+    looks at 2 out, turn searched  71.5%   44.24   72.0%   44.11
 
-    python cts_play.py runs/ironclad              # a hundred climbs, counted
-    python cts_play.py runs/ironclad 500          # five hundred
+The second seed set had never been measured on. Twice the wins of the
+same weights naming their own moves, and the floors, the bosses and the
+wins all agree with each other. Notes/the-turn-search-on-whole-climbs-
+2026-09-24.txt has the rest, including an older checkpoint doing better
+still (74.5%) with the same search in front of it.
+
+It is a flag and not the default because of what it costs: about 30ms a
+decision in a fight, so a climb takes nine seconds rather than a tenth of
+one.
+
+    python cts_play.py runs/ironclad --turn       # the strongest, and slow
+    python cts_play.py runs/ironclad              # looks 2 everywhere
+    python cts_play.py runs/ironclad 500          # five hundred climbs
     python cts_play.py runs/ironclad 100 --flat   # the policy as named
     python cts_play.py runs/ironclad --outside    # no looking in a fight
-    python cts_play.py runs/ironclad --turn       # play the turn out first
-
-``--turn`` searches the whole turn inside a fight, where walking one move
-says little: block only counts once the monsters have swung, and they
-swing inside the move that ends the turn. On forty saved boss rooms it
-took the same weights from 62.5% to 77.5%. Out of a fight the one-move
-looking above still does the work. See cts_turn.py.
 
 Older: ``--fights`` turns on the search this file used to be about, which
 plays each candidate a whole fight ahead by a rule of thumb. Asked the same
