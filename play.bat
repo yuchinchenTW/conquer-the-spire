@@ -60,6 +60,7 @@ echo     3. Play 200 climbs, the strong way   - about 30 minutes
 echo     4. Play 200 climbs, the quick way    - under a minute
 echo     5. Play 20 climbs on seeds nobody has used
 echo     6. Watch one climb - every card it took and passed on
+echo     7. The same climb as a page, with the cards drawn
 echo.
 echo     Q. Quit
 echo.
@@ -80,6 +81,7 @@ if "%PICK%"=="3" set "CLIMBS=200"
 if "%PICK%"=="4" set "CLIMBS=200" & set "HOW=--envs 32"
 if "%PICK%"=="5" set "CLIMBS=20" & set "SEED=%RANDOM%00"
 if "%PICK%"=="6" goto watch
+if "%PICK%"=="7" goto story
 if defined CLIMBS goto play
 echo.
 echo   That was not one of them.
@@ -107,6 +109,20 @@ echo.
 echo   Add --cards to see every card it played in its fights as well.
 echo.
 "%PYTHON%" Python\cts_watch.py "%WEIGHTS%" --until-won --seed %RANDOM%00 %*
+echo.
+pause
+goto menu
+
+:story
+cls
+echo   One climb as a page: every card it took beside every card it
+echo   passed over, floor by floor, in the game's own art. It opens in
+echo   your browser when it is written.
+echo.
+echo   The pictures come from Assets\cards. If they are missing, run
+echo   this once:  python Scripts\get_card_art.py
+echo.
+"%PYTHON%" Python\cts_story.py "%WEIGHTS%" %*
 echo.
 pause
 goto menu
