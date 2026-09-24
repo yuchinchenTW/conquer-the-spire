@@ -168,7 +168,17 @@ Four things, each on a double-click, on Windows:
 
 `play.bat` option 7 writes one climb as a page: every card it took beside
 every card it passed over, floor by floor, in the game's own art. Run
-`python Scripts/get_card_art.py` once for the pictures.
+`python Scripts/get_card_art.py` once for the pictures. The last seven
+floors of a climb that won, as it comes out:
+
+<img src="./Medias/70percentagewinrateona0ironhead.png" alt="the last seven floors of a winning climb: what it took, what it passed over, what it fought" />
+
+Green is what it took, faded is what it passed over, red is what it threw
+away or tore up, blue is a potion drunk. Two things worth noticing in
+this one: it spent 23 gold in the shop on floor 42 and walked past
+everything else there, and it rested twice at full health, on floors 44
+and 47, where a whetstone would have been worth more. The fires are the
+policy's own decision - the search only runs inside fights.
 
 The dashboard the trainer keeps as it goes, at nine million climbs:
 
