@@ -90,13 +90,56 @@ docker pull utilforever/conquer-the-spire:latest
 
 TBA
 
-## Training
+## The climber
 
-An Ironclad climber trained with PPO on the engine, about nine million climbs
-in. The page below is what the trainer writes as it goes: of everything the
-climber was offered over its last 2,406 climbs, how often it took it and how
-those climbs went - cards taken, removed and upgraded, relics, potions, rooms
-answered, paths taken, and how often each boss and elite went down.
+An Ironclad trained with PPO on this engine, twelve million climbs in, and
+a search that plays each turn out before it is played. On two hundred
+climbs a reading, each played to its end, on two sets of seeds - one of
+which nothing had ever been measured on:
+
+| how it plays | won | floors |
+|---|---|---|
+| the policy names its own move | 25.5% | 35.9 |
+| two moves walked one step each | 39.0% | 38.5 |
+| the turn played out inside fights | **74.5%** | 45.1 |
+
+Act limit 3, so the spire's own top - act 4 and the Heart - is not in any
+of it, and every number is against this engine's rules rather than the
+game's.
+
+The gap between the first row and the last is the interesting part. Five
+training runs all peaked at the same place, 22.5% won, and then lost the
+third act's boss fight and nothing else - the floors, the act bosses and
+the share of climbs reaching two bosses never moved. Raising the entropy
+floor, turning the curriculum off, raising lambda, and putting that one
+fight from 4.7% of a batch to 18.3% each changed how fast the fall came
+and none of them lifted the peak.
+
+What lifted it was not training. A turn is a sequence: block only counts
+once the monsters have swung, and they swing inside the move that ends
+the turn, so the first card of a turn says almost nothing about what the
+turn comes to. Searching the turn - sequences grown a move at a time,
+four carried, each scored by what it paid plus what the value head says
+about where it left the climb - doubled the wins on weights that had
+stopped improving a month earlier. The ceiling was on what the policy
+could *name*, not on what it could play like. Notes/ has the measurements.
+
+### Running it
+
+Four things, each on a double-click, on Windows:
+
+| | |
+|---|---|
+| `train.bat` | trains, and stops itself if the wins fall away |
+| `judge.bat` | scores checkpoints on fixed seeds beside the training |
+| `play.bat` | plays, and writes a climb out as a page |
+| `watch.bat` | draws the curves as they are written |
+
+`play.bat` option 7 writes one climb as a page: every card it took beside
+every card it passed over, floor by floor, in the game's own art. Run
+`python Scripts/get_card_art.py` once for the pictures.
+
+The dashboard the trainer keeps as it goes, at nine million climbs:
 
 <img src="./Medias/9m+run.png" alt="what the climber has been choosing, at nine million climbs" />
 
