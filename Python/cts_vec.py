@@ -255,6 +255,69 @@ class VecSpireEnv(object):
                                                ctypes.c_float]
         lib.cts_vec_set_deep_share(self._vec, float(share))
 
+    def load_one(self, index, text):
+        """Takes a saved climb into the row at \\p index."""
+        lib = self._api.lib
+
+        if isinstance(text, str):
+            text = text.encode("utf-8")
+
+        lib.cts_vec_load_one.argtypes = [ctypes.c_void_p, ctypes.c_size_t,
+                                         ctypes.c_char_p]
+        lib.cts_vec_load_one.restype = ctypes.c_int
+
+        return bool(lib.cts_vec_load_one(self._vec,
+                                         ctypes.c_size_t(int(index)), text))
+
+    def walk(self, index, moves):
+        """Walks \\p moves, in order, on a copy of the climb at \\p index.
+
+        ``peek_moves`` walks one move on a copy of every climb; this walks
+        a whole sequence on a copy of one. A turn is a sequence - cards,
+        then the end of it - and what a turn comes to cannot be read off
+        its first card, because the block only matters once the monsters
+        have swung, which happens inside the move that ends the turn.
+
+        Returns ``(obs, ids, mask, paid, over, taken)``: where it ended up,
+        what it could do next, what each move paid, whether the climb
+        ended, and how many of the moves were legal enough to take.
+        """
+        lib = self._api.lib
+        count = len(moves)
+
+        if count == 0:
+            return (self._look()[0][index], self._look()[1][index],
+                    self._look()[2][index], [], False, 0)
+
+        lib.cts_vec_walk.argtypes = [
+            ctypes.c_void_p, ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_ubyte), ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_ubyte)]
+        lib.cts_vec_walk.restype = ctypes.c_size_t
+
+        asked = (ctypes.c_size_t * count)(*[int(m) for m in moves])
+        obs = (ctypes.c_float * self.observation_size)()
+        ids = (ctypes.c_int * self.id_count)()
+        mask = (ctypes.c_ubyte * self.action_count)()
+        paid = (ctypes.c_float * count)()
+        over = (ctypes.c_ubyte * 1)()
+
+        taken = int(lib.cts_vec_walk(self._vec, ctypes.c_size_t(int(index)),
+                                     asked, ctypes.c_size_t(count), obs,
+                                     ids, mask, paid, over))
+
+        if np is not None:
+            return (np.ctypeslib.as_array(obs).copy(),
+                    np.ctypeslib.as_array(ids).copy(),
+                    np.ctypeslib.as_array(mask).copy(),
+                    np.ctypeslib.as_array(paid)[:taken].copy(),
+                    bool(over[0]), taken)
+
+        return (list(obs), list(ids), list(mask), list(paid)[:taken],
+                bool(over[0]), taken)
+
     def set_boss_share(self, share):
         """Of the climbs started part-way up, starts this share of them in
         the last act's boss room.

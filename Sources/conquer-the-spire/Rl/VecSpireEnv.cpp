@@ -463,6 +463,96 @@ void VecSpireEnv::ClearStats()
     m_stats.Clear();
 }
 
+bool VecSpireEnv::LoadOne(std::size_t index, const std::string& text)
+{
+    if (index >= m_envs.size())
+    {
+        return false;
+    }
+
+    if (!m_envs[index].Load(text))
+    {
+        return false;
+    }
+
+    // The row's own counters go with it: the climb standing here is not
+    // the one that was, so what it has earned and how long it has been
+    // going start again from where the save left off.
+    m_returns[index] = 0.0f;
+    m_lengths[index] = 0;
+    m_lastAct[index] = m_envs[index].GetRun().GetAct();
+    m_lastFloor[index] = m_envs[index].GetRun().GetFloor();
+
+    return true;
+}
+
+std::size_t VecSpireEnv::Walk(std::size_t index,
+                              const std::size_t* moves, std::size_t count,
+                              float* out, int* outIds,
+                              unsigned char* outMask, float* paid,
+                              unsigned char* over) const
+{
+    if (index >= m_envs.size() || moves == nullptr)
+    {
+        return 0u;
+    }
+
+    // The copy is the whole trick, as it is in Peek: the climb stands
+    // still while the sequence is walked on something else.
+    SpireEnv copy = m_envs[index];
+    std::size_t taken = 0u;
+    bool ended = false;
+
+    for (std::size_t which = 0; which < count && !ended; ++which)
+    {
+        const std::vector<unsigned char> legal = copy.ActionMask();
+        const std::size_t move = moves[which];
+
+        if (move >= legal.size() || legal[move] == 0u)
+        {
+            break;
+        }
+
+        const StepResult result = copy.StepIndex(move);
+
+        if (paid != nullptr)
+        {
+            paid[which] = result.reward;
+        }
+
+        ended = result.done;
+        ++taken;
+    }
+
+    if (out != nullptr)
+    {
+        const std::vector<float> state = copy.Observe();
+
+        std::copy(state.begin(), state.end(), out);
+    }
+
+    if (outIds != nullptr)
+    {
+        const std::vector<int> named = copy.ObserveIds();
+
+        std::copy(named.begin(), named.end(), outIds);
+    }
+
+    if (outMask != nullptr)
+    {
+        const std::vector<unsigned char> legal = copy.ActionMask();
+
+        std::copy(legal.begin(), legal.end(), outMask);
+    }
+
+    if (over != nullptr)
+    {
+        over[0] = ended ? 1u : 0u;
+    }
+
+    return taken;
+}
+
 void VecSpireEnv::Peek(const std::size_t* moves, std::size_t asked,
                        float* out, int* outIds, float* paid,
                        unsigned char* over,

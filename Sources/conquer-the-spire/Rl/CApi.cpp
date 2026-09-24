@@ -551,6 +551,31 @@ void cts_vec_peek_moves(void* vec, const size_t* moves, size_t asked,
     }
 }
 
+int cts_vec_load_one(void* vec, size_t index, const char* text)
+{
+    if (vec == nullptr || text == nullptr)
+    {
+        return 0;
+    }
+
+    return static_cast<VecSpireEnv*>(vec)->LoadOne(index, text) ? 1 : 0;
+}
+
+size_t cts_vec_walk(void* vec, size_t index, const size_t* moves,
+                    size_t count, float* out, int* out_ids,
+                    unsigned char* out_mask, float* paid,
+                    unsigned char* over)
+{
+    if (vec == nullptr)
+    {
+        return 0u;
+    }
+
+    return static_cast<VecSpireEnv*>(vec)->Walk(index, moves, count, out,
+                                                out_ids, out_mask, paid,
+                                                over);
+}
+
 void cts_vec_set_boss_share(void* vec, float share)
 {
     if (vec == nullptr)

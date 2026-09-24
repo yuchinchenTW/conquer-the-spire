@@ -1,0 +1,57 @@
+Playing the turn out before playing it
+======================================
+
+The looking cts_play does walks one move on a copy and keeps the one the
+value head thinks more of. Measured, that pays out of a fight and barely
+pays in one - and the reason is that a turn is a sequence. Block only
+counts once the monsters have swung, and they swing inside the move that
+ends the turn, so the first card of a turn says almost nothing about what
+the turn comes to.
+
+So: cts_turn.py grows sequences a move at a time from the state at hand,
+keeps the best few by what the value head says, and stops when the turn
+ends or the budget runs out. A sequence is worth what it paid along the
+way, discounted by when, plus what the head says about where it left the
+climb, discounted by how long it was. Ending the turn is a move like any
+other, so a sequence that ends it is scored after the monsters have
+answered - which is the whole point.
+
+Three things it does not do, each one learnt the hard way:
+
+  * It does not enumerate the turn. Five cards with targets is thousands
+    of orders and most differ by nothing. The budget is sequences walked
+    (120 a decision), not depth, so a hand with one sensible line is
+    cheap.
+  * It does not trust the head far. Looking at four candidates one move
+    ahead beat looking at two nowhere and lost floors in a fight - the
+    widest search finds the head's largest error, not the board's best
+    line. Four sequences carried, four moves considered from each.
+  * It does not run out of a fight, where the one-move looking already
+    wins.
+
+What it is worth, on the forty saved boss rooms of cts_boss.py, which
+nothing trains on:
+
+    climber                     names its move    searches the turn
+    well.pt (387360)                62.5%              77.5%
+    fell-bossshelf (400070)         32.5%              55.0%
+
+Fifteen points on the healthy weights and twenty-two on the fallen ones.
+Forty fights carry a standard error of about seven points, so the size is
+rough and the direction is not: this is the first thing tried in five
+experiments that has moved the last fight at all.
+
+The fallen weights are the more interesting half. Playing their own moves
+they fight 121 steps before losing, against 45-53 for every other set of
+weights - they had learnt to hold on rather than to win. With the search
+in front of them that falls to 52.6 and the wins rise to 55%: the skill
+was not gone from the weights, it was gone from the moves they named.
+
+The engine side is VecSpireEnv::Walk - a sequence taken in order on a
+copy, saying what each move paid and where it landed - and LoadOne, so a
+saved room can be handed to a row. Both have tests.
+
+Still to do: whole climbs. The boss rooms say the fight is winnable; only
+cts_play over a fixed seed set says whether a climb is.
+
+Written 2026-09-24.

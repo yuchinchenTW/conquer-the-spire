@@ -800,6 +800,140 @@ TEST_CASE("Asking for no boss rooms leaves the shelf of floors as it was")
     CHECK(row.GetDeepHeld(3) == row.GetCount());
 }
 
+TEST_CASE("A whole turn walked on a copy, and the climb left standing")
+{
+    // Peek walks one move. A turn is a sequence - cards, then the end of
+    // it - and what a turn comes to cannot be read off its first card,
+    // because block only counts once the monsters have swung, and they
+    // swing inside the move that ends the turn. So a copy takes the whole
+    // sequence.
+    VecSpireEnv row(4u);
+
+    row.SetAutoReset(true);
+    row.Reset(CardColor::RED, 8u);
+
+    const std::size_t stride = SpireEnv::ActionCount();
+    const std::size_t floats = SpireEnv::ObservationSize();
+    std::vector<unsigned char> mask(row.GetCount() * stride, 0u);
+    std::vector<std::size_t> actions(row.GetCount(), 0u);
+
+    // Into a fight, where a turn is a thing at all.
+    for (int tick = 0; tick < 40; ++tick)
+    {
+        row.ActionMask(mask.data());
+
+        for (std::size_t i = 0; i < row.GetCount(); ++i)
+        {
+            actions[i] = stride;
+
+            for (std::size_t slot = 0; slot < stride; ++slot)
+            {
+                if (mask[i * stride + slot] != 0u)
+                {
+                    actions[i] = slot;
+
+                    break;
+                }
+            }
+        }
+
+        row.Step(actions.data(), nullptr, nullptr, nullptr, nullptr,
+                 nullptr);
+    }
+
+    row.ActionMask(mask.data());
+
+    std::vector<std::size_t> legal;
+
+    for (std::size_t slot = 0; slot < stride; ++slot)
+    {
+        if (mask[slot] != 0u)
+        {
+            legal.emplace_back(slot);
+        }
+    }
+
+    REQUIRE(legal.size() >= 2u);
+
+    const std::vector<float> before = row.At(0).Observe();
+    std::vector<float> landed(floats, 0.0f);
+    std::vector<int> named(SpireEnv::IdCount(), 0);
+    std::vector<unsigned char> next(stride, 0u);
+    std::vector<float> paid(legal.size(), 0.0f);
+    unsigned char over = 0u;
+
+    const std::size_t taken =
+        row.Walk(0u, legal.data(), legal.size(), landed.data(),
+                 named.data(), next.data(), paid.data(), &over);
+
+    CHECK(taken >= 1u);
+    CHECK(taken <= legal.size());
+
+    // The climb itself has not moved: that is the whole trick.
+    CHECK(row.At(0).Observe() == before);
+
+    // And the copy has - a walked sequence lands somewhere else, and says
+    // what it could do from there.
+    CHECK(landed != before);
+
+    std::size_t open = 0u;
+
+    for (std::size_t slot = 0; slot < stride; ++slot)
+    {
+        open += next[slot] != 0u ? 1u : 0u;
+    }
+
+    CHECK((open > 0u || over != 0u));
+}
+
+TEST_CASE("Walking stops at a move the copy will not take")
+{
+    // A sequence found at one depth is walked again from the root at the
+    // next, and the board it was found on may be gone. Walking has to say
+    // how far it got rather than making something up.
+    VecSpireEnv row(2u);
+
+    row.Reset(CardColor::RED, 8u);
+
+    const std::size_t stride = SpireEnv::ActionCount();
+    std::vector<std::size_t> nonsense = {stride + 5u, 0u, 1u};
+    std::vector<float> paid(nonsense.size(), 0.0f);
+
+    CHECK(row.Walk(0u, nonsense.data(), nonsense.size(), nullptr, nullptr,
+                   nullptr, paid.data(), nullptr) == 0u);
+
+    // And a row that is not there at all is nothing rather than a crash.
+    std::vector<std::size_t> fine = {0u};
+
+    CHECK(row.Walk(99u, fine.data(), fine.size(), nullptr, nullptr,
+                   nullptr, nullptr, nullptr) == 0u);
+}
+
+TEST_CASE("A row takes a saved climb, and its counters start again")
+{
+    // The same saved fight handed to several climbers is how the last
+    // fight of the spire is compared without each one walking its own road
+    // to it.
+    const std::string save = SecondActSave(7u);
+
+    REQUIRE(save.empty() == false);
+
+    VecSpireEnv row(3u);
+
+    row.Reset(CardColor::RED, 41u);
+
+    CHECK(row.LoadOne(1u, save) == true);
+    CHECK(row.At(1).GetRun().GetAct() == 2);
+
+    // The rows either side are untouched.
+    CHECK(row.At(0).GetRun().GetAct() == 1);
+    CHECK(row.At(2).GetRun().GetAct() == 1);
+
+    // A row that is not there says no rather than writing over memory.
+    CHECK(row.LoadOne(99u, save) == false);
+    CHECK(row.LoadOne(0u, "not a climb") == false);
+}
+
 TEST_CASE("Asking what a move comes to leaves the climb where it was")
 {
     // A policy that names a move is guessing what it comes to. This says: the

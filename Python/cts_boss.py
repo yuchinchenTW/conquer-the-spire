@@ -8,6 +8,11 @@ at the moment the last boss is met - one reference climber makes the road
 
     python Python/cts_boss.py runs/ironclad/well.pt runs/ironclad/fell.pt
     python Python/cts_boss.py --fights 40 --reference well.pt a.pt b.pt
+    python Python/cts_boss.py --turn runs/ironclad/well.pt
+
+--turn plays the fights with the turn search of cts_turn.py instead of
+the move the policy names, on the same saved rooms, so the two read
+against each other directly.
 
 The first climber named is the reference unless --reference says otherwise.
 Every climber then fights the same saved fights, so the only thing that
@@ -28,6 +33,8 @@ except ImportError:  # pragma: no cover
 
 from cts_env import PHASES, SpireEnv, action_table
 from cts_net import CardPolicy, load_weights
+from cts_turn import turnSearch
+from cts_vec import VecSpireEnv
 
 #! Where the last boss of the act is waiting to be fought - the room, not
 #! the fight. The state is saved here, before the first card is drawn, so
@@ -126,18 +133,44 @@ def collect(net, env, device, acts, fights, seed, hp):
     return saved
 
 
-def fight(net, env, device, state):
-    """Loads \\p state and fights it out. Returns whether it was won."""
-    if not env.load(state):
-        raise SystemExit("the engine would not take a saved fight back")
+def fight(net, env, device, state, search=None, row=None):
+    """Loads \\p state and fights it out. Returns whether it was won.
 
-    obs, ids, mask = where(env)
+    With \\p search the moves inside the fight come from the turn search
+    and the climb is a row of \\p row, a batch of one, because walking a
+    sequence on a copy lives on the batch.
+    """
+    if search is not None:
+        if not row.load_one(0, state):
+            raise SystemExit("the batch would not take a saved fight back")
+
+        obs, ids, mask = [np.asarray(part).reshape(-1)
+                          for part in row._look()]
+    elif not env.load(state):
+        raise SystemExit("the engine would not take a saved fight back")
+    else:
+        obs, ids, mask = where(env)
+
     phaseAt = env.layout["phase"]
 
     for step in range(4000):
-        move = decide(net, obs, ids, mask, device)
-        _, reward, done, _ = env.step(move)
-        obs, ids, mask = where(env)
+        move = None
+
+        if search is not None:
+            move = search(row, 0, obs, ids, mask)
+
+        if move is None:
+            move = decide(net, obs, ids, mask, device)
+
+        if search is not None:
+            got = row.step(np.array([move], dtype=np.int64))
+            obs, ids, mask = [np.asarray(part).reshape(-1)
+                              for part in got[:3]]
+            reward = float(np.asarray(got[3]).reshape(-1)[0])
+            done = bool(np.asarray(got[4]).reshape(-1)[0])
+        else:
+            _, reward, done, _ = env.step(move)
+            obs, ids, mask = where(env)
 
         if reward > WON:
             return True, step
@@ -165,6 +198,12 @@ def main(argv):
     parser.add_argument("--reference",
                         help="who makes the road to the boss; the first "
                              "climber named by default")
+    parser.add_argument("--turn", action="store_true",
+                        help="fight with the turn search of cts_turn.py")
+    parser.add_argument("--width", type=int, default=4,
+                        help="how many sequences the search carries")
+    parser.add_argument("--budget", type=int, default=120,
+                        help="how many sequences a decision may walk")
     parser.add_argument("--fights", type=int, default=40)
     parser.add_argument("--seed", type=int, default=90000)
     parser.add_argument("--hp-weight", type=float, default=0.01,
@@ -192,16 +231,30 @@ def main(argv):
     print("%d fights saved; the reference arrives with %.0f%% health"
           % (len(saved), 100 * health))
     print()
+    print("fought %s" % ("with the turn search, %d wide, %d a decision"
+                         % (args.width, args.budget) if args.turn
+                         else "with the move the policy names"))
     print("%-42s %8s %8s %8s" % ("climber", "update", "won", "steps"))
 
     for path in args.climbers:
         net, kept = load(path, device)
         env.set_act_limit(kept["acts"])
+        search = None
+        row = None
+
+        if args.turn:
+            search = turnSearch(net, device, width=args.width,
+                                budget=args.budget)
+            row = VecSpireEnv(1)
+            row.set_act_limit(kept["acts"])
+            row.set_health_weight(args.hp_weight)
+            row.reset(kept["character"], seed=0)
+
         won = 0
         steps = []
 
         for seed, state, _, _ in saved:
-            beat, took = fight(net, env, device, state)
+            beat, took = fight(net, env, device, state, search, row)
             won += int(beat)
             steps.append(took)
 

@@ -193,6 +193,31 @@ CTS_API void cts_vec_set_deep_share(void* vec, float share);
 //! Sets how often a deep start is the last act's boss room.
 //! \param vec the batch
 //! \param share none of them at 0, all of them at 1
+//! Takes a saved climb into one row of a batch.
+//! \param vec the batch
+//! \param index which row
+//! \param text a climb as cts_save wrote it
+//! \return non-zero if the row took it
+CTS_API int cts_vec_load_one(void* vec, size_t index, const char* text);
+
+//! Walks a sequence of moves on a copy of one climb and says where it
+//! ends up. A turn is a sequence, and what it comes to cannot be read off
+//! its first card.
+//! \param vec the batch
+//! \param index which climb to copy
+//! \param moves the moves to take, in order
+//! \param count how many of them
+//! \param out where the state it ends in goes, or NULL
+//! \param out_ids where the ids go, or NULL
+//! \param out_mask where the moves it could take next go, or NULL
+//! \param paid where what each move paid goes, one per move, or NULL
+//! \param over where whether the climb ended goes, or NULL
+//! \return how many of the moves were taken
+CTS_API size_t cts_vec_walk(void* vec, size_t index, const size_t* moves,
+                            size_t count, float* out, int* out_ids,
+                            unsigned char* out_mask, float* paid,
+                            unsigned char* over);
+
 CTS_API void cts_vec_set_boss_share(void* vec, float share);
 
 //! \param vec the batch

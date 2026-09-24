@@ -145,6 +145,36 @@ class VecSpireEnv
     //! leaves that climb's slots untouched and costs nothing. Out of a fight
     //! is where the walking pays, and that is one move in twelve, so asking
     //! about all of them is eleven twelfths waste.
+    //! Takes a saved climb into one row.
+    //! \param index which row
+    //! \param text a climb as Save wrote it
+    //! \return whether the row took it
+    bool LoadOne(std::size_t index, const std::string& text);
+
+    //! Walks \p count moves, in order, on a copy of climb \p index.
+    //!
+    //! Peek walks one move and says where it lands. A turn is a sequence -
+    //! cards, then the end of it - and what a turn comes to cannot be read
+    //! off its first card: the block only matters once the monsters have
+    //! swung, which is inside the move that ends the turn. So this takes
+    //! the whole sequence and stops early if a move is not legal or the
+    //! climb ends under it.
+    //!
+    //! \param index which climb to copy
+    //! \param moves the moves to take, in order
+    //! \param count how many of them there are
+    //! \param out where the state it ends in goes, or nullptr
+    //! \param outIds where the ids it ends with go, or nullptr
+    //! \param outMask where the moves it could take next go, or nullptr
+    //! \param paid where what each move paid goes, one per move, or
+    //!        nullptr; moves not taken pay nothing
+    //! \param over where whether the climb ended goes, or nullptr
+    //! \return how many of the moves were actually taken
+    std::size_t Walk(std::size_t index, const std::size_t* moves,
+                     std::size_t count, float* out, int* outIds,
+                     unsigned char* outMask, float* paid,
+                     unsigned char* over) const;
+
     void Peek(const std::size_t* moves, std::size_t asked, float* out,
               int* outIds, float* paid, unsigned char* over,
               const unsigned char* asking = nullptr) const;
