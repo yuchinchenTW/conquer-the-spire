@@ -66,6 +66,84 @@ Rollout Play(SpireEnv& env, unsigned int seed, int limit = 4000)
 }
 }  // namespace
 
+TEST_CASE("The last boss a climb was asked for ends it where it stands")
+{
+    // The game does not offer a card draft after the fight that ends the
+    // run, and this used to: the climb went on to the boss's reward pile,
+    // spent a dozen moves on cards it would never play, and wrote out
+    // that it had come out the top of the spire twice - once from the Run
+    // and once from SpireEnv.
+    //
+    // Asked for one act, so the first act's boss is the last one, and the
+    // boss is put down by hand rather than out-played: what is being
+    // tested is what happens after it falls.
+    SpireEnv env;
+
+    env.SetActLimit(1);
+    env.Reset(CardColor::RED, 9);
+
+    Run& run = env.GetRun();
+
+    while (run.GetFloor() < Map::ROWS)
+    {
+        const std::vector<int> ahead = run.GetAvailableColumns();
+
+        REQUIRE(ahead.empty() == false);
+        REQUIRE(run.Travel(ahead.front()) == true);
+    }
+
+    REQUIRE(env.Step(Action(ActionKind::TRAVEL,
+                            run.GetAvailableColumns().front()))
+                .taken == true);
+    REQUIRE(env.Step(Action(ActionKind::FIGHT_BOSS)).taken == true);
+
+    bool ended = false;
+
+    for (int i = 0; i < 400 && !ended; ++i)
+    {
+        if (env.GetPhase() == EnvPhase::BATTLE)
+        {
+            for (auto& monster :
+                 const_cast<Battle*>(env.GetBattle())->GetMonsters())
+            {
+                monster.SetHealth(0);
+            }
+        }
+
+        const std::vector<Action> moves = env.LegalActions();
+
+        if (moves.empty())
+        {
+            break;
+        }
+
+        ended = env.Step(moves.front()).done;
+    }
+
+    REQUIRE(ended == true);
+    REQUIRE(env.GetRun().GetLog().GetSummary().wonTheSpire == 1);
+
+    // Said once, and it is the last thing that happened: no reward pile
+    // after it, and nothing written down as passed over that was never on
+    // the table.
+    const std::vector<LogLine>& lines = env.GetRun().GetLog().GetLines();
+    int said = 0;
+    std::size_t where = lines.size();
+
+    for (std::size_t i = 0; i < lines.size(); ++i)
+    {
+        if (lines[i].entry == LogEntry::SPIRE_DONE)
+        {
+            ++said;
+            where = i;
+        }
+    }
+
+    CHECK(said == 1);
+    CHECK(where == lines.size() - 1u);
+    CHECK(env.GetPhase() == EnvPhase::OVER);
+}
+
 TEST_CASE("A run written out and read back is the same run")
 {
     Run first(CardColor::RED, 77);

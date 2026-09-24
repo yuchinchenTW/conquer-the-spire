@@ -1119,6 +1119,36 @@ void SpireEnv::Settle()
         return;
     }
 
+    // The last boss a climb was asked to beat ends it, before the rewards
+    // of that fight are offered. The game does the same - beating the act
+    // that ends the run is the end of the run, not a card draft - and a
+    // climb that went on to the reward pile spent a dozen moves on cards
+    // it would never play, wrote SPIRE_DONE twice, and gave the trainer a
+    // tail of states after the climb was already won.
+    if (m_bossFight && m_actLimit > 0 && m_run.GetAct() >= m_actLimit)
+    {
+        m_bossFight = false;
+
+        // Dropped rather than cleared: the game does not offer the last
+        // boss's rewards, so they were never on the table to be passed
+        // over and should not be written down as though they were.
+        m_run.DropRewards();
+
+        // The Run writes this down itself when the boss it just beat was
+        // the top of the spire - the third act's, with no keys to go on
+        // with. It cannot know about an act limit, though, so a climb
+        // asked for one or two acts needs saying here. Both saying it
+        // wrote the line twice, which is what the record showed.
+        if (m_run.CanClimbHigher())
+        {
+            m_run.Note(LogEntry::SPIRE_DONE, m_run.GetAct());
+        }
+
+        m_phase = EnvPhase::OVER;
+
+        return;
+    }
+
     if (m_run.HasUnclaimedRewards())
     {
         m_phase = EnvPhase::REWARD;
@@ -1134,27 +1164,13 @@ void SpireEnv::Settle()
     // stopped at the top of the first one whatever it had been asked for,
     // and this branch never ran at all: no ACT_DONE, no NEXT_ACT, no second
     // act, and the hundred points for the spire never paid to anyone.
+    // A boss that was not the last one: the act is over and the next one
+    // is walked into. The climb ending on this boss is dealt with above,
+    // before its rewards are offered.
     if (m_bossFight)
     {
         m_bossFight = false;
-
-        // As far as this climb was asked to go. The boss has already paid
-        // out by the time this is reached, so the climb is over on a win.
-        const bool asFarAsAsked =
-            m_actLimit > 0 && m_run.GetAct() >= m_actLimit;
-
-        // And a climb that got as far as it was asked to get is finished,
-        // not merely stopped. The Run only knows about the spire's own top,
-        // so it cannot say this - and without it a climb trained on one act
-        // that put that act's boss down went into the table as neither a win
-        // nor a death, which is the whole of what such a run is trying to
-        // learn to do.
-        if (asFarAsAsked)
-        {
-            m_run.Note(LogEntry::SPIRE_DONE, m_run.GetAct());
-        }
-
-        m_phase = asFarAsAsked ? EnvPhase::OVER : EnvPhase::ACT_DONE;
+        m_phase = EnvPhase::ACT_DONE;
 
         return;
     }

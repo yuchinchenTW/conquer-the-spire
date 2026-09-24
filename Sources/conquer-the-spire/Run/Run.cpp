@@ -2032,6 +2032,11 @@ void Run::ClearRewards()
     m_rewards.clear();
 }
 
+void Run::DropRewards()
+{
+    m_rewards.clear();
+}
+
 void Run::NotePassedOver(const Reward& reward, std::size_t taken)
 {
     const LogSource was =

@@ -225,6 +225,15 @@ class Run
     //! Clears whatever is left on the pile, which is what walking on does.
     void ClearRewards();
 
+    //! Throws away whatever is on the floor without writing it down.
+    //!
+    //! ClearRewards says the rest was looked at and left, which is what a
+    //! climber walking away from a reward pile did. A climb that has just
+    //! ended did not look at anything: the game does not offer the last
+    //! boss's rewards at all, so writing them down as passed over would
+    //! put choices in the record that were never on the table.
+    void DropRewards();
+
     //! Returns the books the rewards are rolled from, for a look at how likely
     //! the next potion is and what relics are left.
     const RewardGenerator& GetRewardGenerator() const;
