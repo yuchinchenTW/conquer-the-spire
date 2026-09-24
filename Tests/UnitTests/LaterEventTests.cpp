@@ -145,17 +145,30 @@ TEST_CASE("An act draws its rooms from its own list")
     }
 }
 
-TEST_CASE("Simple writing sharpens the plain cards of a deck")
+TEST_CASE("Simple writing sharpens the Strikes and Defends of a deck")
 {
+    // This used to ask for the whole starting deck, which is what the
+    // engine did and not what the wiki says: Simplicity is "Upgrade all
+    // Strikes and Defends", and the Ironclad starts with a Bash as well.
+    // The test held the mistake in place until 2026-09-24.
     Run run = RunInRoom(EventId::ANCIENT_WRITING);
 
     const std::size_t simplicity = OptionOf(run.GetEvent(), "Simplicity");
+    int plain = 0;
 
+    for (const auto& card : run.GetDeck())
+    {
+        plain += (card.GetName() == "Strike" || card.GetName() == "Defend")
+                     ? 1
+                     : 0;
+    }
+
+    REQUIRE(plain > 0);
+    REQUIRE(plain < static_cast<int>(run.GetDeck().size()));
     REQUIRE(simplicity < run.GetEvent().GetOptions().size());
     REQUIRE(run.ChooseEventOption(simplicity) == true);
 
-    // A starting deck is nothing but plain cards.
-    CHECK(Upgraded(run) == static_cast<int>(run.GetDeck().size()));
+    CHECK(Upgraded(run) == plain);
 }
 
 TEST_CASE("A council of ghosts is paid for with half of the whole")
