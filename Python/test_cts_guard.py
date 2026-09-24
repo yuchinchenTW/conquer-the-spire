@@ -125,6 +125,20 @@ class GuardTests(unittest.TestCase):
         feed(trainer, [0.02] * WELL_OVER)       # a tenth: enough
         self.assertTrue(trainer.stopping)
 
+    def test_an_inherited_mark_writes_the_weights_it_stands_on(self):
+        # A checkpoint carries the high mark but the experiment bats copy
+        # only the checkpoint, so a run can start guarded against a mark
+        # with no well.pt behind it. The weights it starts from are where
+        # that mark was set, so they become it.
+        trainer = self.climber()
+        trainer.wellest = 0.2
+        trainer.wellAt = 1234
+        self.assertFalse(os.path.exists(trainer.well))
+        trainer.save(trainer.well)
+        self.assertTrue(os.path.exists(trainer.well))
+        feed(trainer, [0.0] * WELL_OVER)
+        self.assertTrue(trainer.stopping)
+
     def test_carried_over_a_restart(self):
         trainer = self.climber()
         feed(trainer, [0.2] * WELL_OVER)

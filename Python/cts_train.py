@@ -531,11 +531,22 @@ class Trainer(object):
               "best (update %d)." % (100.0 * now, WELL_OVER,
                                      100.0 * self.wellest, self.wellAt))
         print("")
-        print("  Nothing here is thrown away: the weights from that best")
-        print("  moment are in %s, and this batch is being" % self.well)
-        print("  saved over the working ones as usual, so the two can be")
-        print("  compared. To carry on from the healthy ones instead, copy")
-        print("  well.pt over checkpoint.pt before starting again.")
+        if os.path.exists(self.well):
+            print("  Nothing here is thrown away: the weights from that "
+                  "best")
+            print("  moment are in %s, and this batch is" % self.well)
+            print("  being saved over the working ones as usual, so the "
+                  "two")
+            print("  can be compared. To carry on from the healthy ones")
+            print("  instead, copy well.pt over checkpoint.pt before")
+            print("  starting again.")
+        else:
+            print("  This run never beat the %.1f%% it started with, so"
+                  % (100.0 * self.wellest))
+            print("  there is no well.pt of its own to fall back on - the")
+            print("  weights to go back to are whatever it was started")
+            print("  from. This batch is being saved over the working ones")
+            print("  as usual.")
         print("")
         print("  A run losing this much is not learning: the 2026-09-17")
         print("  collapse held every other reading still - floors, act")
@@ -793,6 +804,16 @@ class Trainer(object):
         self.wellest = float(kept.get("wellest", 0.0))
         self.wellAt = int(kept.get("well_at", 0))
         self.wins = list(kept.get("wins", []))
+
+        # The high mark rides in the checkpoint but well.pt does not, and
+        # an experiment that copies a checkpoint into a folder of its own
+        # brings one without the other. A run that then never beats the
+        # mark it inherited would be stopped by the guard and told to fall
+        # back on a file nobody had written. These weights are where that
+        # mark was set, so they are it.
+        if self.wellest > 0.0 and not os.path.exists(self.well):
+            self.save(self.well)
+            print("   the wins to fall back to are these, in well.pt")
         self.bestScore = kept.get("best_score")
         self.bestAt = int(kept.get("best_at", 0))
         self.bestFloors = float(kept.get("best_floors", 0.0))

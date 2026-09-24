@@ -1,0 +1,52 @@
+Five runs, one ceiling, and what each one ruled out
+===================================================
+
+    start    what was changed           peak won   fell from   boss fight
+                                                               after it
+    383180   the settings as they were    22.8%     +18000         2.5%
+    387360   the same                     22.5%     +8000         32.5%
+    387360   --deep 0 (shelf off)         22.5%     +6000         30.0%
+    387360   --spread 0                   22.6%     +11500        25.0%
+    387360   boss rooms, 4.7% -> 18.3%    22.5%     +12710        32.5%
+
+No run has beaten the 22.5% it started from. Every one has lost the third
+act's boss and nothing else: the floors sit at 34, the act bosses at 93%,
+the share of climbs reaching two bosses at 50%, all the way down.
+
+The last column is the same forty saved boss rooms each time, handed to
+the fallen weights - healthy ones win 60-65% of those.
+
+What the boss shelf did
+-----------------------
+
+It worked as built. The fight went from 4.7% of a batch to 18.3%,
+measured, and the first two acts lost two points each rather than their
+place. It bought 1200 updates over the plain setting and left the fallen
+weights a little better at the fight they lost (32.5% against 25.0%).
+The climber it made also fights much longer before losing - 121 steps a
+fight against 45-53 for every other set of weights - which reads as
+having learnt to hold on rather than to win.
+
+What it did not do is stop the fall or lift the ceiling. So "the fight is
+too small a share of the batch" is not the whole of it: four times the
+share is not four times anything.
+
+What five runs have ruled out
+-----------------------------
+
+    the deep shelf          off is worse, not better
+    the entropy pressure    held on its floor all run, fell anyway
+    the value head          measured leading the policy, not leading it
+    a bad batch             loss lower through the fall than before it
+    the sampling            argmax and sampled fall together
+    lambda                  0.98 is worse; 0.95 is what the falls use
+    the share of the batch  four times as much, 1200 updates bought
+
+What is left is the shape of the thing: a policy at 22.5% has no uphill
+left that these gradients can find, and the only cheap direction from
+there is to stop paying for the hardest fight. Every setting tried
+changes how fast it walks downhill, not whether there is an uphill.
+
+Written 2026-09-24. The weights that stand: well.pt (387360), which is
+still the best any run has produced, and best-look2.pt (356200), which
+matches it at the boss.
