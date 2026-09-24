@@ -37,8 +37,9 @@ from cts_log import summary_of
 from cts_plot import ART, ART_FROM_PAGE, KIND_COLOURS, _slug
 from cts_watch import climb, load
 
-#! Where the page is written, beside the run it is about.
-PAGE = "climb.html"
+#! What the page is called, with the seed of the climb in it: two climbs
+#! looked at one after the other are two pages, not the same file twice.
+PAGE = "climb-%d.html"
 
 #! What a line of the log is about, and what to call it on the page. The
 #! order is the order the columns of a floor appear in.
@@ -283,8 +284,10 @@ def main(argv):
         description="Write one climb out as a page, in pictures.")
     parser.add_argument("climber", nargs="?", default="runs/ironclad")
     parser.add_argument("--seed", type=int, default=None,
-                        help="one climb, won or not; the default hunts for "
-                             "a win")
+                        help="where to start; climbs from here until one "
+                             "is won, or exactly this one with --just-this")
+    parser.add_argument("--just-this", action="store_true", dest="justThis",
+                        help="write the climb at --seed down, won or not")
     parser.add_argument("--died", action="store_true",
                         help="hunt for a climb that dies instead")
     parser.add_argument("--tries", type=int, default=20)
@@ -304,7 +307,7 @@ def main(argv):
     device = torch.device("cpu")
     torch.set_num_threads(4)
     net, kept, path = load(args.climber, device)
-    hunting = args.seed is None
+    hunting = not args.justThis
     seed = args.seed if args.seed is not None else 500005
     tries = args.tries if hunting else 1
 
@@ -323,9 +326,10 @@ def main(argv):
 
         if wanted:
             lines = lines_of(vec.at(0))
+            beside = (os.path.dirname(path) if os.path.isfile(path)
+                      else path)
             where = args.out or os.path.join(
-                os.path.dirname(path) if os.path.isfile(path) else path,
-                PAGE)
+                beside, PAGE % (seed + at))
             title = "%s, seed %d" % ("a climb that won" if won
                                      else "a climb that died", seed + at)
             subtitle = ("%s at update %d, the turn searched in fights - "

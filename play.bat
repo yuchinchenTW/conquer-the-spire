@@ -122,7 +122,7 @@ echo.
 echo   The pictures come from Assets\cards. If they are missing, run
 echo   this once:  python Scripts\get_card_art.py
 echo.
-"%PYTHON%" Python\cts_story.py "%WEIGHTS%" %*
+"%PYTHON%" Python\cts_story.py "%WEIGHTS%" --seed %RANDOM%00 %*
 echo.
 pause
 goto menu
