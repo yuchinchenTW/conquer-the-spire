@@ -126,15 +126,18 @@ could *name*, not on what it could play like. Notes/ has the measurements.
 
 ### The weights
 
-The climber these numbers are from is on the [releases page][releases]
-rather than in the repository - it is 119 MB, GitHub refuses a file over
-100 MB, and a clone should not carry one either way. Unzip
-`ironclad-best-look2.zip` into `runs/ironclad/` and everything below
-finds it:
+The climber these numbers are from is [best-look2.pt][weights], 119 MB,
+on the releases page rather than in the repository - GitHub refuses a file
+that size in one, and a clone should not carry it either way. Put it here
+and everything below finds it:
 
 ```
 runs/ironclad/best-look2.pt
 ```
+
+    update    356200
+    climbs    12,365,345
+    sha256    32cf432bd30298f9588e8d0176d512a5b415f79fb781f769289279f41344440b
 
 It is a PyTorch checkpoint and carries everything needed to play it: the
 width of the net, the act limit, what a point of health cost in training.
@@ -143,7 +146,7 @@ Nothing else from the run is needed.
 Training your own instead takes about a day to reach the plateau on one
 GPU. `train.bat` asks what to train and remembers the answers.
 
-[releases]: https://github.com/yuchinchenTW/conquer-the-spire/releases
+[weights]: https://github.com/yuchinchenTW/conquer-the-spire/releases/download/v1-ironclad/best-look2.pt
 
 ### Running it
 
