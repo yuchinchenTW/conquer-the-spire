@@ -107,6 +107,13 @@ Act limit 3, so the spire's own top - act 4 and the Heart - is not in any
 of it, and every number is against this engine's rules rather than the
 game's.
 
+The search walks its sequences on a copy of the fight, and the copy
+carries the run's own random state - so what it sees is exactly what will
+happen, the next hand of cards included. That is the same information a
+player has who saves and reloads to find out, and more of it at once: a
+reload tries one line, the search weighs a hundred and twenty. Worth
+knowing before setting this beside anything that plays blind.
+
 The gap between the first row and the last is the interesting part. Five
 training runs all peaked at the same place, 22.5% won, and then lost the
 third act's boss fight and nothing else - the floors, the act bosses and
