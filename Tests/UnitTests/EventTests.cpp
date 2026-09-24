@@ -75,6 +75,60 @@ std::size_t OptionOf(const Event& event, const std::string& label)
 }
 }  // namespace
 
+TEST_CASE("Ancient Writing sharpens the Strikes and Defends, and no more")
+{
+    // The wiki says Simplicity is "Upgrade all Strikes and Defends". The
+    // engine used to sharpen every card of BASIC rarity, and BASIC is the
+    // whole starting deck - so Bash went with them, and Bash+ is 10 damage
+    // and 3 Vulnerable against 8 and 2. The Silent's Neutralize and
+    // Survivor and the Defect's Zap and Dualcast are the same story.
+    Run run(CardColor::RED, 3u);
+
+    int strikes = 0;
+    int defends = 0;
+    int bashes = 0;
+
+    for (const auto& card : run.GetPlayer().GetDeck())
+    {
+        strikes += card.GetName() == "Strike" ? 1 : 0;
+        defends += card.GetName() == "Defend" ? 1 : 0;
+        bashes += card.GetName() == "Bash" ? 1 : 0;
+    }
+
+    REQUIRE(strikes > 0);
+    REQUIRE(defends > 0);
+    REQUIRE(bashes == 1);
+
+    run.StartEvent(EventId::ANCIENT_WRITING);
+
+    REQUIRE(run.ChooseEventOption(1) == true);
+
+    // A sharpened card answers GetName() with a + on the end.
+    const auto named = [](const Card& card, const char* what) {
+        return card.GetName().rfind(what, 0u) == 0u;
+    };
+
+    int sharpStrikes = 0;
+    int sharpDefends = 0;
+    int sharpBashes = 0;
+
+    for (const auto& card : run.GetPlayer().GetDeck())
+    {
+        if (!card.IsUpgraded())
+        {
+            continue;
+        }
+
+        sharpStrikes += named(card, "Strike") ? 1 : 0;
+        sharpDefends += named(card, "Defend") ? 1 : 0;
+        sharpBashes += named(card, "Bash") ? 1 : 0;
+    }
+
+    CHECK(sharpStrikes == strikes);
+    CHECK(sharpDefends == defends);
+    CHECK(sharpBashes == 0);
+}
+
 TEST_CASE("Every room of the act is built with something to choose")
 {
     std::vector<EventId> all = EventLibrary::GetAct1Rooms();

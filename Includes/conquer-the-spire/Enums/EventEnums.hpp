@@ -152,6 +152,9 @@ enum class EventEffectType
     //! Sharpens every card of the deck, or only the ones a starting deck is
     //! made of.
     UPGRADE_ALL,
+    //! Every Strike and every Defend, which is what Ancient Writing's
+    //! Simplicity gives - not the whole starting deck, which would take
+    //! Bash, Neutralize, Survivor, Zap and Dualcast with it.
     UPGRADE_ALL_BASIC,
 
     //! Takes every card of a kind out, and hands over copies of another.

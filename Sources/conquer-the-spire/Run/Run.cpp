@@ -1164,7 +1164,14 @@ void Run::ResolveEventEffect(const EventEffect& effect,
         case EventEffectType::UPGRADE_ALL:
         case EventEffectType::UPGRADE_ALL_BASIC:
         {
-            const bool basicOnly =
+            // Ancient Writing's Simplicity is "upgrade all Strikes and
+            // Defends" and not "upgrade the starting deck": BASIC covers
+            // the whole of that deck, so sharpening by rarity took the
+            // Ironclad's Bash with it, and the Silent's Neutralize and
+            // Survivor, and the Defect's Zap and Dualcast. Bash+ is 10
+            // damage and 3 Vulnerable against 8 and 2, which is most of a
+            // rare card handed over for nothing.
+            const bool strikesAndDefends =
                 effect.type == EventEffectType::UPGRADE_ALL_BASIC;
 
             for (std::size_t i = 0; i < m_player.GetDeck().size(); ++i)
@@ -1174,10 +1181,15 @@ void Run::ResolveEventEffect(const EventEffect& effect,
                     continue;
                 }
 
-                if (basicOnly &&
-                    m_player.GetDeck()[i].GetRarity() != CardRarity::BASIC)
+                if (strikesAndDefends)
                 {
-                    continue;
+                    const std::string& called =
+                        m_player.GetDeck()[i].GetName();
+
+                    if (called != "Strike" && called != "Defend")
+                    {
+                        continue;
+                    }
                 }
 
                 Smith(i);
