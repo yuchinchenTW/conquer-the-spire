@@ -24,7 +24,7 @@ const char* NameOf(LogEntry entry)
         "floor_walked",  "act_started",    "room_entered", "room_answered",
         "rested",        "died",           "spire_done",   "room_passed",
         "path_passed",   "curse_chosen",   "curse_refused",
-        "fight_started", "card_played",    "card_not_removed",
+        "card_played",   "fight_started",  "card_not_removed",
         "card_not_upgraded"};
 
     static_assert(sizeof(names) / sizeof(names[0]) ==

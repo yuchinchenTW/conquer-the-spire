@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -47,6 +48,38 @@ LogLine Last(const Run& run, LogEntry entry)
     return found;
 }
 }  // namespace
+
+TEST_CASE("Every kind of line is called what it is")
+{
+    // The table of names is written out by hand beside the enum, and the
+    // assertion next to it counts the names without looking at their
+    // order. Two were the wrong way round - a card played was written
+    // down as a fight started and a fight as a card played - and every
+    // tool reading the log repeated it, because the engine is where they
+    // all ask. Counting could not see that; reading can.
+    CHECK(std::string(NameOf(LogEntry::CARD_PLAYED)) == "card_played");
+    CHECK(std::string(NameOf(LogEntry::FIGHT_STARTED)) == "fight_started");
+    CHECK(std::string(NameOf(LogEntry::CARD_NOT_REMOVED)) ==
+          "card_not_removed");
+    CHECK(std::string(NameOf(LogEntry::CARD_NOT_UPGRADED)) ==
+          "card_not_upgraded");
+    CHECK(std::string(NameOf(LogEntry::INVALID)) == "invalid");
+    CHECK(std::string(NameOf(LogEntry::CARD_TAKEN)) == "card_taken");
+    CHECK(std::string(NameOf(LogEntry::CURSE_REFUSED)) == "curse_refused");
+    CHECK(std::string(NameOf(LogEntry::FIGHT_WON)) == "fight_won");
+    CHECK(std::string(NameOf(LogEntry::SPIRE_DONE)) == "spire_done");
+
+    // And no two of them are the same, which is the other way a table
+    // written by hand goes wrong.
+    std::set<std::string> seen;
+
+    for (int at = 0; at < static_cast<int>(LogEntry::COUNT); ++at)
+    {
+        seen.insert(NameOf(static_cast<LogEntry>(at)));
+    }
+
+    CHECK(seen.size() == static_cast<std::size_t>(LogEntry::COUNT));
+}
 
 TEST_CASE("A climb writes down the cards it takes and tears up")
 {

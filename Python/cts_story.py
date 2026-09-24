@@ -32,7 +32,8 @@ except ImportError:  # pragma: no cover
     raise
 
 from cts_log import card_name, event_name, event_option_name
-from cts_log import lines_of, potion_name, relic_name, summary_of
+from cts_log import lines_of, monster_name, potion_name, relic_name
+from cts_log import summary_of
 from cts_plot import ART, ART_FROM_PAGE, KIND_COLOURS, _slug
 from cts_watch import climb, load
 
@@ -43,16 +44,16 @@ PAGE = "climb.html"
 #! order is the order the columns of a floor appear in.
 KINDS = {
     "card_taken": ("took", "", "good"),
-    "card_bought": ("bought", "", "good"),
+    "card_bought": ("bought", "", "bought"),
     "card_passed": ("passed over", "", "faded"),
     "card_removed": ("tore up", "", "gone"),
     "card_upgraded": ("sharpened", "", "sharp"),
     "card_transformed": ("turned", "", "sharp"),
     "relic_taken": ("took", "relic_", "good"),
-    "relic_bought": ("bought", "relic_", "good"),
+    "relic_bought": ("bought", "relic_", "bought"),
     "relic_passed": ("passed over", "relic_", "faded"),
     "potion_taken": ("took", "potion_", "good"),
-    "potion_bought": ("bought", "potion_", "good"),
+    "potion_bought": ("bought", "potion_", "bought"),
     "potion_passed": ("passed over", "potion_", "faded"),
     "potion_drunk": ("drank", "potion_", "used"),
     "potion_thrown": ("threw away", "potion_", "gone"),
@@ -61,6 +62,11 @@ KINDS = {
 #! What each kind of room is called where the page says where it walked.
 ROOM_NAMES = ["nothing", "a fight", "an elite", "an event", "a fire",
               "a shop", "a chest", "the boss"]
+
+#! How many floors an act has. The engine counts them from one again in
+#! every act, which on a page reads as going back to the bottom; the spire
+#! itself counts through, so the page says both.
+ACT_FLOORS = 16
 
 
 def nameOf(entry, id_):
@@ -111,7 +117,8 @@ def floors(lines):
         where = (line["act"], line["floor"])
 
         if at is None or at["where"] != where:
-            at = {"where": where, "room": None, "things": [], "notes": []}
+            at = {"where": where, "room": None, "things": [],
+                  "notes": [], "monsters": None}
             out.append(at)
 
         entry = line["entry"]
@@ -121,8 +128,16 @@ def floors(lines):
                           if 0 <= line["id"] < len(ROOM_NAMES) else "?")
         elif entry in KINDS:
             what, prefix, mood = KINDS[entry]
+
+            if line["source"] == "shop" and what in ("took", "bought"):
+                what, mood = "bought", "bought"
+            elif line["source"] == "shop" and what == "passed over":
+                what = "did not buy"
+
             at["things"].append((what, mood, nameOf(entry, line["id"]),
                                  prefix, entry))
+        elif entry == "fight_started":
+            at["monsters"] = str(monster_name(line["id"]))
         elif entry == "room_entered":
             at["notes"].append("at %s" % event_name(line["id"]))
         elif entry == "room_answered":
@@ -144,7 +159,7 @@ def floors(lines):
             at["notes"].append("act %d begins" % line["id"])
 
     return [one for one in out if one["things"] or one["notes"]
-            or one["room"]]
+            or one["room"] or one["monsters"]]
 
 
 STYLE = """
@@ -160,6 +175,7 @@ h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
          padding: 9px 0; border-bottom: 1px solid #1e1d25; }
 .at { color: #6f6a5e; font-variant-numeric: tabular-nums; padding-top: 3px; }
 .at b { color: #a9a396; font-weight: 600; display: block; }
+.at .small { font-size: 11px; color: #56524a; display: block; }
 .what { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
 .group { display: flex; flex-direction: column; gap: 3px; }
 .group .label { font-size: 11px; letter-spacing: .06em;
@@ -174,6 +190,8 @@ img, .tile { width: 46px; height: 46px; object-fit: cover; border-radius: 3px;
 .gone img, .gone .tile { outline: 2px solid #9c5a5a; opacity: .55; }
 .sharp img, .sharp .tile { outline: 2px solid #c8a15a; }
 .used img, .used .tile { outline: 2px solid #5a7f9c; }
+.bought img, .bought .tile { outline: 2px solid #c8a15a; }
+.against { color: #a9776a; font-size: 13px; padding-top: 3px; }
 .notes { color: #8d8879; font-size: 13px; padding-top: 3px; }
 .tally { margin: 30px 0 0; padding: 14px 16px; background: #1a1922;
          border-radius: 4px; display: flex; flex-wrap: wrap; gap: 26px; }
@@ -199,9 +217,16 @@ def page(lines, counts, title, subtitle):
             act = where[0]
             out.append('<div class="act">act %d</div>' % act)
 
-        out.append('<div class="floor"><div class="at"><b>floor %d</b>%s'
-                   '</div><div class="what">'
-                   % (where[1], html.escape(floor["room"] or "")))
+        # Both numbers: the spire's own, which counts through, and the
+        # act's, which is what the engine and the game's map both show.
+        through = (where[0] - 1) * ACT_FLOORS + where[1]
+
+        out.append('<div class="floor"><div class="at"><b>floor %d</b>'
+                   '<span class="small">act %d, %d</span>%s</div>'
+                   '<div class="what">'
+                   % (through, where[0], where[1],
+                      ("<br>" + html.escape(floor["room"]))
+                      if floor["room"] else ""))
 
         # Things of a kind go together: everything taken, then everything
         # passed over, so the choice reads as a choice.
@@ -217,6 +242,10 @@ def page(lines, counts, title, subtitle):
             out.append('<div class="group %s"><span class="label">%s</span>'
                        '<div class="row">%s</div></div>'
                        % (mood, html.escape(what), "".join(tags)))
+
+        if floor["monsters"]:
+            out.append('<div class="against">against %s</div>'
+                       % html.escape(floor["monsters"]))
 
         if floor["notes"]:
             out.append('<div class="notes">%s</div>'
