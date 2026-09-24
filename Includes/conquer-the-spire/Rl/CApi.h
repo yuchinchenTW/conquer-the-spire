@@ -198,6 +198,17 @@ CTS_API void cts_vec_set_deep_share(void* vec, float share);
 //! \param index which row
 //! \param text a climb as cts_save wrote it
 //! \return non-zero if the row took it
+//! One climb of a batch, as something the single-climb calls take.
+//!
+//! cts_log and cts_summary read a climb, and a batch holds its climbs
+//! inside itself. This hands one out so that the record of a climb played
+//! in a batch can be read the same way as one played on its own. The
+//! pointer belongs to the batch and dies with it.
+//! \param vec the batch
+//! \param index which climb
+//! \return the climb, or NULL if there is no such row
+CTS_API cts_env cts_vec_env(void* vec, size_t index);
+
 CTS_API int cts_vec_load_one(void* vec, size_t index, const char* text);
 
 //! Walks a sequence of moves on a copy of one climb and says where it

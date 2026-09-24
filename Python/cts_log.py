@@ -366,6 +366,14 @@ def describe(line):
 
     if entry == "card_taken":
         what = "took %s" % card_name(id_)
+    elif entry == "card_passed":
+        what = "passed on %s" % card_name(id_)
+    elif entry == "card_played":
+        what = "played %s" % card_name(id_)
+    elif entry == "card_bought":
+        what = "bought %s" % card_name(id_)
+    elif entry == "card_not_upgraded":
+        what = "left %s as it was" % card_name(id_)
     elif entry == "card_removed":
         what = "tore up %s" % card_name(id_)
     elif entry == "card_upgraded":

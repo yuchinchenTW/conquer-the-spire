@@ -59,6 +59,7 @@ echo     2. Play 100 climbs, the strong way   - about 15 minutes
 echo     3. Play 200 climbs, the strong way   - about 30 minutes
 echo     4. Play 200 climbs, the quick way    - under a minute
 echo     5. Play 20 climbs on seeds nobody has used
+echo     6. Watch one climb - every card it took and passed on
 echo.
 echo     Q. Quit
 echo.
@@ -78,6 +79,7 @@ if "%PICK%"=="2" set "CLIMBS=100"
 if "%PICK%"=="3" set "CLIMBS=200"
 if "%PICK%"=="4" set "CLIMBS=200" & set "HOW=--envs 32"
 if "%PICK%"=="5" set "CLIMBS=20" & set "SEED=%RANDOM%00"
+if "%PICK%"=="6" goto watch
 if defined CLIMBS goto play
 echo.
 echo   That was not one of them.
@@ -92,6 +94,19 @@ echo.
 echo   Ctrl-C stops it.
 echo.
 "%PYTHON%" Python\cts_play.py "%WEIGHTS%" %CLIMBS% %HOW% --seed %SEED%
+echo.
+pause
+goto menu
+
+:watch
+cls
+echo   One climb, written down: every card taken and passed on, every
+echo   relic, every room, floor by floor. It plays seeds in turn until
+echo   one is won, because that is the one worth reading.
+echo.
+echo   Add --cards to see every card it played in its fights as well.
+echo.
+"%PYTHON%" Python\cts_watch.py "%WEIGHTS%" --until-won --seed %RANDOM%00 %*
 echo.
 pause
 goto menu

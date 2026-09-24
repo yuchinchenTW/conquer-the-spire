@@ -551,6 +551,23 @@ void cts_vec_peek_moves(void* vec, const size_t* moves, size_t asked,
     }
 }
 
+cts_env cts_vec_env(void* vec, size_t index)
+{
+    if (vec == nullptr)
+    {
+        return nullptr;
+    }
+
+    VecSpireEnv* batch = static_cast<VecSpireEnv*>(vec);
+
+    if (index >= batch->GetCount())
+    {
+        return nullptr;
+    }
+
+    return &batch->At(index);
+}
+
 int cts_vec_load_one(void* vec, size_t index, const char* text)
 {
     if (vec == nullptr || text == nullptr)

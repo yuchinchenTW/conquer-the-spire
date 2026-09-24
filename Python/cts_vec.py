@@ -255,6 +255,33 @@ class VecSpireEnv(object):
                                                ctypes.c_float]
         lib.cts_vec_set_deep_share(self._vec, float(share))
 
+    def at(self, index):
+        """One climb of the batch, as the single-climb calls take it.
+
+        ``cts_log`` and ``cts_summary`` read a climb, and a batch holds its
+        climbs inside itself. What comes back is a thin stand-in carrying
+        the pointer, which belongs to the batch and dies with it: it is
+        for reading the record of a climb, not for stepping one.
+        """
+        lib = self._api.lib
+
+        lib.cts_vec_env.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+        lib.cts_vec_env.restype = ctypes.c_void_p
+
+        got = lib.cts_vec_env(self._vec, ctypes.c_size_t(int(index)))
+
+        if not got:
+            raise IndexError("no climb at %d" % index)
+
+        class OneClimb(object):
+            """A climb of a batch, for reading only."""
+
+            def __init__(self, pointer, api):
+                self._env = ctypes.c_void_p(pointer)
+                self._api = api
+
+        return OneClimb(got, self._api)
+
     def load_one(self, index, text):
         """Takes a saved climb into the row at \\p index."""
         lib = self._api.lib
